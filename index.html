@@ -6,25 +6,25 @@
   <title>Cloze Practice</title>
   <link rel="manifest" href="manifest.json">
   <style>
-    /* 采用 cloze.txt 的核心样式 [cite: 10, 11] */
     body { margin: 1em; max-width: 60em; font-family: sans-serif; line-height: 1.6; }
     textarea, button { width: 100%; font-size: 1em; margin-top: 0.5em; padding: 0.4em; box-sizing: border-box; }
     
-    /* 确保输入框是行内显示，而不是占满一行  */
     .cloze { margin-top: 1em; white-space: pre-wrap; }
     .cloze input { font-size: 1em; margin: 0 0.2em; padding: 0 0.2em; border: 1px solid #ccc; border-radius: 4px; }
     
-    .correct { background: #c8f7c5; } /* [cite: 14] */
-    .wrong { background: #f7c5c5; }   /* [cite: 15] */
+    .correct { background: #c8f7c5; }
+    .wrong { background: #f7c5c5; }
     
     .n-input { width: 60px; display: inline-block; margin-left: 10px; }
+    /* 让括号内容颜色稍淡，方便区分 */
+    .brackets { color: #888; }
   </style>
 </head>
 <body>
 
 <h1>Cloze Practice</h1>
 
-<p>Step 1: Paste your text</p>
+<p>Step 1: Paste your text (Text in brackets will be ignored)</p>
 <textarea id="inputText" rows="8" placeholder="Paste your text here..."></textarea>
 
 <p>Step 2: Set N (every Nth word will be blank) 
@@ -42,16 +42,33 @@
   function generateCloze(text, n) {
     let index = 0;
     answers = [];
-    // 使用正则表达式匹配单词 [cite: 17]
-    return text.replace(/\b([a-zA-Z]+)\b/g, function (word) {
-      index++;
-      if (index % n === 1) {
-        const id = answers.length;
-        answers.push(word);
-        // 生成行内输入框 [cite: 17]
-        return `<input data-id="${id}" autocomplete="off" size="${word.length}">`;
+    
+    /**
+     * 核心逻辑修改：
+     * 使用 | (或) 运算符。
+     * 第一部分 \([^)]*\) 匹配括号内容。
+     * 第二部分 \b([a-zA-Z]+)\b 匹配单词。
+     */
+    const regex = /\([^)]*\)|\b([a-zA-Z]+)\b/g;
+
+    return text.replace(regex, function (match, word) {
+      // 如果匹配到的是以 '(' 开头的内容，说明是括号提示，直接返回不计入 index
+      if (match.startsWith('(')) {
+        return `<span class="brackets">${match}</span>`;
       }
-      return word;
+
+      // 如果匹配到的是普通单词
+      if (word) {
+        index++;
+        // 这里的逻辑是：每隔 n 个单词挖一个空
+        if (index % n === 1) {
+          const id = answers.length;
+          answers.push(word);
+          return `<input data-id="${id}" autocomplete="off" size="${word.length}">`;
+        }
+        return word;
+      }
+      return match;
     });
   }
 
@@ -59,25 +76,22 @@
     const id = input.dataset.id;
     const answer = answers[id];
     if (!input.value) { input.className = ""; return; }
-    // 忽略大小写检查 [cite: 20]
     input.className = input.value.trim().toLowerCase() === answer.toLowerCase() ? "correct" : "wrong";
   }
 
   document.getElementById("generate").onclick = function () {
     const text = document.getElementById("inputText").value;
-    let n = parseInt(document.getElementById("nthWord").value) || 4; // 默认值为4 [cite: 8]
+    let n = parseInt(document.getElementById("nthWord").value) || 4;
     
     document.getElementById("clozeDisplay").innerHTML = generateCloze(text, n);
 
-    // 绑定失焦验证 [cite: 23]
     document.querySelectorAll("#clozeDisplay input").forEach(input => {
       input.addEventListener("blur", () => checkInput(input));
     });
   };
 
-  // 注册 PWA Service Worker 
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js');
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
   }
 </script>
 
