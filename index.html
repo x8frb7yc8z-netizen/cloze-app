@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloze Web App</title>
+<link rel="manifest" href="manifest.json">
+<style>
+body { margin:1em; font-family:sans-serif; max-width:60em; }
+textarea,input,button { width:100%; font-size:1em; margin-top:0.5em; padding:0.3em; box-sizing:border-box; }
+.cloze input { font-size:1em; margin:0 0.2em; padding:0 0.2em; }
+.correct { background:#c8f7c5; }
+.wrong { background:#f7c5c5; }
+</style>
+</head>
+<body>
+
+<h1>Cloze Web App</h1>
+
+<p>Step 1: Paste your text</p>
+<textarea id="inputText" rows="6" placeholder="Enter your text here..."></textarea>
+
+<p>Step 2: Set N (every Nth word will be blank)</p>
+<input id="nthWord" type="number" value="4" min="1">
+
+<button id="generate">Generate Cloze</button>
+
+<hr>
+
+<div id="cloze" class="cloze"></div>
+
+<script>
+let answers = [];
+
+function generateCloze(text, n) {
+  let index = 0;
+  answers = [];
+  return text.replace(/\b([a-zA-Z]+)\b/g, function(word){
+    index++;
+    if(index % n === 1){
+      const id = answers.length;
+      answers.push(word);
+      return `<input data-id="${id}" size="${word.length}" autocomplete="off">`;
+    }
+    return word;
+  });
+}
+
+function checkInput(input){
+  const id = input.dataset.id;
+  const answer = answers[id];
+  if(!input.value){ input.className=""; return; }
+  input.className = input.value.trim().toLowerCase() === answer.toLowerCase() ? "correct" : "wrong";
+}
+
+document.getElementById("generate").onclick = function(){
+  const text = document.getElementById("inputText").value;
+  let n = parseInt(document.getElementById("nthWord").value);
+  if(isNaN(n)||n<1) n=4;
+  document.getElementById("cloze").innerHTML = generateCloze(text,n);
+  document.querySelectorAll("#cloze input").forEach(input=>{
+    input.addEventListener("blur",()=>checkInput(input));
+  });
+};
+
+// 注册 Service Worker 支持离线缓存
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('service-worker.js');
+}
+</script>
+
+</body>
+</html>
