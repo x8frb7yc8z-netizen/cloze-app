@@ -2,8 +2,8 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes">
-  <title>Cloze Master (iOS Optimized)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Cloze Master (Unified Font)</title>
   <style>
     * { box-sizing: border-box; }
     
@@ -12,15 +12,14 @@
       padding: 0; 
       width: 100%; 
       overflow-x: hidden;
+      /* 统一设置全局字体 */
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
       line-height: 1.6; 
       font-size: 18px; 
       background-color: #fff; 
-      /* 允许全局文本选择 */
-      -webkit-user-select: text;
-      user-select: text;
     }
     
+    /* 强制所有输入组件继承父级字体 */
     textarea, button, input, select {
       font-family: inherit; 
       font-size: 1em;
@@ -60,18 +59,15 @@
     #clearBtn { background-color: #ff5252; color: white; flex: 1; }
     #generate { background-color: #43a047; color: white; flex: 2; }
 
-    /* 优化后的练习区：确保 iOS 长按弹出菜单 */
     .cloze { 
       width: 100%;
       padding: 30px 20px; 
       white-space: pre-wrap; 
       word-wrap: break-word;
       min-height: 400px;
-      -webkit-user-select: text !important;
-      user-select: text !important;
-      -webkit-tap-highlight-color: rgba(0,0,0,0);
     }
     
+    /* 填空输入框样式优化：去掉边框，改用下划线，保持字体一致 */
     .cloze input { 
       margin: 0 2px;
       padding: 0 5px;
@@ -80,8 +76,7 @@
       background-color: #fffde7; 
       text-align: center;
       color: #000;
-      /* 输入框内部也应允许选择，但通常保持默认 */
-      -webkit-user-select: auto;
+      transition: all 0.2s;
     }
     
     .cloze input:focus {
@@ -90,8 +85,8 @@
       background-color: #e3f2fd;
     }
     
-    .correct { background-color: #c8f7c5 !important; border-bottom-color: #2e7d32 !important; }
-    .wrong { background-color: #f7c5c5 !important; border-bottom-color: #c62828 !important; }
+    .correct { background-color: #c8f7c5 !important; border-bottom-color: #2e7d32 !important; color: #1b5e20 !important; }
+    .wrong { background-color: #f7c5c5 !important; border-bottom-color: #c62828 !important; color: #b71c1c !important; }
     
     .n-input { width: 60px; padding: 4px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
     .brackets { color: #999; font-style: italic; }
@@ -99,10 +94,12 @@
     .status-bar {
       background: #333;
       color: #fff;
-      padding: 10px 20px;
+      padding: 8px 20px;
       font-size: 0.85em;
       position: sticky;
       bottom: 0;
+      display: flex;
+      justify-content: space-between;
     }
   </style>
 </head>
@@ -111,26 +108,27 @@
 <div class="container">
   <div class="controls-bar">
     <b style="font-size: 1.1em;">Cloze Master</b>
-    <span style="margin-left:10px">Size:</span>
+    <span style="margin-left:10px">Text Size:</span>
     <button class="font-btn" onclick="changeFontSize(2)">+</button>
     <button class="font-btn" onclick="changeFontSize(-2)">-</button>
     <span id="sizeLabel">18</span>px
     <div style="margin-left: auto;">
-      N: <input id="nthWord" class="n-input" type="number" value="4" min="1">
+      Every <input id="nthWord" class="n-input" type="number" value="4" min="1"> th word blank
     </div>
   </div>
 
-  <textarea id="inputText" placeholder="Paste text... (Long press words to look up on iOS)"></textarea>
+  <textarea id="inputText" placeholder="Paste your text here..."></textarea>
 
   <div class="btn-group">
-    <button id="clearBtn">CLEAR</button>
-    <button id="generate">GENERATE</button>
+    <button id="clearBtn">CLEAR TEXT</button>
+    <button id="generate">GENERATE EXERCISE</button>
   </div>
 
   <div id="clozeDisplay" class="cloze"></div>
 
   <div class="status-bar">
-    💡 iOS Tip: Long-press any word to "Look Up" or "Translate".
+    <span>💡 Hint: <b>Spacebar</b> reveals next letter.</span>
+    <span>Unified Font: Sans-Serif</span>
   </div>
 </div>
 
@@ -148,6 +146,7 @@
   function generateCloze(text, n) {
     let index = 0;
     answers = [];
+    // 匹配括号内容或单词
     const regex = /\([^)]*\)|\b([a-zA-Z]+)\b/g;
 
     return text.replace(regex, function (match, word) {
@@ -157,6 +156,7 @@
         if (index % n === 1) {
           const id = answers.length;
           answers.push(word);
+          // 使用 ch 单位确保输入框宽度随字数变化且字体对齐
           return `<input data-id="${id}" autocomplete="off" style="width: ${word.length + 1.5}ch">`;
         }
         return word;
@@ -199,6 +199,7 @@
       input.addEventListener("keydown", handleHint);
     });
     
+    // 平滑滚动
     window.scrollTo({ top: document.querySelector('.btn-group').offsetTop, behavior: 'smooth' });
   };
 
