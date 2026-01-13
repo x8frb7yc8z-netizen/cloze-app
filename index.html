@@ -2,76 +2,162 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cloze Practice - Optimized</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=yes">
+  <title>Cloze Master (iOS Optimized)</title>
   <style>
-    body { margin: 1em; max-width: 60em; font-family: sans-serif; line-height: 1.6; background-color: #f9f9f9; }
-    textarea { width: 100%; font-size: 1em; padding: 0.8em; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    * { box-sizing: border-box; }
     
-    .button-row { display: flex; gap: 1em; margin: 1em 0; }
-    button { flex: 1; padding: 0.6em; font-size: 1em; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; background: #fff; }
-    button#generate { background: #007bff; color: white; border: none; }
-    button#clearText { background: #eeeeee; }
-
-    .cloze { margin-top: 2em; padding: 1.5em; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); white-space: pre-wrap; }
-    .cloze input { 
-      font-size: 1em;
-      margin: 0 0.2em;
-      padding: 0 0.2em;
-      border: 1px solid #ccc; /* 恢复边框 */
-      border-radius: 4px;     /* 圆角 */
-      background: #fff;       /* 白色背景 */
+    html, body { 
+      margin: 0; 
+      padding: 0; 
+      width: 100%; 
+      overflow-x: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+      line-height: 1.6; 
+      font-size: 18px; 
+      background-color: #fff; 
+      /* 允许全局文本选择 */
+      -webkit-user-select: text;
+      user-select: text;
     }
-    .cloze input:focus { background: #e8f0fe; border-bottom-color: #007bff; }
     
-    .correct { background: #c8f7c5 !important; border-bottom-color: #28a745 !important; }
-    .wrong { background: #f7c5c5 !important; border-bottom-color: #dc3545 !important; }
+    textarea, button, input, select {
+      font-family: inherit; 
+      font-size: 1em;
+    }
+
+    .controls-bar {
+      background: #f1f3f4;
+      padding: 10px 15px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid #ccc;
+    }
+
+    .font-btn { padding: 4px 15px; cursor: pointer; border: 1px solid #999; background: white; border-radius: 4px; }
+
+    textarea { 
+      width: 100%; 
+      padding: 20px; 
+      border: none;
+      border-bottom: 2px solid #43a047;
+      outline: none;
+      display: block;
+      background-color: #fafafa;
+      resize: vertical;
+      min-height: 200px;
+    }
+
+    .btn-group { display: flex; width: 100%; }
+    .btn-group button { 
+      border: none; 
+      padding: 18px; 
+      font-weight: bold; 
+      cursor: pointer; 
+    }
+    #clearBtn { background-color: #ff5252; color: white; flex: 1; }
+    #generate { background-color: #43a047; color: white; flex: 2; }
+
+    /* 优化后的练习区：确保 iOS 长按弹出菜单 */
+    .cloze { 
+      width: 100%;
+      padding: 30px 20px; 
+      white-space: pre-wrap; 
+      word-wrap: break-word;
+      min-height: 400px;
+      -webkit-user-select: text !important;
+      user-select: text !important;
+      -webkit-tap-highlight-color: rgba(0,0,0,0);
+    }
     
-    .n-input { width: 60px; padding: 0.4em; border-radius: 4px; border: 1px solid #ccc; }
-    .brackets { color: #888; font-style: italic; opacity: 0.7; }
+    .cloze input { 
+      margin: 0 2px;
+      padding: 0 5px;
+      border: none;
+      border-bottom: 2px solid #666;
+      background-color: #fffde7; 
+      text-align: center;
+      color: #000;
+      /* 输入框内部也应允许选择，但通常保持默认 */
+      -webkit-user-select: auto;
+    }
+    
+    .cloze input:focus {
+      outline: none;
+      border-bottom-color: #2196f3;
+      background-color: #e3f2fd;
+    }
+    
+    .correct { background-color: #c8f7c5 !important; border-bottom-color: #2e7d32 !important; }
+    .wrong { background-color: #f7c5c5 !important; border-bottom-color: #c62828 !important; }
+    
+    .n-input { width: 60px; padding: 4px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
+    .brackets { color: #999; font-style: italic; }
+    
+    .status-bar {
+      background: #333;
+      color: #fff;
+      padding: 10px 20px;
+      font-size: 0.85em;
+      position: sticky;
+      bottom: 0;
+    }
   </style>
 </head>
 <body>
 
-<h1>Cloze Practice</h1>
+<div class="container">
+  <div class="controls-bar">
+    <b style="font-size: 1.1em;">Cloze Master</b>
+    <span style="margin-left:10px">Size:</span>
+    <button class="font-btn" onclick="changeFontSize(2)">+</button>
+    <button class="font-btn" onclick="changeFontSize(-2)">-</button>
+    <span id="sizeLabel">18</span>px
+    <div style="margin-left: auto;">
+      N: <input id="nthWord" class="n-input" type="number" value="4" min="1">
+    </div>
+  </div>
 
-<p>Step 1: Paste your text</p>
-<textarea id="inputText" rows="8" placeholder="Paste your text here..."></textarea>
+  <textarea id="inputText" placeholder="Paste text... (Long press words to look up on iOS)"></textarea>
 
-<p>Step 2: Set N (every Nth word will be blank) 
-  <input id="nthWord" class="n-input" type="number" value="4" min="1">
-</p>
+  <div class="btn-group">
+    <button id="clearBtn">CLEAR</button>
+    <button id="generate">GENERATE</button>
+  </div>
 
-<div class="button-row">
-  <button id="generate">Generate Cloze</button>
-  <button id="clearText">Clear Text (清空文本)</button>
+  <div id="clozeDisplay" class="cloze"></div>
+
+  <div class="status-bar">
+    💡 iOS Tip: Long-press any word to "Look Up" or "Translate".
+  </div>
 </div>
-
-<hr>
-<div id="clozeDisplay" class="cloze"></div>
 
 <script>
   let answers = [];
+  let currentFontSize = 18;
 
-  // 生成完形填空 HTML
+  function changeFontSize(delta) {
+    currentFontSize += delta;
+    if (currentFontSize < 10) currentFontSize = 10;
+    document.body.style.fontSize = currentFontSize + "px";
+    document.getElementById("sizeLabel").innerText = currentFontSize;
+  }
+
   function generateCloze(text, n) {
     let index = 0;
     answers = [];
-    // 匹配括号内容 或 单词
     const regex = /\([^)]*\)|\b([a-zA-Z]+)\b/g;
 
-    return text.replace(regex, function(match, word) {
-      if (match.startsWith('(')) {
-        return `<span class="brackets">${match}</span>`;
-      }
-
+    return text.replace(regex, function (match, word) {
+      if (match.startsWith('(')) return `<span class="brackets">${match}</span>`;
       if (word) {
         index++;
         if (index % n === 1) {
           const id = answers.length;
           answers.push(word);
-          // 初始 data-focused 为 "false"
-          return `<input data-id="${id}" autocomplete="off" size="${word.length}" data-hint-count="0" data-is-focused="false">`;
+          return `<input data-id="${id}" autocomplete="off" style="width: ${word.length + 1.5}ch">`;
         }
         return word;
       }
@@ -79,87 +165,48 @@
     });
   }
 
-  // 检查输入正确性
   function checkInput(input) {
     const id = input.dataset.id;
     const answer = answers[id];
-    if (!input.value) { 
-      input.className = ""; 
-      return; 
-    }
+    if (!input.value) { input.className = ""; return; }
     input.className = input.value.trim().toLowerCase() === answer.toLowerCase() ? "correct" : "wrong";
   }
 
-  function setupInputEvents() {
-    const inputs = document.querySelectorAll("#clozeDisplay input");
-
-    inputs.forEach((input, currentIndex) => {
-      
-      // 1. 失去焦点：检查答案
-      input.addEventListener("blur", () => {
+  function handleHint(event) {
+    if (event.code === 'Space') {
+      event.preventDefault();
+      const input = event.target;
+      const id = input.dataset.id;
+      const fullAnswer = answers[id];
+      const currentVal = input.value;
+      if (currentVal.length < fullAnswer.length) {
+        input.value = fullAnswer.substring(0, currentVal.length + 1);
         checkInput(input);
-        input.dataset.isFocused = "false"; // 失去焦点重置状态
-      });
-
-      // 2. 聚焦：仅标记状态，重置提示计数
-      input.addEventListener("focus", () => {
-        input.dataset.isFocused = "true";
-        input.dataset.hintCount = "0"; // 每次重新聚焦可以从第一个字母开始提示（或者不重置，取决于偏好）
-      });
-
-      // 3. 点击：处理提示逻辑
-      input.addEventListener("mousedown", (e) => {
-        // 如果当前已经是在聚焦状态下点击
-        if (document.activeElement === input && input.dataset.isFocused === "true") {
-          const id = input.dataset.id;
-          const answer = answers[id];
-          let hintCount = parseInt(input.dataset.hintCount);
-
-          if (hintCount < answer.length) {
-            hintCount++;
-            input.value = answer.slice(0, hintCount);
-            input.dataset.hintCount = hintCount;
-            checkInput(input);
-          }
-        }
-      });
-
-      // 4. 回车跳转：回车检查并跳到下一个
-      input.addEventListener("keydown", e => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          checkInput(input);
-          
-          // 寻找下一个没有填对的或者下一个输入框
-          const nextInput = inputs[currentIndex + 1];
-          if (nextInput) {
-            nextInput.focus();
-          }
-        }
-      });
-    });
+      }
+    }
   }
 
-  // 按钮：生成
-  document.getElementById("generate").onclick = function() {
+  document.getElementById("generate").onclick = function () {
     const text = document.getElementById("inputText").value;
-    const n = parseInt(document.getElementById("nthWord").value) || 4;
-    if(!text.trim()) return alert("Please paste some text first!");
+    if(!text.trim()) return;
     
-    document.getElementById("clozeDisplay").innerHTML = generateCloze(text, n);
-    setupInputEvents();
+    let n = parseInt(document.getElementById("nthWord").value) || 4;
+    const display = document.getElementById("clozeDisplay");
+    display.innerHTML = generateCloze(text, n);
+
+    display.querySelectorAll("input").forEach(input => {
+      input.addEventListener("blur", () => checkInput(input));
+      input.addEventListener("keydown", handleHint);
+    });
+    
+    window.scrollTo({ top: document.querySelector('.btn-group').offsetTop, behavior: 'smooth' });
   };
 
-  // 按钮：清空 (Requirement 1)
-  document.getElementById("clearText").onclick = function() {
+  document.getElementById("clearBtn").onclick = function() {
     document.getElementById("inputText").value = "";
     document.getElementById("clozeDisplay").innerHTML = "";
     answers = [];
   };
-
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
-  }
 </script>
 
 </body>
