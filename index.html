@@ -3,35 +3,49 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Cloze Practice</title>
-  <link rel="manifest" href="manifest.json">
+  <title>Cloze Practice - Optimized</title>
   <style>
-    body { margin: 1em; max-width: 60em; font-family: sans-serif; line-height: 1.6; }
-    textarea, button { width: 100%; font-size: 1em; margin-top: 0.5em; padding: 0.4em; box-sizing: border-box; }
+    body { margin: 1em; max-width: 60em; font-family: sans-serif; line-height: 1.6; background-color: #f9f9f9; }
+    textarea { width: 100%; font-size: 1em; padding: 0.8em; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
     
-    .cloze { margin-top: 1em; white-space: pre-wrap; }
-    .cloze input { font-size: 1em; margin: 0 0.2em; padding: 0 0.2em; border: 1px solid #ccc; border-radius: 4px; }
+    .button-row { display: flex; gap: 1em; margin: 1em 0; }
+    button { flex: 1; padding: 0.6em; font-size: 1em; cursor: pointer; border-radius: 4px; border: 1px solid #ccc; background: #fff; }
+    button#generate { background: #007bff; color: white; border: none; }
+    button#clearText { background: #eeeeee; }
+
+    .cloze { margin-top: 2em; padding: 1.5em; background: white; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); white-space: pre-wrap; }
+    .cloze input { 
+      font-size: 1em;
+      margin: 0 0.2em;
+      padding: 0 0.2em;
+      border: 1px solid #ccc; /* 恢复边框 */
+      border-radius: 4px;     /* 圆角 */
+      background: #fff;       /* 白色背景 */
+    }
+    .cloze input:focus { background: #e8f0fe; border-bottom-color: #007bff; }
     
-    .correct { background: #c8f7c5; }
-    .wrong { background: #f7c5c5; }
+    .correct { background: #c8f7c5 !important; border-bottom-color: #28a745 !important; }
+    .wrong { background: #f7c5c5 !important; border-bottom-color: #dc3545 !important; }
     
-    .n-input { width: 60px; display: inline-block; margin-left: 10px; }
-    /* 让括号内容颜色稍淡，方便区分 */
-    .brackets { color: #888; }
+    .n-input { width: 60px; padding: 0.4em; border-radius: 4px; border: 1px solid #ccc; }
+    .brackets { color: #888; font-style: italic; opacity: 0.7; }
   </style>
 </head>
 <body>
 
 <h1>Cloze Practice</h1>
 
-<p>Step 1: Paste your text (Text in brackets will be ignored)</p>
+<p>Step 1: Paste your text</p>
 <textarea id="inputText" rows="8" placeholder="Paste your text here..."></textarea>
 
 <p>Step 2: Set N (every Nth word will be blank) 
   <input id="nthWord" class="n-input" type="number" value="4" min="1">
 </p>
 
-<button id="generate">Generate Cloze</button>
+<div class="button-row">
+  <button id="generate">Generate Cloze</button>
+  <button id="clearText">Clear Text (清空文本)</button>
+</div>
 
 <hr>
 <div id="clozeDisplay" class="cloze"></div>
@@ -39,32 +53,25 @@
 <script>
   let answers = [];
 
+  // 生成完形填空 HTML
   function generateCloze(text, n) {
     let index = 0;
     answers = [];
-    
-    /**
-     * 核心逻辑修改：
-     * 使用 | (或) 运算符。
-     * 第一部分 \([^)]*\) 匹配括号内容。
-     * 第二部分 \b([a-zA-Z]+)\b 匹配单词。
-     */
+    // 匹配括号内容 或 单词
     const regex = /\([^)]*\)|\b([a-zA-Z]+)\b/g;
 
-    return text.replace(regex, function (match, word) {
-      // 如果匹配到的是以 '(' 开头的内容，说明是括号提示，直接返回不计入 index
+    return text.replace(regex, function(match, word) {
       if (match.startsWith('(')) {
         return `<span class="brackets">${match}</span>`;
       }
 
-      // 如果匹配到的是普通单词
       if (word) {
         index++;
-        // 这里的逻辑是：每隔 n 个单词挖一个空
         if (index % n === 1) {
           const id = answers.length;
           answers.push(word);
-          return `<input data-id="${id}" autocomplete="off" size="${word.length}">`;
+          // 初始 data-focused 为 "false"
+          return `<input data-id="${id}" autocomplete="off" size="${word.length}" data-hint-count="0" data-is-focused="false">`;
         }
         return word;
       }
@@ -72,22 +79,82 @@
     });
   }
 
+  // 检查输入正确性
   function checkInput(input) {
     const id = input.dataset.id;
     const answer = answers[id];
-    if (!input.value) { input.className = ""; return; }
+    if (!input.value) { 
+      input.className = ""; 
+      return; 
+    }
     input.className = input.value.trim().toLowerCase() === answer.toLowerCase() ? "correct" : "wrong";
   }
 
-  document.getElementById("generate").onclick = function () {
+  function setupInputEvents() {
+    const inputs = document.querySelectorAll("#clozeDisplay input");
+
+    inputs.forEach((input, currentIndex) => {
+      
+      // 1. 失去焦点：检查答案
+      input.addEventListener("blur", () => {
+        checkInput(input);
+        input.dataset.isFocused = "false"; // 失去焦点重置状态
+      });
+
+      // 2. 聚焦：仅标记状态，重置提示计数
+      input.addEventListener("focus", () => {
+        input.dataset.isFocused = "true";
+        input.dataset.hintCount = "0"; // 每次重新聚焦可以从第一个字母开始提示（或者不重置，取决于偏好）
+      });
+
+      // 3. 点击：处理提示逻辑
+      input.addEventListener("mousedown", (e) => {
+        // 如果当前已经是在聚焦状态下点击
+        if (document.activeElement === input && input.dataset.isFocused === "true") {
+          const id = input.dataset.id;
+          const answer = answers[id];
+          let hintCount = parseInt(input.dataset.hintCount);
+
+          if (hintCount < answer.length) {
+            hintCount++;
+            input.value = answer.slice(0, hintCount);
+            input.dataset.hintCount = hintCount;
+            checkInput(input);
+          }
+        }
+      });
+
+      // 4. 回车跳转：回车检查并跳到下一个
+      input.addEventListener("keydown", e => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          checkInput(input);
+          
+          // 寻找下一个没有填对的或者下一个输入框
+          const nextInput = inputs[currentIndex + 1];
+          if (nextInput) {
+            nextInput.focus();
+          }
+        }
+      });
+    });
+  }
+
+  // 按钮：生成
+  document.getElementById("generate").onclick = function() {
     const text = document.getElementById("inputText").value;
-    let n = parseInt(document.getElementById("nthWord").value) || 4;
+    const n = parseInt(document.getElementById("nthWord").value) || 4;
+    if(!text.trim()) return alert("Please paste some text first!");
     
     document.getElementById("clozeDisplay").innerHTML = generateCloze(text, n);
+    setupInputEvents();
+  };
 
-    document.querySelectorAll("#clozeDisplay input").forEach(input => {
-      input.addEventListener("blur", () => checkInput(input));
-    });
+  // 按钮：清空 (Requirement 1)
+  document.getElementById("clearText").onclick = function() {
+    document.getElementById("inputText").value = "";
+    document.getElementById("clozeDisplay").innerHTML = "";
+    answers = [];
   };
 
   if ('serviceWorker' in navigator) {
