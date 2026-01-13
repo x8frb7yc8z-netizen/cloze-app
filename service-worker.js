@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cloze-app-cache-v3';
+const CACHE_NAME = 'cloze-app-cache-v4';
 const urlsToCache = [
   './index.html',
   './manifest.json'
