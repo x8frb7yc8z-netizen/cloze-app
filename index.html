@@ -12,14 +12,14 @@
       padding: 0; 
       width: 100%; 
       overflow-x: hidden;
-      /* 统一设置全局字体 */
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
       line-height: 1.6; 
       font-size: 18px; 
       background-color: #fff; 
+      /* 关键：让整个页面在 iOS 上可点击，确保事件冒泡 */
+      cursor: pointer; 
     }
     
-    /* 强制所有输入组件继承父级字体 */
     textarea, button, input, select {
       font-family: inherit; 
       font-size: 1em;
@@ -67,7 +67,6 @@
       min-height: 400px;
     }
     
-    /* 填空输入框样式优化：去掉边框，改用下划线，保持字体一致 */
     .cloze input { 
       margin: 0 2px;
       padding: 0 5px;
@@ -77,6 +76,9 @@
       text-align: center;
       color: #000;
       transition: all 0.2s;
+      /* 禁用 iOS 默认圆角 */
+      -webkit-appearance: none;
+      border-radius: 0;
     }
     
     .cloze input:focus {
@@ -136,6 +138,21 @@
   let answers = [];
   let currentFontSize = 18;
 
+  // 新增：全局点击/触摸监听器，实现点击空白处退出输入
+  function setupDismissKeyboard() {
+    const eventType = 'ontouchstart' in window ? 'touchstart' : 'mousedown';
+    document.addEventListener(eventType, function(e) {
+      const activeElement = document.activeElement;
+      // 如果当前聚焦的是输入框，且点击的目标不是输入框本身
+      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+        if (e.target !== activeElement) {
+          activeElement.blur();
+        }
+      }
+    }, false);
+  }
+  setupDismissKeyboard();
+
   function changeFontSize(delta) {
     currentFontSize += delta;
     if (currentFontSize < 10) currentFontSize = 10;
@@ -146,7 +163,6 @@
   function generateCloze(text, n) {
     let index = 0;
     answers = [];
-    // 匹配括号内容或单词
     const regex = /\([^)]*\)|\b([a-zA-Z]+)\b/g;
 
     return text.replace(regex, function (match, word) {
@@ -156,8 +172,7 @@
         if (index % n === 1) {
           const id = answers.length;
           answers.push(word);
-          // 使用 ch 单位确保输入框宽度随字数变化且字体对齐
-          return `<input data-id="${id}" autocomplete="off" style="width: ${word.length + 1.5}ch">`;
+          return `<input data-id="${id}" autocomplete="off" spellcheck="false" style="width: ${word.length + 1.5}ch">`;
         }
         return word;
       }
@@ -195,11 +210,11 @@
     display.innerHTML = generateCloze(text, n);
 
     display.querySelectorAll("input").forEach(input => {
+      input.addEventListener("input", () => checkInput(input)); // 实时检查
       input.addEventListener("blur", () => checkInput(input));
       input.addEventListener("keydown", handleHint);
     });
     
-    // 平滑滚动
     window.scrollTo({ top: document.querySelector('.btn-group').offsetTop, behavior: 'smooth' });
   };
 
