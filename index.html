@@ -3,145 +3,90 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Cloze Master (Unified Font)</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon-192.png">
+  <title>Cloze Master Pro</title>
   <style>
     * { box-sizing: border-box; }
-    
     html, body { 
-      margin: 0; 
-      padding: 0; 
-      width: 100%; 
-      overflow-x: hidden;
+      margin: 0; padding: 0; width: 100%; overflow-x: hidden;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-      line-height: 1.6; 
-      font-size: 18px; 
-      background-color: #fff; 
-      cursor: pointer; 
-    }
-    
-    textarea, button, input, select {
-      font-family: inherit; 
-      font-size: 1em;
+      line-height: 1.6; font-size: 18px; background-color: #fff; 
     }
 
-    .controls-bar {
-      background: #f1f3f4;
-      padding: 10px 15px;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 12px;
-      border-bottom: 1px solid #ccc;
+    /* 文件导航栏 - 支持横向滑动 */
+    .file-tabs-container {
+      background: #e8f5e9; padding: 12px 15px; display: flex; align-items: center;
+      gap: 10px; border-bottom: 2px solid #c8e6c9; overflow-x: auto; white-space: nowrap;
+      -webkit-overflow-scrolling: touch;
+    }
+    .file-tabs-container::-webkit-scrollbar { height: 4px; }
+    .file-tabs-container::-webkit-scrollbar-thumb { background: #43a047; border-radius: 10px; }
+
+    .file-tab {
+      padding: 6px 16px; background: white; border: 1.5px solid #43a047;
+      border-radius: 20px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;
+    }
+    .file-tab.active { background: #43a047; color: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .delete-file-btn { font-weight: bold; color: #ff5252; padding: 0 4px; }
+
+    .add-file-btn {
+      background: #43a047; color: white; border: none; width: 32px; height: 32px;
+      border-radius: 50%; cursor: pointer; font-size: 22px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
     }
 
+    /* 工具栏与文本区 */
+    .controls-bar { background: #f1f3f4; padding: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px; border-bottom: 1px solid #ccc; }
     .font-btn { padding: 4px 15px; cursor: pointer; border: 1px solid #999; background: white; border-radius: 4px; }
-
-    textarea { 
-      width: 100%; 
-      padding: 20px; 
-      border: none;
-      border-bottom: 2px solid #43a047;
-      outline: none;
-      display: block;
-      background-color: #fafafa;
-      resize: vertical;
-      min-height: 200px;
-    }
-
+    textarea { width: 100%; padding: 20px; border: none; border-bottom: 3px solid #43a047; outline: none; background-color: #fafafa; min-height: 220px; font-size: 1em; }
+    
     .btn-group { display: flex; width: 100%; }
-    .btn-group button { 
-      border: none; 
-      padding: 18px; 
-      font-weight: bold; 
-      cursor: pointer; 
-    }
+    .btn-group button { border: none; padding: 18px; font-weight: bold; cursor: pointer; font-size: 16px; }
     #clearBtn { background-color: #ff5252; color: white; flex: 1; }
     #generate { background-color: #43a047; color: white; flex: 2; }
 
-    .cloze { 
-      width: 100%;
-      padding: 30px 20px; 
-      white-space: pre-wrap; 
-      word-wrap: break-word;
-      min-height: 300px;
-    }
-    
-    .cloze input { 
-      margin: 0 2px;
-      padding: 0 5px;
-      border: none;
-      border-bottom: 2px solid #666;
-      background-color: #fffde7; 
-      text-align: center;
-      color: #000;
-      transition: all 0.2s;
-      -webkit-appearance: none;
-      border-radius: 0;
-    }
-    
-    .cloze input:focus {
-      outline: none;
-      border-bottom-color: #2196f3;
-      background-color: #e3f2fd;
-    }
-    
-    .correct { background-color: #c8f7c5 !important; border-bottom-color: #2e7d32 !important; color: #1b5e20 !important; }
-    .wrong { background-color: #f7c5c5 !important; border-bottom-color: #c62828 !important; color: #b71c1c !important; }
-    
-    .n-input { width: 60px; padding: 4px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
-    .brackets { color: #999; font-style: italic; }
-    
-    /* 意见反馈样式 */
-    #feedback-area {
-      padding: 30px 20px;
-      background: #f9f9f9;
-      border-top: 2px solid #43a047;
-      margin-top: 20px;
-    }
-    .feedback-input {
-      width: 100%;
-      min-height: 100px;
-      padding: 12px;
-      border: 1px solid #ccc;
-      border-radius: 6px;
-      font-size: 16px;
-      margin-bottom: 10px;
-      display: block;
-    }
-    #submitBtn {
-      background-color: #2196f3;
-      color: white;
-      border: none;
-      padding: 15px;
-      border-radius: 4px;
-      font-weight: bold;
-      cursor: pointer;
-      width: 100%;
-    }
+    .cloze { width: 100%; padding: 30px 20px; white-space: pre-wrap; min-height: 300px; }
+    .cloze input { margin: 0 2px; border: none; border-bottom: 2px solid #666; background-color: #fffde7; text-align: center; font-size: 1em; }
+    .correct { background-color: #c8f7c5 !important; color: #1b5e20 !important; }
+    .wrong { background-color: #f7c5c5 !important; color: #b71c1c !important; }
 
-    .status-bar {
-      background: #333;
-      color: #fff;
-      padding: 8px 20px;
-      font-size: 0.85em;
-      display: flex;
-      justify-content: space-between;
+    /* 收款码弹窗样式 */
+    .modal {
+      display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%;
+      background-color: rgba(0,0,0,0.8); align-items: center; justify-content: center;
+    }
+    .modal-content {
+      background-color: white; padding: 20px; border-radius: 12px; text-align: center;
+      max-width: 85%; width: 280px; position: relative;
+    }
+    .modal-content img { width: 100%; height: auto; border-radius: 8px; margin-top: 15px; border: 1px solid #eee; }
+    .close-modal { position: absolute; right: 10px; top: 5px; font-size: 28px; cursor: pointer; color: #999; }
+
+    /* 状态栏：简化反馈与咖啡按钮 */
+    .status-bar { 
+      background: #333; color: #fff; padding: 12px 20px; font-size: 0.8em; 
+      display: flex; justify-content: space-between; align-items: center; 
+    }
+    .status-bar a { color: #81c784; text-decoration: none; font-weight: bold; }
+    .coffee-btn { 
+      background: #ff9800; color: white; border: none; padding: 5px 12px; 
+      border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9em;
     }
   </style>
 </head>
 <body>
 
 <div class="container">
+  <div class="file-tabs-container" id="fileTabs">
+    <button class="add-file-btn" onclick="addNewFile()">+</button>
+  </div>
+
   <div class="controls-bar">
-    <b style="font-size: 1.1em;">Cloze Master</b>
-    <span style="margin-left:10px">Text Size:</span>
+    <b>Cloze Master</b>
     <button class="font-btn" onclick="changeFontSize(2)">+</button>
     <button class="font-btn" onclick="changeFontSize(-2)">-</button>
     <span id="sizeLabel">18</span>px
     <div style="margin-left: auto;">
-      Every <input id="nthWord" class="n-input" type="number" value="4" min="1"> th word blank
+      Every <input id="nthWord" style="width:40px; text-align:center;" type="number" value="4" min="1"> th word blank
     </div>
   </div>
 
@@ -154,71 +99,115 @@
 
   <div id="clozeDisplay" class="cloze"></div>
 
-  <div id="feedback-area">
-    <h3 style="margin-top: 0; color: #333;">Feedback</h3>
-    <p style="font-size: 0.85em; color: #666; margin-bottom: 15px;">Send your suggestions to RickyChen.</p>
-    
-    <form id="feedbackForm" action="https://formspree.io/f/fnhame@gmail.com" method="POST">
-      <textarea 
-        name="message" 
-        class="feedback-input" 
-        placeholder="Enter your feedback here..." 
-        required
-      ></textarea>
-      
-      <input type="hidden" name="_subject" value="Cloze Master Feedback">
-      
-      <button type="submit" id="submitBtn">SUBMIT FEEDBACK</button>
-    </form>
-    
-    <div id="formResponse" style="display:none; padding: 20px; background: #c8f7c5; color: #1b5e20; border-radius: 4px; text-align: center; font-weight: bold;">
-      Thank you! Your feedback has been sent.
+  <div id="coffeeModal" class="modal" onclick="closeModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <span class="close-modal" onclick="closeModal()">&times;</span>
+      <h4 style="margin: 0;">Buy me a coffee ☕</h4>
+      <p style="font-size: 0.8em; color: #666; margin-bottom: 0;">感谢支持 RickyChen 的开发</p>
+      <img src="coffee.png" alt="Donate QR Code">
+      <p style="font-size: 0.7em; color: #bbb; margin-top: 10px;">点击空白处关闭</p>
     </div>
   </div>
 
   <div class="status-bar">
-    <span>💡 Hint: <b>Spacebar</b> reveals next letter.</span>
-    <span>RickyChen @ 2024</span>
+    <span>意见反馈Email: <a href="mailto:fnhame@gmail.com">fnhame@gmail.com</a></span>
+    <div>
+      <button class="coffee-btn" onclick="openModal()">☕ Buy him coffee</button>
+      <span style="margin-left: 10px; color: #888;">RickyChen @ 2026</span>
+    </div>
   </div>
 </div>
 
 <script>
+  let files = JSON.parse(localStorage.getItem('cloze_files_v4')) || [{ id: Date.now(), title: 'File 1', content: '' }];
+  let activeFileId = files[0].id;
   let answers = [];
   let currentFontSize = 18;
 
-  // 全局点击/触摸监听器，实现点击空白处退出输入
-  function setupDismissKeyboard() {
-    const eventType = 'ontouchstart' in window ? 'touchstart' : 'mousedown';
-    document.addEventListener(eventType, function(e) {
-      const activeElement = document.activeElement;
-      if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
-        if (e.target !== activeElement) {
-          activeElement.blur();
-        }
-      }
-    }, false);
-  }
-  setupDismissKeyboard();
+  const inputArea = document.getElementById("inputText");
 
-  function changeFontSize(delta) {
-    currentFontSize += delta;
-    if (currentFontSize < 10) currentFontSize = 10;
+  function init() {
+    renderTabs();
+    loadActiveFile();
+  }
+
+  // --- 弹窗控制 ---
+  function openModal() { document.getElementById('coffeeModal').style.display = 'flex'; }
+  function closeModal() { document.getElementById('coffeeModal').style.display = 'none'; }
+
+  // --- 文件管理 ---
+  function renderTabs() {
+    const tabs = document.getElementById('fileTabs');
+    tabs.innerHTML = '';
+    files.forEach(f => {
+      const div = document.createElement('div');
+      div.className = `file-tab ${f.id === activeFileId ? 'active' : ''}`;
+      div.title = "Double click to rename";
+      div.ondblclick = () => renameFile(f.id);
+      div.innerHTML = `<span onclick="switchFile(${f.id})">${f.title}</span>
+                       <span class="delete-file-btn" onclick="deleteFile(${f.id}, event)">×</span>`;
+      tabs.appendChild(div);
+    });
+    const btn = document.createElement('button');
+    btn.className = 'add-file-btn'; btn.innerText = '+'; btn.onclick = addNewFile;
+    tabs.appendChild(btn);
+  }
+
+  function renameFile(id) {
+    const file = files.find(x => x.id === id);
+    const newName = prompt("Rename to:", file.title);
+    if (newName && newName.trim() !== "") {
+      file.title = newName.trim(); save(); renderTabs();
+    }
+  }
+
+  function loadActiveFile() {
+    const f = files.find(x => x.id === activeFileId);
+    if (f) { inputArea.value = f.content; document.getElementById('clozeDisplay').innerHTML = ''; }
+  }
+
+  function addNewFile() {
+    const id = Date.now();
+    files.push({ id, title: 'File ' + (files.length + 1), content: '' });
+    activeFileId = id; save(); renderTabs(); loadActiveFile();
+    document.getElementById('fileTabs').scrollLeft = 9999;
+  }
+
+  function switchFile(id) { activeFileId = id; renderTabs(); loadActiveFile(); }
+
+  function deleteFile(id, e) {
+    e.stopPropagation();
+    if (files.length <= 1) return;
+    if (confirm("Delete this file?")) {
+      files = files.filter(x => x.id !== id);
+      if (activeFileId === id) activeFileId = files[0].id;
+      save(); renderTabs(); loadActiveFile();
+    }
+  }
+
+  function save() { localStorage.setItem('cloze_files_v4', JSON.stringify(files)); }
+
+  inputArea.oninput = () => {
+    const f = files.find(x => x.id === activeFileId);
+    if (f) { f.content = inputArea.value; save(); }
+  };
+
+  // --- 核心逻辑 ---
+  function changeFontSize(d) {
+    currentFontSize += d; if (currentFontSize < 10) currentFontSize = 10;
     document.body.style.fontSize = currentFontSize + "px";
     document.getElementById("sizeLabel").innerText = currentFontSize;
   }
 
   function generateCloze(text, n) {
-    let index = 0;
-    answers = [];
+    let index = 0; answers = [];
     const regex = /\([^)]*\)|\b([a-zA-Z]+)\b/g;
-
-    return text.replace(regex, function (match, word) {
-      if (match.startsWith('(')) return `<span class="brackets">${match}</span>`;
+    return text.replace(regex, (match, word) => {
+      if (match.startsWith('(')) return `<span style="color:#999; font-style:italic;">${match}</span>`;
       if (word) {
         index++;
         if (index % n === 1) {
-          const id = answers.length;
-          answers.push(word);
+          const id = answers.length; answers.push(word);
           return `<input data-id="${id}" autocomplete="off" spellcheck="false" style="width: ${word.length + 1.5}ch">`;
         }
         return word;
@@ -227,80 +216,33 @@
     });
   }
 
-  function checkInput(input) {
-    const id = input.dataset.id;
-    const answer = answers[id];
-    if (!input.value) { input.className = ""; return; }
-    input.className = input.value.trim().toLowerCase() === answer.toLowerCase() ? "correct" : "wrong";
-  }
-
-  function handleHint(event) {
-    if (event.code === 'Space') {
-      event.preventDefault();
-      const input = event.target;
-      const id = input.dataset.id;
-      const fullAnswer = answers[id];
-      const currentVal = input.value;
-      if (currentVal.length < fullAnswer.length) {
-        input.value = fullAnswer.substring(0, currentVal.length + 1);
-        checkInput(input);
-      }
-    }
-  }
-
-  document.getElementById("generate").onclick = function () {
-    const text = document.getElementById("inputText").value;
-    if(!text.trim()) return;
-    
-    let n = parseInt(document.getElementById("nthWord").value) || 4;
+  document.getElementById("generate").onclick = () => {
+    const n = parseInt(document.getElementById("nthWord").value) || 4;
     const display = document.getElementById("clozeDisplay");
-    display.innerHTML = generateCloze(text, n);
-
+    display.innerHTML = generateCloze(inputArea.value, n);
     display.querySelectorAll("input").forEach(input => {
-      input.addEventListener("input", () => checkInput(input)); 
-      input.addEventListener("blur", () => checkInput(input));
-      input.addEventListener("keydown", handleHint);
+      input.oninput = () => {
+        const ans = answers[input.dataset.id];
+        input.className = input.value.trim().toLowerCase() === ans.toLowerCase() ? "correct" : "wrong";
+      };
+      input.onkeydown = (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          const ans = answers[input.dataset.id];
+          input.value = ans.substring(0, input.value.length + 1);
+          input.oninput();
+        }
+      };
     });
-    
     window.scrollTo({ top: document.querySelector('.btn-group').offsetTop, behavior: 'smooth' });
   };
 
-  document.getElementById("clearBtn").onclick = function() {
-    document.getElementById("inputText").value = "";
-    document.getElementById("clozeDisplay").innerHTML = "";
-    answers = [];
+  document.getElementById("clearBtn").onclick = () => {
+    inputArea.value = ""; const f = files.find(x => x.id === activeFileId);
+    if(f) f.content = ""; save(); document.getElementById("clozeDisplay").innerHTML = "";
   };
 
-  // --- 意见反馈表单逻辑 ---
-  const fbForm = document.getElementById('feedbackForm');
-  const fbResponse = document.getElementById('formResponse');
-  const fbSubmit = document.getElementById('submitBtn');
-
-  fbForm.onsubmit = async function(e) {
-    e.preventDefault();
-    fbSubmit.disabled = true;
-    fbSubmit.innerText = "SENDING...";
-
-    try {
-      const response = await fetch(fbForm.action, {
-        method: 'POST',
-        body: new FormData(fbForm),
-        headers: { 'Accept': 'application/json' }
-      });
-
-      if (response.ok) {
-        fbForm.style.display = 'none';
-        fbResponse.style.display = 'block';
-      } else {
-        throw new Error();
-      }
-    } catch (err) {
-      alert("Oops! There was a problem. Please try again or email fnhame@gmail.com directly.");
-      fbSubmit.disabled = false;
-      fbSubmit.innerText = "SUBMIT FEEDBACK";
-    }
-  };
+  init();
 </script>
-
 </body>
 </html>
