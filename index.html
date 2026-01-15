@@ -18,7 +18,6 @@
       line-height: 1.6; 
       font-size: 18px; 
       background-color: #fff; 
-      /* 关键：让整个页面在 iOS 上可点击，确保事件冒泡 */
       cursor: pointer; 
     }
     
@@ -66,7 +65,7 @@
       padding: 30px 20px; 
       white-space: pre-wrap; 
       word-wrap: break-word;
-      min-height: 400px;
+      min-height: 300px;
     }
     
     .cloze input { 
@@ -78,7 +77,6 @@
       text-align: center;
       color: #000;
       transition: all 0.2s;
-      /* 禁用 iOS 默认圆角 */
       -webkit-appearance: none;
       border-radius: 0;
     }
@@ -95,13 +93,39 @@
     .n-input { width: 60px; padding: 4px; text-align: center; border: 1px solid #ccc; border-radius: 4px; }
     .brackets { color: #999; font-style: italic; }
     
+    /* 意见反馈样式 */
+    #feedback-area {
+      padding: 30px 20px;
+      background: #f9f9f9;
+      border-top: 2px solid #43a047;
+      margin-top: 20px;
+    }
+    .feedback-input {
+      width: 100%;
+      min-height: 100px;
+      padding: 12px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 16px;
+      margin-bottom: 10px;
+      display: block;
+    }
+    #submitBtn {
+      background-color: #2196f3;
+      color: white;
+      border: none;
+      padding: 15px;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+      width: 100%;
+    }
+
     .status-bar {
       background: #333;
       color: #fff;
       padding: 8px 20px;
       font-size: 0.85em;
-      position: sticky;
-      bottom: 0;
       display: flex;
       justify-content: space-between;
     }
@@ -130,9 +154,31 @@
 
   <div id="clozeDisplay" class="cloze"></div>
 
+  <div id="feedback-area">
+    <h3 style="margin-top: 0; color: #333;">Feedback</h3>
+    <p style="font-size: 0.85em; color: #666; margin-bottom: 15px;">Send your suggestions to RickyChen.</p>
+    
+    <form id="feedbackForm" action="https://formspree.io/f/fnhame@gmail.com" method="POST">
+      <textarea 
+        name="message" 
+        class="feedback-input" 
+        placeholder="Enter your feedback here..." 
+        required
+      ></textarea>
+      
+      <input type="hidden" name="_subject" value="Cloze Master Feedback">
+      
+      <button type="submit" id="submitBtn">SUBMIT FEEDBACK</button>
+    </form>
+    
+    <div id="formResponse" style="display:none; padding: 20px; background: #c8f7c5; color: #1b5e20; border-radius: 4px; text-align: center; font-weight: bold;">
+      Thank you! Your feedback has been sent.
+    </div>
+  </div>
+
   <div class="status-bar">
     <span>💡 Hint: <b>Spacebar</b> reveals next letter.</span>
-    <span>Unified Font: Sans-Serif</span>
+    <span>RickyChen @ 2024</span>
   </div>
 </div>
 
@@ -140,12 +186,11 @@
   let answers = [];
   let currentFontSize = 18;
 
-  // 新增：全局点击/触摸监听器，实现点击空白处退出输入
+  // 全局点击/触摸监听器，实现点击空白处退出输入
   function setupDismissKeyboard() {
     const eventType = 'ontouchstart' in window ? 'touchstart' : 'mousedown';
     document.addEventListener(eventType, function(e) {
       const activeElement = document.activeElement;
-      // 如果当前聚焦的是输入框，且点击的目标不是输入框本身
       if (activeElement && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
         if (e.target !== activeElement) {
           activeElement.blur();
@@ -212,7 +257,7 @@
     display.innerHTML = generateCloze(text, n);
 
     display.querySelectorAll("input").forEach(input => {
-      input.addEventListener("input", () => checkInput(input)); // 实时检查
+      input.addEventListener("input", () => checkInput(input)); 
       input.addEventListener("blur", () => checkInput(input));
       input.addEventListener("keydown", handleHint);
     });
@@ -224,6 +269,36 @@
     document.getElementById("inputText").value = "";
     document.getElementById("clozeDisplay").innerHTML = "";
     answers = [];
+  };
+
+  // --- 意见反馈表单逻辑 ---
+  const fbForm = document.getElementById('feedbackForm');
+  const fbResponse = document.getElementById('formResponse');
+  const fbSubmit = document.getElementById('submitBtn');
+
+  fbForm.onsubmit = async function(e) {
+    e.preventDefault();
+    fbSubmit.disabled = true;
+    fbSubmit.innerText = "SENDING...";
+
+    try {
+      const response = await fetch(fbForm.action, {
+        method: 'POST',
+        body: new FormData(fbForm),
+        headers: { 'Accept': 'application/json' }
+      });
+
+      if (response.ok) {
+        fbForm.style.display = 'none';
+        fbResponse.style.display = 'block';
+      } else {
+        throw new Error();
+      }
+    } catch (err) {
+      alert("Oops! There was a problem. Please try again or email fnhame@gmail.com directly.");
+      fbSubmit.disabled = false;
+      fbSubmit.innerText = "SUBMIT FEEDBACK";
+    }
   };
 </script>
 
