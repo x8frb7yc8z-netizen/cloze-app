@@ -16,10 +16,9 @@
       background-color: #fff; color: #333;
     }
 
-    /* 容器：使用 flex 布局填满屏幕 */
     .app-container { display: flex; flex-direction: column; height: 100vh; }
 
-    /* 1. 文件导航栏 - 极致扁平化 */
+    /* 1. 文件导航栏 */
     .file-tabs-container {
       background: #fff; padding: 8px 12px; display: flex; align-items: center;
       gap: 8px; border-bottom: 1px solid #eee; overflow-x: auto; white-space: nowrap;
@@ -31,7 +30,7 @@
     .file-tab.active { background: var(--primary-color); color: white; border-color: var(--primary-color); }
     .delete-file-btn { color: #ff5252; font-size: 16px; margin-left: 4px; }
 
-    /* 2. 控制栏 - 紧凑型 */
+    /* 2. 控制栏 */
     .header-controls {
       display: flex; align-items: center; justify-content: space-between;
       padding: 6px 15px; background: var(--bg-light); border-bottom: 1px solid #ddd;
@@ -41,7 +40,7 @@
     .font-controls { display: flex; align-items: center; gap: 5px; }
     .small-btn { border: 1px solid #ccc; background: #fff; padding: 2px 8px; border-radius: 4px; }
 
-    /* 3. 文本输入区 - 占据剩余空间 */
+    /* 3. 文本输入区 */
     .input-wrapper { flex: 1; display: flex; flex-direction: column; position: relative; }
     textarea { 
       flex: 1; width: 100%; padding: 15px; border: none; outline: none; 
@@ -58,26 +57,28 @@
     .cloze-display { padding: 20px; white-space: pre-wrap; display: none; }
     .cloze-display.active { display: block; }
 
-    /* 5. 底部状态栏 - 紧凑并排 */
+    /* 5. 底部状态栏 */
     .footer-bar { 
       background: #222; color: #bbb; padding: 8px 15px; font-size: 11px;
       display: flex; justify-content: space-between; align-items: center;
     }
     .footer-bar a { color: #81c784; text-decoration: none; }
+    .footer-left { display: flex; align-items: center; gap: 12px; }
+    .guide-btn { color: #81c784; cursor: pointer; font-weight: bold; text-decoration: underline; }
     .mini-coffee-btn { 
       background: #ff9800; color: white; border: none; padding: 3px 8px; 
       border-radius: 4px; font-weight: bold; font-size: 10px; cursor: pointer;
     }
 
-    /* 弹窗 */
+    /* 弹窗样式 */
     .modal {
       display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
       background: rgba(0,0,0,0.8); align-items: center; justify-content: center;
     }
-    .modal-content { background: white; padding: 20px; border-radius: 12px; text-align: center; width: 260px; }
+    .modal-content { background: white; padding: 20px; border-radius: 12px; text-align: center; width: 280px; position: relative; }
     .modal-content img { width: 100%; border-radius: 8px; margin-top: 10px; }
+    .close-x { position: absolute; right: 10px; top: 5px; font-size: 20px; color: #999; cursor: pointer; }
 
-    /* 针对不同字号的自适应输入框样式 */
     .cloze-display input {
       border: none; border-bottom: 1.5px solid #666; background: #fffde7;
       text-align: center; color: #000; font-family: inherit; font-size: inherit;
@@ -114,7 +115,10 @@
   </div>
 
   <div class="footer-bar">
-    <span><a href="mailto:fnhame@gmail.com">反馈fnhame@gmail.com</a></span>
+    <div class="footer-left">
+      <span class="guide-btn" onclick="openGuide()">Guide 使用说明</span>
+      <a href="mailto:fnhame@gmail.com">反馈Email</a>
+    </div>
     <div style="display:flex; align-items:center; gap:10px;">
       <button class="mini-coffee-btn" onclick="openModal()">☕ Buy Coffee</button>
       <span>Ricky @ 2026</span>
@@ -124,14 +128,29 @@
 
 <div id="coffeeModal" class="modal" onclick="closeModal()">
   <div class="modal-content" onclick="event.stopPropagation()">
+    <span class="close-x" onclick="closeModal()">×</span>
     <h4 style="margin:0">Support Development</h4>
     <img src="coffee.png" alt="QR Code">
     <p style="font-size:11px; color:#999; margin-top:10px">Thank you for your kindness!</p>
   </div>
 </div>
 
+<div id="guideModal" class="modal" onclick="closeGuide()">
+  <div class="modal-content" onclick="event.stopPropagation()" style="text-align: left; max-height: 75vh; overflow-y: auto;">
+    <span class="close-x" onclick="closeGuide()">×</span>
+    <h4 style="margin-top:0; color:var(--primary-color); text-align: center;">📖 User Guide 说明</h4>
+    <div style="font-size: 13px; line-height: 1.6; color: #444;">
+      <p><b>1. 文件管理：</b>点击顶部的 <b>+</b> 添加新文件；<b>双击</b>标签可以重命名。</p>
+      <p><b>2. 挖空练习：</b>粘贴文本后，设置挖空频率（如每 4 个单词挖一个空），点击 <b>Generate</b>。</p>
+      <p><b>3. 实时判断：</b>输入单词，正确显示<span style="color:green">绿色</span>，错误显示<span style="color:red">红色</span>。</p>
+      <p><b>4. 提示功能：</b>在空格内按下 <b>空格键 (Space)</b> 可自动填入下一个正确的字母。</p>
+      <p><b>5. 离线使用：</b>本工具支持 PWA，可在浏览器菜单中选择“添加到主屏幕”作为 App 使用。</p>
+    </div>
+    <button onclick="closeGuide()" style="width:100%; padding:10px; margin-top:10px; background:var(--primary-color); color:white; border:none; border-radius:6px; font-weight:bold;">明白了！</button>
+  </div>
+</div>
+
 <script>
-  // 保持之前的 JavaScript 逻辑基本不变，但针对 UI 切换做一点微调
   let files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{ id: Date.now(), title: 'File 1', content: '' }];
   let activeFileId = files[0].id;
   let currentFontSize = 18;
@@ -141,6 +160,13 @@
   const displayArea = document.getElementById("clozeDisplay");
 
   function init() { renderTabs(); loadActiveFile(); }
+
+  // --- 弹窗控制逻辑 ---
+  function openModal() { document.getElementById('coffeeModal').style.display = 'flex'; }
+  function closeModal() { document.getElementById('coffeeModal').style.display = 'none'; }
+  
+  function openGuide() { document.getElementById('guideModal').style.display = 'flex'; }
+  function closeGuide() { document.getElementById('guideModal').style.display = 'none'; }
 
   function renderTabs() {
     const tabs = document.getElementById('fileTabs');
@@ -210,13 +236,21 @@
     inputArea.style.display = 'none';
     displayArea.classList.add('active');
     
-    // 绑定 input 事件
     displayArea.querySelectorAll("input").forEach(input => {
       input.oninput = () => {
         const ans = answers[input.dataset.id];
         input.style.backgroundColor = input.value.trim().toLowerCase() === ans.toLowerCase() ? "#c8f7c5" : "#f7c5c5";
       };
-      // Space 提示逻辑保持不变
+      
+      // 这里的空格键提示逻辑
+      input.onkeydown = (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          const ans = answers[input.dataset.id];
+          input.value = ans.substring(0, input.value.length + 1);
+          input.oninput();
+        }
+      };
     });
   };
 
@@ -244,9 +278,6 @@
       return match;
     });
   }
-
-  function openModal() { document.getElementById('coffeeModal').style.display = 'flex'; }
-  function closeModal() { document.getElementById('coffeeModal').style.display = 'none'; }
 
   init();
 </script>
