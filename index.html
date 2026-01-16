@@ -2,230 +2,133 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Cloze Master Pro</title>
-
+  
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
+  <meta property="og:title" content="Cloze Master Pro">
+  <meta property="og:image" content="https://x8frb7yc8z-netizen.github.io/icon-192.png">
 
   <style>
-    :root {
-      --primary: #43a047;
-      --bg-light: #f8f9fa;
-      --danger: #ff5252;
+    :root { --primary: #43a047; --bg-light: #f8f9fa; --danger: #ff5252; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    
+    html, body { 
+      margin: 0; padding: 0; width: 100%; 
+      /* 修复手机端 100vh 遮挡的关键：使用 dvh */
+      height: 100vh; height: 100dvh; 
+      font-family: -apple-system, system-ui, sans-serif; 
+      background-color: #fff; color: #333; overflow: hidden;
     }
 
-    * { box-sizing: border-box; }
-
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-      font-family: -apple-system, system-ui, sans-serif;
-      background: #fff;
-      color: #333;
-      overflow-x: hidden; /* ✅ 允许纵向滚动（iOS 必须） */
-    }
-
-    /* ✅ 关键：使用 dvh 而不是 vh */
-    .app-container {
-      display: flex;
-      flex-direction: column;
-      height: 100dvh;
+    /* 整体容器使用 flex 布局 */
+    .app-container { 
+      display: flex; flex-direction: column; 
+      height: 100%; width: 100%;
     }
 
     .hidden { display: none !important; }
 
-    /* ---------- 顶部文件标签 ---------- */
+    /* 顶部导航 */
     .file-tabs-container {
-      background: #fff;
-      padding: 5px 4px;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      border-bottom: 1px solid #eee;
-      overflow-x: auto;
-      white-space: nowrap;
+      background: #fff; padding: 5px 4px; display: flex; align-items: center;
+      gap: 5px; border-bottom: 1px solid #eee; overflow-x: auto; white-space: nowrap;
+      flex-shrink: 0; /* 禁止压缩高度 */
     }
-
     .file-tab {
-      padding: 4px 10px;
-      background: var(--bg-light);
-      border: 1px solid #ddd;
-      border-radius: 15px;
-      font-size: 13px;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
+      padding: 6px 12px; background: var(--bg-light); border: 1px solid #ddd;
+      border-radius: 20px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center;
     }
-
-    .file-tab.active {
-      background: var(--primary);
-      color: #fff;
-      border-color: var(--primary);
-    }
-
+    .file-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+    
     .add-file-btn {
-      background: var(--primary);
-      color: white;
-      border: none;
-      width: 24px;
-      height: 24px;
-      border-radius: 50%;
-      font-size: 18px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
+      background: var(--primary); color: white; border: none; width: 28px; height: 28px;
+      border-radius: 50%; font-size: 20px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; cursor: pointer; margin-left: 5px;
+    }
+
+    /* 控制栏 */
+    .header-controls {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 8px 6px; background: var(--bg-light); border-bottom: 1px solid #ddd; font-size: 14px;
       flex-shrink: 0;
     }
 
-    /* ---------- 控制栏 ---------- */
-    .header-controls {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 6px 4px;
-      background: var(--bg-light);
-      border-bottom: 1px solid #ddd;
-      font-size: 14px;
-    }
-
-    .small-btn {
-      border: 1px solid #ccc;
+    /* 核心文本区 - 自动填充剩余空间 */
+    .input-wrapper { 
+      flex: 1; 
+      display: flex; 
+      flex-direction: column; 
+      overflow-y: auto; /* 允许中间滚动 */
       background: #fff;
-      padding: 2px 8px;
-      border-radius: 4px;
     }
 
-    /* ---------- 核心文本区 ---------- */
-    .input-wrapper {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      overflow-y: auto;
+    textarea { 
+      flex: 1; width: 100%; padding: 12px 6px; border: none; outline: none; 
+      font-size: 18px; line-height: 1.6; resize: none;
     }
 
-    textarea {
-      flex: 1;
-      width: 100%;
-      padding: 10px 4px;
-      border: none;
-      outline: none;
-      resize: none;
-      font-size: 18px;
-      line-height: 1.5;
+    .cloze-display { 
+      padding: 12px 6px 100px 6px; white-space: pre-wrap; display: none; line-height: 1.7; word-break: break-word;
     }
-
-    .cloze-display {
-      padding: 10px 4px 80px 4px;
-      white-space: pre-wrap;
-      display: none;
-      line-height: 1.6;
-      word-break: break-word;
-    }
-
     .cloze-display.active { display: block; }
 
     #backToEdit {
-      background: #eee;
-      border: 1px solid #ccc;
-      padding: 6px 12px;
-      border-radius: 4px;
-      font-size: 13px;
-      margin-bottom: 15px;
-      cursor: pointer;
-      width: fit-content;
+      background: #f0f0f0; border: 1px solid #ccc; padding: 8px 15px; 
+      border-radius: 6px; font-size: 14px; margin-bottom: 20px; cursor: pointer;
     }
 
-    .cloze-display input {
-      border: none;
-      border-bottom: 1.5px solid #666;
-      background: #fffde7;
-      text-align: center;
-      font-size: inherit;
-      margin: 0 2px;
-    }
-
-    /* ---------- 底部操作栏（safe-area 修复） ---------- */
-    .action-bar {
-      display: flex;
-      border-top: 1px solid #ddd;
+    /* 底部动作条 - 针对手机优化 */
+    .action-bar { 
+      display: flex; width: 100%; 
+      border-top: 1px solid #ddd; 
+      flex-shrink: 0;
+      /* 适配 iPhone 底部安全区 */
       padding-bottom: env(safe-area-inset-bottom);
+      background: #fff;
+    }
+    .action-bar button { 
+      flex: 1; padding: 16px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; 
+    }
+    #clearBtn { background: #fff5f5; color: #d32f2f; }
+    #generate { background: var(--primary); color: white; flex: 1.5; }
+
+    /* 页脚 */
+    .footer-bar { 
+      background: #222; color: #bbb; padding: 8px 6px; font-size: 11px;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-shrink: 0;
+      padding-bottom: calc(env(safe-area-inset-bottom) / 2 + 5px);
     }
 
-    .action-bar button {
-      flex: 1;
-      padding: 14px;
-      border: none;
-      font-weight: bold;
-      font-size: 15px;
-    }
-
-    #clearBtn {
-      background: #fdf2f2;
-      color: #d32f2f;
-    }
-
-    #generate {
-      background: var(--primary);
-      color: white;
-      flex: 1.5;
-    }
-
-    .footer-bar {
-      background: #222;
-      color: #bbb;
-      padding: 8px 4px env(safe-area-inset-bottom);
-      font-size: 11px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .footer-bar a {
-      color: #81c784;
-      text-decoration: none;
-    }
-
-    .mini-coffee-btn {
-      background: #ff9800;
-      color: white;
-      border: none;
-      padding: 3px 8px;
-      border-radius: 4px;
-      font-weight: bold;
-    }
+    /* 弹窗样式补全 */
+    .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
+    .modal-content { background: white; padding: 20px; border-radius: 12px; width: 85%; max-width: 320px; position: relative; }
+    .close-x { position: absolute; right: 10px; top: 5px; font-size: 24px; color: #999; }
+    .cloze-display input { border: none; border-bottom: 1.5px solid #666; background: #fffde7; text-align: center; color: #000; font-size: inherit; margin: 0 2px; }
   </style>
 </head>
-
 <body>
-<div class="app-container">
 
+<div class="app-container">
   <div id="topSection">
     <div class="file-tabs-container" id="fileTabs"></div>
-
     <div class="header-controls">
-      <span style="font-weight:bold;color:var(--primary)">Cloze Master</span>
-      <div>
+      <span style="font-weight:bold; color:var(--primary); font-size: 16px;">Cloze Master</span>
+      <div style="display:flex; align-items:center; gap:8px;">
         <button class="small-btn" onclick="changeFontSize(-2)">A-</button>
-        <span id="sizeLabel">18</span>
+        <span id="sizeLabel" style="min-width: 20px; text-align: center;">18</span>
         <button class="small-btn" onclick="changeFontSize(2)">A+</button>
       </div>
-      <div>
-        Every <input id="nthWord" type="number" value="4"
-                     style="width:35px;text-align:center"> th
-      </div>
+      <div style="font-size: 13px;">Every <input id="nthWord" type="number" value="4" style="width:35px; border:1px solid #ddd; text-align:center"> th</div>
     </div>
   </div>
 
   <div class="input-wrapper">
     <textarea id="inputText" placeholder="Paste your English text here..."></textarea>
-
     <div id="clozeDisplay" class="cloze-display">
-      <button id="backToEdit" onclick="exitExercise()">← Back to Edit</button>
+      <button id="backToEdit" onclick="exitExercise()">← Back to Edit / 返回修改</button>
       <div id="clozeContent"></div>
     </div>
   </div>
@@ -236,16 +139,43 @@
   </div>
 
   <div class="footer-bar" id="footerSection">
-    <span>Guide | Feedback</span>
-    <span>Ricky @ 2026</span>
+    <div style="display:flex; gap:15px;">
+      <span style="color:#81c784; cursor:pointer; font-weight:bold;" onclick="openGuide()">Guide手册</span>
+      <a href="mailto:fnhame@gmail.com" style="color: #bbb">Feedback</a>
+    </div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <button class="mini-coffee-btn" onclick="openModal()">☕ Coffee</button>
+      <span>Ricky @ 2026</span>
+    </div>
   </div>
+</div>
 
+<div id="coffeeModal" class="modal" onclick="closeModal()">
+  <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center;">
+    <span class="close-x" onclick="closeModal()">×</span>
+    <h4 style="margin:0">Support Development</h4>
+    <img src="coffee.png" style="width:100%; border-radius:8px; margin:10px 0;">
+    <p style="font-size:12px; color:#666;">Thank you for your kindness!</p>
+  </div>
+</div>
+
+<div id="guideModal" class="modal" onclick="closeGuide()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <span class="close-x" onclick="closeGuide()">×</span>
+    <h4 style="color:var(--primary); text-align:center; margin-top: 0;">📖 Guide 说明</h4>
+    <div style="font-size: 13px; line-height: 1.6; color: #444;">
+      <p>1. <b>挖空间隔</b>：在 Every...th 框中设置（如填 4 表示每 4 个词挖一个空）。</p>
+      <p>2. <b>单词提示</b>：按键盘<b>空格键</b>可提示下一个正确字母。</p>
+      <p>3. <b>文件管理</b>：点击顶部的 <b>+</b> 新建；<b>双击</b>标签重命名。</p>
+      <p>4. <b>App 体验</b>：建议在浏览器菜单中选择“添加到主屏幕”。</p>
+    </div>
+    <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold; font-size: 14px;">知道了</button>
+  </div>
 </div>
 
 <script>
-  let files = JSON.parse(localStorage.getItem('cloze_files_v5')) ||
-    [{ id: Date.now(), title: 'File 1', content: '' }];
-
+  // JavaScript 部分与你之前的逻辑基本一致，仅做了微调确保兼容性
+  let files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{ id: Date.now(), title: 'File 1', content: '' }];
   let activeFileId = files[0].id;
   let currentFontSize = 18;
   let answers = [];
@@ -262,16 +192,19 @@
     files.forEach(f => {
       const div = document.createElement('div');
       div.className = `file-tab ${f.id === activeFileId ? 'active' : ''}`;
+      div.ondblclick = () => { 
+        const n = prompt("Rename:", f.title); 
+        if(n){ f.title = n; save(); renderTabs(); }
+      };
       div.innerHTML = `
         <span onclick="switchFile(${f.id})">${f.title}</span>
-        <span style="color:red;margin-left:6px"
-              onclick="deleteFile(${f.id},event)">×</span>`;
+        <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>
+      `;
       tabs.appendChild(div);
     });
-
     const btn = document.createElement('button');
     btn.className = "add-file-btn";
-    btn.textContent = "+";
+    btn.innerHTML = '＋';
     btn.onclick = addNewFile;
     tabs.appendChild(btn);
   }
@@ -280,88 +213,97 @@
     if (!inputArea.value.trim()) return;
     const n = parseInt(document.getElementById("nthWord").value) || 4;
     clozeContent.innerHTML = generateCloze(inputArea.value, n);
-
-    topSection.classList.add("hidden");
-    bottomAction.classList.add("hidden");
-    footerSection.classList.add("hidden");
+    document.getElementById("topSection").classList.add("hidden");
+    document.getElementById("bottomAction").classList.add("hidden");
+    document.getElementById("footerSection").classList.add("hidden");
     inputArea.classList.add("hidden");
     displayArea.classList.add("active");
-
+    
     displayArea.querySelectorAll("input").forEach(input => {
       input.oninput = () => {
         const ans = answers[input.dataset.id];
-        input.style.background =
-          input.value.toLowerCase() === ans.toLowerCase()
-            ? "#c8f7c5" : "#f7c5c5";
+        input.style.backgroundColor = input.value.trim().toLowerCase() === ans.toLowerCase() ? "#c8f7c5" : "#f7c5c5";
+      };
+      input.onkeydown = (e) => {
+        if (e.code === 'Space' || e.keyCode === 32) {
+          e.preventDefault();
+          const ans = answers[input.dataset.id];
+          input.value = ans.substring(0, input.value.length + 1);
+          input.oninput();
+        }
       };
     });
   }
 
   function exitExercise() {
-    topSection.classList.remove("hidden");
-    bottomAction.classList.remove("hidden");
-    footerSection.classList.remove("hidden");
+    document.getElementById("topSection").classList.remove("hidden");
+    document.getElementById("bottomAction").classList.remove("hidden");
+    document.getElementById("footerSection").classList.remove("hidden");
     inputArea.classList.remove("hidden");
     displayArea.classList.remove("active");
   }
 
   function handleClear() {
-    if (!confirm("Clear all text?")) return;
+    if(!confirm("Clear all text?")) return;
     inputArea.value = "";
-    files.find(f => f.id === activeFileId).content = "";
+    const f = files.find(x => x.id === activeFileId);
+    if(f) f.content = "";
     save();
   }
 
   function addNewFile() {
     const id = Date.now();
     files.push({ id, title: 'File ' + (files.length + 1), content: '' });
-    activeFileId = id;
-    save(); renderTabs(); loadActiveFile();
+    activeFileId = id; save(); renderTabs(); loadActiveFile();
   }
 
   function switchFile(id) { activeFileId = id; renderTabs(); loadActiveFile(); }
 
   function deleteFile(id, e) {
     e.stopPropagation();
-    if (files.length <= 1) return;
-    files = files.filter(f => f.id !== id);
-    activeFileId = files[0].id;
+    if (files.length <= 1 || !confirm("Delete this file?")) return;
+    files = files.filter(x => x.id !== id);
+    if (activeFileId === id) activeFileId = files[0].id;
     save(); renderTabs(); loadActiveFile();
   }
 
-  function save() {
-    localStorage.setItem('cloze_files_v5', JSON.stringify(files));
-  }
-
+  function save() { localStorage.setItem('cloze_files_v5', JSON.stringify(files)); }
   function loadActiveFile() {
-    const f = files.find(f => f.id === activeFileId);
-    inputArea.value = f.content;
+    const f = files.find(x => x.id === activeFileId);
+    if (f) inputArea.value = f.content;
   }
-
   inputArea.oninput = () => {
-    files.find(f => f.id === activeFileId).content = inputArea.value;
-    save();
+    const f = files.find(x => x.id === activeFileId);
+    if (f) { f.content = inputArea.value; save(); }
   };
 
   function generateCloze(text, n) {
-    answers = [];
-    let index = 0;
-    return text.replace(/\b([a-zA-Z]+)\b/g, word => {
-      index++;
-      if (index % n === 1) {
-        const id = answers.length;
-        answers.push(word);
-        return `<input data-id="${id}" style="width:${word.length + 1}ch">`;
+    let index = 0; answers = [];
+    const regex = /\([^)]*\)|\b([a-zA-Z]+)\b/g;
+    return text.replace(regex, (match, word) => {
+      if (match.startsWith('(')) return `<span style="color:#999; font-style:italic;">${match}</span>`;
+      if (word) {
+        index++;
+        if (index % n === 1) {
+          const id = answers.length; answers.push(word);
+          return `<input data-id="${id}" autocomplete="off" style="width: ${word.length + 1}ch">`;
+        }
+        return word;
       }
-      return word;
+      return match;
     });
   }
 
   function changeFontSize(d) {
-    currentFontSize = Math.max(12, currentFontSize + d);
+    currentFontSize += d; if (currentFontSize < 12) currentFontSize = 12;
     inputArea.style.fontSize = displayArea.style.fontSize = currentFontSize + "px";
-    sizeLabel.textContent = currentFontSize;
+    document.getElementById("sizeLabel").innerText = currentFontSize;
   }
+
+  function openModal() { document.getElementById('coffeeModal').style.display = 'flex'; }
+  function closeModal() { document.getElementById('coffeeModal').style.display = 'none'; }
+  function openGuide() { document.getElementById('guideModal').style.display = 'flex'; }
+  function closeGuide() { document.getElementById('guideModal').style.display = 'none'; }
 
   init();
 </script>
