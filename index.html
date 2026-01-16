@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-  <title>Cloze Master Pro (中英双语版)</title>
+  <title>Cloze Master Pro</title>
   <style>
     :root { --primary: #43a047; --bg-light: #f8f9fa; --danger: #ff5252; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -79,6 +79,7 @@
       padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
     }
 
+    /* 弹窗样式 */
     .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
     .modal-content { background: white; padding: 22px; border-radius: 14px; width: 85%; max-width: 320px; position: relative; }
     .close-x { position: absolute; right: 12px; top: 8px; font-size: 24px; color: #bbb; cursor: pointer; }
@@ -88,6 +89,7 @@
       background: #fffde7; text-align: center; color: #000; 
       font-size: inherit; margin: 0 2px; border-radius: 0;
     }
+    .mini-coffee-btn { border-radius: 6px; transition: background 0.2s; cursor: pointer; }
   </style>
 </head>
 <body>
@@ -102,12 +104,12 @@
         <span id="sizeLabel" style="min-width: 20px; text-align: center;">18</span>
         <button class="small-btn" onclick="changeFontSize(2)">A+</button>
       </div>
-      <div>间隔 <input id="nthWord" type="number" value="4" style="width:35px; border:1px solid #ddd; text-align:center"> 字/词</div>
+      <div>间隔 <input id="nthWord" type="number" value="4" style="width:35px; border:1px solid #ddd; text-align:center"> 词</div>
     </div>
   </div>
 
   <div class="input-wrapper">
-    <textarea id="inputText" placeholder="在此粘贴英文文章或中文段落..."></textarea>
+    <textarea id="inputText" placeholder="在此粘贴英文或中文文本..."></textarea>
     <button id="pasteBtn" class="paste-fab" onclick="handlePaste()">📋 Paste 粘贴</button>
     <div id="clozeDisplay" class="cloze-display">
       <button onclick="exitExercise()" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← Back / 返回修改</button>
@@ -129,16 +131,31 @@
   </div>
 </div>
 
+<div id="coffeeModal" class="modal" onclick="closeModal()">
+  <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center;">
+    <span class="close-x" onclick="closeModal()">×</span>
+    <h4 style="margin:0">Support Development</h4>
+    <img src="coffee.png" style="width:100%; border-radius:8px; margin:15px 0;" alt="Support Image">
+    <p style="font-size:12px; color:#666;">感谢您的支持与鼓励！</p>
+  </div>
+</div>
+
 <div id="guideModal" class="modal" onclick="closeGuide()">
   <div class="modal-content" onclick="event.stopPropagation()">
     <span class="close-x" onclick="closeGuide()">×</span>
     <h4 style="color:var(--primary); text-align:center; margin-top:0;">📖 使用说明</h4>
     <div style="font-size: 13px; line-height: 1.6; color: #444;">
-      <p>1. <b>中英支持</b>：自动识别中文字符和英文单词。中文按字挖空，英文按词挖空。</p>
-      <p>2. <b>挖空间隔</b>：设置 Every Nth。如填 3，则每 3 个元素挖一个空。</p>
-      <p>3. <b>快捷提示</b>：在输入框内按<b>空格键</b>可自动填入下一个正确字符。</p>
-      <p>4. <b>多文件</b>：顶部可新建多个文档，双击标签重命名。</p>
+      <p>1. <b>挖空间隔</b>：在 Every...th 框中设置（如填 4 表示每 4 个词挖一个空）。</p>
+      <p>2. <b>单词提示</b>：按键盘<b>空格键</b>可提示下一个正确字母。</p>
+      <p>3. <b>保存文本</b>：点击顶部的 <b>+</b> 新建；<b>双击</b>标签重命名,清空浏览器缓存即删除所有文件。</p>
+      <p>4. <b>作为app使用</b>：在浏览器菜单中选择“添加到主屏幕”。</p>
     </div>
+    
+    <div style="text-align:center; margin-top:20px; border-top:1px dashed #eee; padding-top:15px;">
+      <p style="font-size:11px; color:#999; margin-bottom:10px;">If this tool helps you let me know：</p>
+      <button onclick="openModal(); closeGuide();" class="mini-coffee-btn" style="background:#f9f9f9; color:#666; border:1px solid #ddd; padding:6px 15px;">☕ coffee </button>
+    </div>
+
     <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
   </div>
 </div>
@@ -195,27 +212,19 @@
   function generateCloze(text, n) {
     let index = 0; 
     answers = [];
-    // 匹配括号内容、中文字符、或英文单词
     const regex = /\([^)]*\)|[\u4e00-\u9fa5]|[a-zA-Z]+/g;
     
     return text.replace(regex, (match) => {
       if (match.startsWith('(')) {
         return `<span style="color:#999; font-style:italic;">${match}</span>`;
       }
-      
       index++;
       if (index % n === 1) {
         const id = answers.length; 
         answers.push(match);
-        
-        // 判断是否为中文，动态计算输入框宽度
         const isChinese = /[\u4e00-\u9fa5]/.test(match);
         const boxWidth = isChinese ? 2.2 : match.length + 1.2;
-        
-        return `<input data-id="${id}" 
-                       autocomplete="off" 
-                       style="width: ${boxWidth}ch; font-family: inherit;" 
-                       onfocus="this.select()">`;
+        return `<input data-id="${id}" autocomplete="off" style="width: ${boxWidth}ch; font-family: inherit;" onfocus="this.select()">`;
       }
       return match;
     });
@@ -225,26 +234,20 @@
     if (!inputArea.value.trim()) return;
     const n = parseInt(document.getElementById("nthWord").value) || 4;
     clozeContent.innerHTML = generateCloze(inputArea.value, n);
-    
-    // 隐藏编辑界面
     ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
       document.getElementById(id).classList.add("hidden");
     });
     displayArea.classList.add("active");
-    
-    // 绑定检查逻辑
     displayArea.querySelectorAll("input").forEach(input => {
       input.oninput = () => {
         const ans = answers[input.dataset.id];
         const isCorrect = input.value.trim().toLowerCase() === ans.toLowerCase();
         input.style.backgroundColor = isCorrect ? "#c8f7c5" : (input.value ? "#f7c5c5" : "#fffde7");
       };
-      // 空格键提示逻辑
       input.onkeydown = (e) => {
         if (e.code === 'Space' || e.keyCode === 32) {
           e.preventDefault();
           const ans = answers[input.dataset.id];
-          // 填入下一个字符
           input.value = ans.substring(0, input.value.length + 1);
           input.oninput();
         }
@@ -283,12 +286,10 @@
   }
 
   function save() { localStorage.setItem('cloze_files_v5', JSON.stringify(files)); }
-  
   function loadActiveFile() {
     const f = files.find(x => x.id === activeFileId);
     if (f) inputArea.value = f.content;
   }
-
   inputArea.oninput = () => {
     const f = files.find(x => x.id === activeFileId);
     if (f) { f.content = inputArea.value; save(); }
@@ -300,6 +301,8 @@
     document.getElementById("sizeLabel").innerText = currentFontSize;
   }
 
+  function openModal() { document.getElementById('coffeeModal').style.display = 'flex'; }
+  function closeModal() { document.getElementById('coffeeModal').style.display = 'none'; }
   function openGuide() { document.getElementById('guideModal').style.display = 'flex'; }
   function closeGuide() { document.getElementById('guideModal').style.display = 'none'; }
 
