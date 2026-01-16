@@ -288,16 +288,32 @@
     if (f) { f.content = inputArea.value; save(); }
   };
 
-  function generateCloze(text, n) {
-    let index = 0; answers = [];
+function generateCloze(text, n) {
+    let index = 0; 
+    answers = [];
+    // 匹配括号内容或单词
     const regex = /\([^)]*\)|\b([a-zA-Z]+)\b/g;
+    
     return text.replace(regex, (match, word) => {
-      if (match.startsWith('(')) return `<span style="color:#999; font-style:italic;">${match}</span>`;
+      if (match.startsWith('(')) {
+        return `<span style="color:#999; font-style:italic;">${match}</span>`;
+      }
       if (word) {
         index++;
+        // 每隔 n 个单词挖一个空
         if (index % n === 1) {
-          const id = answers.length; answers.push(word);
-          return `<input data-id="${id}" autocomplete="off" style="width: ${word.length + 1}ch">`;
+          const id = answers.length; 
+          answers.push(word);
+          
+          // --- 优化点：动态计算宽度 ---
+          // 1. 使用 word.length + 1 保证末尾有空隙
+          // 2. 增加 padding:0 确保内部空间不被挤占
+          // 3. 将字体设为 inherit 确保缩放一致
+          const boxWidth = word.length + 1.5; 
+          return `<input data-id="${id}" 
+                         autocomplete="off" 
+                         style="width: ${boxWidth}ch; padding: 0; font-family: inherit;" 
+                         onfocus="this.select()">`;
         }
         return word;
       }
