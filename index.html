@@ -179,18 +179,39 @@
 
   function init() { renderTabs(); loadActiveFile(); }
 
-  // 一键粘贴功能
+// 一键粘贴功能 (已移除弹窗并优化 iOS 适配)
   async function handlePaste() {
+    if (!navigator.clipboard) return;
+
     try {
+      // 此时 iOS 会弹出 [粘贴 | 朗读] 菜单
       const text = await navigator.clipboard.readText();
+      
       if (text) {
+        // 1. 填入文字
         inputArea.value = text;
+        
+        // 2. 同步保存到本地存储
         const f = files.find(x => x.id === activeFileId);
-        if (f) { f.content = text; save(); }
-        alert("Pasted successfully!");
+        if (f) {
+          f.content = text;
+          save(); 
+        }
+        
+        // 3. 视觉反馈：按钮变色提示已完成，1秒后恢复
+        const btn = document.getElementById("pasteBtn");
+        const originalText = btn.innerHTML;
+        btn.style.background = "#888"; 
+        btn.innerHTML = "Done";
+        
+        setTimeout(() => {
+          btn.style.background = "var(--primary)";
+          btn.innerHTML = originalText;
+        }, 1000);
       }
     } catch (err) {
-      alert("Please allow clipboard access or paste manually.\n请允许剪贴板权限或手动粘贴。");
+      // 用户取消、点击了朗读或权限拒绝时，只在后台记录，不弹窗打扰用户
+      console.log("Paste interaction ended.");
     }
   }
 
