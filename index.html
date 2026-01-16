@@ -16,13 +16,11 @@
     
     html, body { 
       margin: 0; padding: 0; width: 100%; 
-      /* 修复手机端 100vh 遮挡的关键：使用 dvh */
-      height: 100vh; height: 100dvh; 
+      height: 100dvh; /* 动态视口高度，自动处理手机工具栏 */
       font-family: -apple-system, system-ui, sans-serif; 
       background-color: #fff; color: #333; overflow: hidden;
     }
 
-    /* 整体容器使用 flex 布局 */
     .app-container { 
       display: flex; flex-direction: column; 
       height: 100%; width: 100%;
@@ -30,14 +28,14 @@
 
     .hidden { display: none !important; }
 
-    /* 顶部导航 */
+    /* 顶部标签 */
     .file-tabs-container {
-      background: #fff; padding: 5px 4px; display: flex; align-items: center;
-      gap: 5px; border-bottom: 1px solid #eee; overflow-x: auto; white-space: nowrap;
-      flex-shrink: 0; /* 禁止压缩高度 */
+      background: #fff; padding: 8px 6px; display: flex; align-items: center;
+      gap: 6px; border-bottom: 1px solid #eee; overflow-x: auto; white-space: nowrap;
+      flex-shrink: 0;
     }
     .file-tab {
-      padding: 6px 12px; background: var(--bg-light); border: 1px solid #ddd;
+      padding: 6px 14px; background: var(--bg-light); border: 1px solid #ddd;
       border-radius: 20px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center;
     }
     .file-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
@@ -45,64 +43,60 @@
     .add-file-btn {
       background: var(--primary); color: white; border: none; width: 28px; height: 28px;
       border-radius: 50%; font-size: 20px; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; cursor: pointer; margin-left: 5px;
+      flex-shrink: 0; cursor: pointer;
     }
 
     /* 控制栏 */
     .header-controls {
       display: flex; align-items: center; justify-content: space-between;
-      padding: 8px 6px; background: var(--bg-light); border-bottom: 1px solid #ddd; font-size: 14px;
+      padding: 8px 10px; background: var(--bg-light); border-bottom: 1px solid #ddd; font-size: 14px;
       flex-shrink: 0;
     }
+    .small-btn { border: 1px solid #ccc; background: #fff; padding: 2px 8px; border-radius: 4px; }
 
-    /* 核心文本区 - 自动填充剩余空间 */
-    .input-wrapper { 
-      flex: 1; 
-      display: flex; 
-      flex-direction: column; 
-      overflow-y: auto; /* 允许中间滚动 */
-      background: #fff;
+    /* 中间文本区 */
+    .input-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+    textarea { 
+      flex: 1; width: 100%; padding: 15px 10px; border: none; outline: none; 
+      font-size: 18px; line-height: 1.6; resize: none; background: #fff;
     }
 
-    textarea { 
-      flex: 1; width: 100%; padding: 12px 6px; border: none; outline: none; 
-      font-size: 18px; line-height: 1.6; resize: none;
+    /* 一键粘贴按钮样式 */
+    .paste-fab {
+      position: absolute; right: 15px; bottom: 15px;
+      background: rgba(67, 160, 71, 0.9); color: white; border: none;
+      padding: 8px 16px; border-radius: 20px; font-size: 13px; font-weight: bold;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15); cursor: pointer; z-index: 10;
     }
 
     .cloze-display { 
-      padding: 12px 6px 100px 6px; white-space: pre-wrap; display: none; line-height: 1.7; word-break: break-word;
+      position: absolute; top:0; left:0; right:0; bottom:0;
+      padding: 15px 10px 120px 10px; white-space: pre-wrap; display: none; 
+      line-height: 1.7; word-break: break-word; overflow-y: auto; background: #fff;
     }
     .cloze-display.active { display: block; }
 
-    #backToEdit {
-      background: #f0f0f0; border: 1px solid #ccc; padding: 8px 15px; 
-      border-radius: 6px; font-size: 14px; margin-bottom: 20px; cursor: pointer;
-    }
-
-    /* 底部动作条 - 针对手机优化 */
-    .action-bar { 
-      display: flex; width: 100%; 
-      border-top: 1px solid #ddd; 
-      flex-shrink: 0;
-      /* 适配 iPhone 底部安全区 */
-      padding-bottom: env(safe-area-inset-bottom);
-      background: #fff;
-    }
-    .action-bar button { 
-      flex: 1; padding: 16px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; 
-    }
-    #clearBtn { background: #fff5f5; color: #d32f2f; }
+    /* 底部操作区 */
+    .action-bar { display: flex; width: 100%; border-top: 1px solid #ddd; flex-shrink: 0; background: #fff; }
+    .action-bar button { flex: 1; padding: 18px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; }
+    #clearBtn { background: #fff8f8; color: #d32f2f; }
     #generate { background: var(--primary); color: white; flex: 1.5; }
 
-    /* 页脚 */
+    /* 页脚 - 核心修复：Standalone 模式自适应 */
     .footer-bar { 
-      background: #222; color: #bbb; padding: 8px 6px; font-size: 11px;
+      background: #1a1a1a; color: #999; padding: 10px 10px; font-size: 11px;
       display: flex; justify-content: space-between; align-items: center;
       flex-shrink: 0;
-      padding-bottom: calc(env(safe-area-inset-bottom) / 2 + 5px);
+      padding-bottom: calc(env(safe-area-inset-bottom) + 10px); /* 初始适配 */
+    }
+    
+    /* 针对 PWA 安装后的精准修正 */
+    @media all and (display-mode: standalone) {
+      .footer-bar { padding-bottom: env(safe-area-inset-bottom); }
+      textarea { padding-bottom: 30px; }
     }
 
-    /* 弹窗样式补全 */
+    .mini-coffee-btn { background: #ff9800; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-weight: bold; }
     .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
     .modal-content { background: white; padding: 20px; border-radius: 12px; width: 85%; max-width: 320px; position: relative; }
     .close-x { position: absolute; right: 10px; top: 5px; font-size: 24px; color: #999; }
@@ -121,27 +115,28 @@
         <span id="sizeLabel" style="min-width: 20px; text-align: center;">18</span>
         <button class="small-btn" onclick="changeFontSize(2)">A+</button>
       </div>
-      <div style="font-size: 13px;">Every <input id="nthWord" type="number" value="4" style="width:35px; border:1px solid #ddd; text-align:center"> th</div>
+      <div>Every <input id="nthWord" type="number" value="4" style="width:35px; border:1px solid #ddd; text-align:center"> th</div>
     </div>
   </div>
 
   <div class="input-wrapper">
     <textarea id="inputText" placeholder="Paste your English text here..."></textarea>
+    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()">📋 Paste</button>
     <div id="clozeDisplay" class="cloze-display">
-      <button id="backToEdit" onclick="exitExercise()">← Back to Edit / 返回修改</button>
+      <button onclick="exitExercise()" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← Back / 返回修改</button>
       <div id="clozeContent"></div>
     </div>
   </div>
 
   <div class="action-bar" id="bottomAction">
-    <button id="clearBtn" onclick="handleClear()">Clear Text</button>
+    <button id="clearBtn" onclick="handleClear()">Clear</button>
     <button id="generate" onclick="handleGenerate()">Generate Exercise</button>
   </div>
 
   <div class="footer-bar" id="footerSection">
     <div style="display:flex; gap:15px;">
       <span style="color:#81c784; cursor:pointer; font-weight:bold;" onclick="openGuide()">Guide手册</span>
-      <a href="mailto:fnhame@gmail.com" style="color: #bbb">Feedback</a>
+      <a href="mailto:fnhame@gmail.com" style="color:#777; text-decoration:none;">Feedback</a>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
       <button class="mini-coffee-btn" onclick="openModal()">☕ Coffee</button>
@@ -162,19 +157,17 @@
 <div id="guideModal" class="modal" onclick="closeGuide()">
   <div class="modal-content" onclick="event.stopPropagation()">
     <span class="close-x" onclick="closeGuide()">×</span>
-    <h4 style="color:var(--primary); text-align:center; margin-top: 0;">📖 Guide 说明</h4>
+    <h4 style="color:var(--primary); text-align:center; margin-top:0;">📖 Guide 说明</h4>
     <div style="font-size: 13px; line-height: 1.6; color: #444;">
-      <p>1. <b>挖空间隔</b>：在 Every...th 框中设置（如填 4 表示每 4 个词挖一个空）。</p>
-      <p>2. <b>单词提示</b>：按键盘<b>空格键</b>可提示下一个正确字母。</p>
-      <p>3. <b>文件管理</b>：点击顶部的 <b>+</b> 新建；<b>双击</b>标签重命名。</p>
-      <p>4. <b>App 体验</b>：建议在浏览器菜单中选择“添加到主屏幕”。</p>
+      <p>1. <b>一键粘贴</b>：点击右下角浮动按钮快速导入剪贴板文本。</p>
+      <p>2. <b>单词提示</b>：练习时按<b>空格键</b>提示下一个字母。</p>
+      <p>3. <b>文件管理</b>：双击标签重命名，点击 <b>+</b> 新建。</p>
     </div>
-    <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold; font-size: 14px;">知道了</button>
+    <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
   </div>
 </div>
 
 <script>
-  // JavaScript 部分与你之前的逻辑基本一致，仅做了微调确保兼容性
   let files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{ id: Date.now(), title: 'File 1', content: '' }];
   let activeFileId = files[0].id;
   let currentFontSize = 18;
@@ -185,6 +178,21 @@
   const clozeContent = document.getElementById("clozeContent");
 
   function init() { renderTabs(); loadActiveFile(); }
+
+  // 一键粘贴功能
+  async function handlePaste() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text) {
+        inputArea.value = text;
+        const f = files.find(x => x.id === activeFileId);
+        if (f) { f.content = text; save(); }
+        alert("Pasted successfully!");
+      }
+    } catch (err) {
+      alert("Please allow clipboard access or paste manually.\n请允许剪贴板权限或手动粘贴。");
+    }
+  }
 
   function renderTabs() {
     const tabs = document.getElementById('fileTabs');
@@ -216,6 +224,7 @@
     document.getElementById("topSection").classList.add("hidden");
     document.getElementById("bottomAction").classList.add("hidden");
     document.getElementById("footerSection").classList.add("hidden");
+    document.getElementById("pasteBtn").classList.add("hidden");
     inputArea.classList.add("hidden");
     displayArea.classList.add("active");
     
@@ -239,12 +248,13 @@
     document.getElementById("topSection").classList.remove("hidden");
     document.getElementById("bottomAction").classList.remove("hidden");
     document.getElementById("footerSection").classList.remove("hidden");
+    document.getElementById("pasteBtn").classList.remove("hidden");
     inputArea.classList.remove("hidden");
     displayArea.classList.remove("active");
   }
 
   function handleClear() {
-    if(!confirm("Clear all text?")) return;
+    if(!confirm("Clear text?")) return;
     inputArea.value = "";
     const f = files.find(x => x.id === activeFileId);
     if(f) f.content = "";
@@ -261,7 +271,7 @@
 
   function deleteFile(id, e) {
     e.stopPropagation();
-    if (files.length <= 1 || !confirm("Delete this file?")) return;
+    if (files.length <= 1 || !confirm("Delete?")) return;
     files = files.filter(x => x.id !== id);
     if (activeFileId === id) activeFileId = files[0].id;
     save(); renderTabs(); loadActiveFile();
