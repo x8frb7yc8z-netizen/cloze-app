@@ -8,7 +8,10 @@
   <link rel="manifest" href="manifest.json">
   <link rel="apple-touch-icon" href="icon-192.png">
   <meta property="og:title" content="Cloze Master Pro">
+  <meta property="og:description" content="Simple & offline English cloze exercise tool.">
   <meta property="og:image" content="https://x8frb7yc8z-netizen.github.io/icon-192.png">
+  <meta property="og:type" content="website">
+  <link rel="image_src" href="icon-192.png">
 
   <style>
     :root { --primary: #43a047; --bg-light: #f8f9fa; --danger: #ff5252; }
@@ -21,52 +24,66 @@
     .app-container { display: flex; flex-direction: column; height: 100vh; }
     .hidden { display: none !important; }
 
-    /* 顶部导航 */
+    /* 顶部导航与标签 */
     .file-tabs-container {
       background: #fff; padding: 5px 4px; display: flex; align-items: center;
-      gap: 5px; border-bottom: 1px solid #eee; overflow-x: auto;
+      gap: 5px; border-bottom: 1px solid #eee; overflow-x: auto; white-space: nowrap;
     }
     .file-tab {
       padding: 4px 10px; background: var(--bg-light); border: 1px solid #ddd;
-      border-radius: 15px; font-size: 13px;
+      border-radius: 15px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center;
     }
     .file-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
+    
+    .add-file-btn {
+      background: var(--primary); color: white; border: none; width: 24px; height: 24px;
+      border-radius: 50%; font-size: 18px; display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; cursor: pointer; margin-left: 5px;
+    }
 
+    /* 控制栏 */
     .header-controls {
       display: flex; align-items: center; justify-content: space-between;
       padding: 6px 4px; background: var(--bg-light); border-bottom: 1px solid #ddd; font-size: 14px;
     }
+    .small-btn { border: 1px solid #ccc; background: #fff; padding: 2px 8px; border-radius: 4px; }
 
-    /* 核心区 */
+    /* 核心文本区 - 4px 顶格 */
     .input-wrapper { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
     textarea { 
       flex: 1; width: 100%; padding: 10px 4px; border: none; outline: none; 
-      font-size: 18px; line-height: 1.5; resize: none;
+      font-size: 18px; background: #fff; resize: none; line-height: 1.5;
     }
     .cloze-display { 
       padding: 10px 4px 80px 4px; white-space: pre-wrap; display: none; line-height: 1.6; word-break: break-word;
     }
     .cloze-display.active { display: block; }
 
-    /* 返回按钮 - 仅在练习模式显示 */
     #backToEdit {
-      background: #eee; border: 1px solid #ccc; padding: 4px 12px; 
-      border-radius: 4px; font-size: 12px; margin-bottom: 10px; cursor: pointer;
+      background: #eee; border: 1px solid #ccc; padding: 6px 12px; 
+      border-radius: 4px; font-size: 13px; margin-bottom: 15px; cursor: pointer; width: fit-content;
     }
 
     /* 底部按钮 */
     .action-bar { display: flex; width: 100%; border-top: 1px solid #ddd; }
-    .action-bar button { flex: 1; padding: 14px; border: none; font-weight: bold; font-size: 15px; }
+    .action-bar button { flex: 1; padding: 14px; border: none; font-weight: bold; font-size: 15px; cursor: pointer; }
     #clearBtn { background: #fdf2f2; color: #d32f2f; }
     #generate { background: var(--primary); color: white; flex: 1.5; }
 
-    .footer-bar { background: #222; color: #bbb; padding: 8px 4px; font-size: 11px; display: flex; justify-content: space-between; align-items: center; }
-    .mini-coffee-btn { background: #ff9800; color: white; border: none; padding: 3px 8px; border-radius: 4px; font-weight: bold; }
+    .footer-bar { 
+      background: #222; color: #bbb; padding: 8px 4px; font-size: 11px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .footer-bar a { color: #81c784; text-decoration: none; }
+    .mini-coffee-btn { background: #ff9800; color: white; border: none; padding: 3px 8px; border-radius: 4px; font-weight: bold; cursor: pointer; }
 
     /* 弹窗 */
-    .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
+    .modal {
+      display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8); align-items: center; justify-content: center;
+    }
     .modal-content { background: white; padding: 20px; border-radius: 12px; width: 280px; position: relative; }
-    .close-x { position: absolute; right: 10px; top: 5px; font-size: 20px; color: #999; }
+    .close-x { position: absolute; right: 10px; top: 5px; font-size: 20px; color: #999; cursor: pointer; }
 
     .cloze-display input {
       border: none; border-bottom: 1.5px solid #666; background: #fffde7;
@@ -81,32 +98,32 @@
     <div class="file-tabs-container" id="fileTabs"></div>
     <div class="header-controls">
       <span style="font-weight:bold; color:var(--primary);">Cloze Master</span>
-      <div style="display:flex; gap:5px;">
-        <button class="small-btn" onclick="changeFontSize(-2)">-</button>
+      <div style="display:flex; align-items:center; gap:5px;">
+        <button class="small-btn" onclick="changeFontSize(-2)">A-</button>
         <span id="sizeLabel">18</span>
-        <button class="small-btn" onclick="changeFontSize(2)">+</button>
+        <button class="small-btn" onclick="changeFontSize(2)">A+</button>
       </div>
-      <div>Every <input id="nthWord" type="number" value="4" style="width:35px; text-align:center"> th</div>
+      <div>Every <input id="nthWord" type="number" value="4" style="width:35px; border:1px solid #ddd; text-align:center"> th</div>
     </div>
   </div>
 
   <div class="input-wrapper">
-    <textarea id="inputText" placeholder="Paste text here..."></textarea>
+    <textarea id="inputText" placeholder="Paste your English text here..."></textarea>
     <div id="clozeDisplay" class="cloze-display">
-      <button id="backToEdit" onclick="exitExercise()">← Back to Edit</button>
+      <button id="backToEdit" onclick="exitExercise()">← Back to Edit / 返回修改</button>
       <div id="clozeContent"></div>
     </div>
   </div>
 
   <div class="action-bar" id="bottomAction">
-    <button id="clearBtn" onclick="handleClear()">Clear</button>
-    <button id="generate" onclick="handleGenerate()">Generate</button>
+    <button id="clearBtn" onclick="handleClear()">Clear Text</button>
+    <button id="generate" onclick="handleGenerate()">Generate Exercise</button>
   </div>
 
-  <div class="footer-bar">
-    <div style="display:flex; gap:10px;">
-      <span style="color:#81c784; cursor:pointer;" onclick="openGuide()">使用说明</span>
-      <a href="mailto:fnhame@gmail.com" style="color:#bbb;">意见</a>
+  <div class="footer-bar" id="footerSection">
+    <div style="display:flex; gap:12px;">
+      <span style="color:#81c784; cursor:pointer; font-weight:bold;" onclick="openGuide()">Guide手册</span>
+      <a href="mailto:fnhame@gmail.com">Feedback</a>
     </div>
     <div style="display:flex; align-items:center; gap:8px;">
       <button class="mini-coffee-btn" onclick="openModal()">☕ Coffee</button>
@@ -118,8 +135,23 @@
 <div id="coffeeModal" class="modal" onclick="closeModal()">
   <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center;">
     <span class="close-x" onclick="closeModal()">×</span>
-    <img src="coffee.png" style="width:100%; border-radius:8px;">
-    <p>Support Development</p>
+    <h4 style="margin:0">Support Development</h4>
+    <img src="coffee.png" style="width:100%; border-radius:8px; margin:10px 0;">
+    <p style="font-size:11px; color:#999;">Thank you for your kindness!</p>
+  </div>
+</div>
+
+<div id="guideModal" class="modal" onclick="closeGuide()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <span class="close-x" onclick="closeGuide()">×</span>
+    <h4 style="color:var(--primary); text-align:center;">📖Guide 说明</h4>
+    <div style="font-size: 13px; line-height: 1.6; color: #444;">
+      <p>1. <b>单词挖空间隔</b>： (如每 4 个单词挖一个空)，在Every(修改)th 设置挖空频率。</p>
+      <p>2. <b>单词提示</b>：按空格键可提示下一个正确字母。</p>
+      <p>3. <b>保存文本</b>：点击顶部的 <b>+</b> 添加新文件；<b>双击</b>标签可以重命名，清空浏览器缓存文件即消失</p>
+      <p>4. <b>作为App使用</b>：本工具支持 PWA，可在浏览器菜单中选择“添加到主屏幕”作为 App 使用。</p>
+    </div>
+    <button onclick="closeGuide()" style="width:100%; padding:10px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
   </div>
 </div>
 
@@ -135,19 +167,44 @@
 
   function init() { renderTabs(); loadActiveFile(); }
 
-  // 练习模式切换逻辑
+  // 渲染标签逻辑 - 包含修复后的 + 按钮
+  function renderTabs() {
+    const tabs = document.getElementById('fileTabs');
+    tabs.innerHTML = '';
+    files.forEach(f => {
+      const div = document.createElement('div');
+      div.className = `file-tab ${f.id === activeFileId ? 'active' : ''}`;
+      div.ondblclick = () => { 
+        const n = prompt("Rename:", f.title); 
+        if(n){ f.title = n; save(); renderTabs(); }
+      };
+      div.innerHTML = `
+        <span onclick="switchFile(${f.id})">${f.title}</span>
+        <span style="color:var(--danger);margin-left:8px;font-weight:bold" onclick="deleteFile(${f.id}, event)">×</span>
+      `;
+      tabs.appendChild(div);
+    });
+
+    const btn = document.createElement('button');
+    btn.className = "add-file-btn";
+    btn.innerHTML = '＋';
+    btn.onclick = addNewFile;
+    tabs.appendChild(btn);
+  }
+
   function handleGenerate() {
     if (!inputArea.value.trim()) return;
     const n = parseInt(document.getElementById("nthWord").value) || 4;
     clozeContent.innerHTML = generateCloze(inputArea.value, n);
     
-    // 隐藏不必要的UI，释放空间
+    // 沉浸式切换
     document.getElementById("topSection").classList.add("hidden");
     document.getElementById("bottomAction").classList.add("hidden");
+    document.getElementById("footerSection").classList.add("hidden");
     inputArea.classList.add("hidden");
     displayArea.classList.add("active");
     
-    // 绑定输入事件
+    // 绑定输入与提示
     displayArea.querySelectorAll("input").forEach(input => {
       input.oninput = () => {
         const ans = answers[input.dataset.id];
@@ -167,35 +224,46 @@
   function exitExercise() {
     document.getElementById("topSection").classList.remove("hidden");
     document.getElementById("bottomAction").classList.remove("hidden");
+    document.getElementById("footerSection").classList.remove("hidden");
     inputArea.classList.remove("hidden");
     displayArea.classList.remove("active");
   }
 
   function handleClear() {
-    if(!confirm("Clear?")) return;
+    if(!confirm("Clear all text?")) return;
     inputArea.value = "";
     const f = files.find(x => x.id === activeFileId);
     if(f) f.content = "";
-    localStorage.setItem('cloze_files_v5', JSON.stringify(files));
+    save();
   }
 
-  // 其他基础函数 (renderTabs, switchFile, generateCloze 等保持不变)
-  function renderTabs() {
-    const tabs = document.getElementById('fileTabs');
-    tabs.innerHTML = '';
-    files.forEach(f => {
-      const div = document.createElement('div');
-      div.className = `file-tab ${f.id === activeFileId ? 'active' : ''}`;
-      div.innerHTML = `<span onclick="switchFile(${f.id})">${f.title}</span>`;
-      tabs.appendChild(div);
-    });
+  function addNewFile() {
+    const id = Date.now();
+    files.push({ id, title: 'File ' + (files.length + 1), content: '' });
+    activeFileId = id; save(); renderTabs(); loadActiveFile();
   }
 
-  function switchFile(id) { activeFileId = id; loadActiveFile(); renderTabs(); }
+  function switchFile(id) { activeFileId = id; renderTabs(); loadActiveFile(); }
+
+  function deleteFile(id, e) {
+    e.stopPropagation();
+    if (files.length <= 1 || !confirm("Delete this file?")) return;
+    files = files.filter(x => x.id !== id);
+    if (activeFileId === id) activeFileId = files[0].id;
+    save(); renderTabs(); loadActiveFile();
+  }
+
+  function save() { localStorage.setItem('cloze_files_v5', JSON.stringify(files)); }
+
   function loadActiveFile() {
     const f = files.find(x => x.id === activeFileId);
     if (f) inputArea.value = f.content;
   }
+
+  inputArea.oninput = () => {
+    const f = files.find(x => x.id === activeFileId);
+    if (f) { f.content = inputArea.value; save(); }
+  };
 
   function generateCloze(text, n) {
     let index = 0; answers = [];
@@ -222,6 +290,8 @@
 
   function openModal() { document.getElementById('coffeeModal').style.display = 'flex'; }
   function closeModal() { document.getElementById('coffeeModal').style.display = 'none'; }
+  function openGuide() { document.getElementById('guideModal').style.display = 'flex'; }
+  function closeGuide() { document.getElementById('guideModal').style.display = 'none'; }
 
   init();
 </script>
