@@ -70,6 +70,10 @@
       position: absolute; top:0; left:0; right:0; bottom:0;
       padding: 15px 10px 120px 10px; white-space: pre-wrap; display: none; 
       line-height: 1.8; word-break: break-word; overflow-y: auto; background: #fff;
+      height: 100%;
+      overflow-y: scroll;
+      -webkit-overflow-scrolling: touch; /* 解决 iOS 滚动卡顿 */
+      padding-bottom: 60vh !important;   /* 极大的底部留白，确保任何一行都能滚到中心 */
     }
     .cloze-display.active { display: block; }
 
