@@ -8,7 +8,7 @@
   <link rel="apple-touch-icon" href="icon-192.png">
   <link rel="icon" sizes="512x512" href="icon-512.png">
   <meta property="og:title" content="Cloze Master Pro">
-  <meta property="og:image" content="https://x8frb7yc8z-netizen.github.io/cloze-app/icon-512.png"> 
+  <meta property="og:image" content="https://x8frb7yc8z-netizen.github.io/cloze-app/icon-512.png">
   <meta property="og:description" content="一个好用的文本挖空练习工具，助你高效背诵单词和课文。">
   
   <style>
@@ -92,6 +92,7 @@
     .close-x { position: absolute; right: 12px; top: 8px; font-size: 24px; color: #bbb; cursor: pointer; }
     
     .cloze-display input { 
+      outline: none;
       min-width: 3.6ch;
       padding: 0 0.2ch;
       line-height: 1.4;
@@ -261,6 +262,14 @@
           input.value = ans.substring(0, input.value.length + 1);
           input.oninput();
         }
+      };
+      input.onfocus = () => {
+        setTimeout(() => {
+          input.scrollIntoView({
+            behavior: "smooth",
+            block: "center"
+          });
+        }, 300);
       };
     });
   }
