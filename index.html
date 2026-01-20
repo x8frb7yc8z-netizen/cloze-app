@@ -97,15 +97,6 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
   </div>
 </div>
 
-<div id="coffeeModal" class="modal" onclick="closeModal()">
-  <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center;">
-    <span class="close-x" onclick="closeModal()">×</span>
-    <h4 style="margin:0">Support Development</h4>
-    <img src="coffee.png" style="width:100%; border-radius:8px; margin:15px 0;" alt="Support Image">
-    <p style="font-size:12px; color:#666;">感谢您的支持与鼓励！</p>
-  </div>
-</div>
-
 <div id="guideModal" class="modal" onclick="closeGuide()">
   <div class="modal-content" onclick="event.stopPropagation()" style="max-width:320px; width:85%; text-align:left; font-size:13px; line-height:1.6; color:#444;">
     <span class="close-x" onclick="closeGuide()">×</span>
@@ -116,9 +107,12 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
       <p>3. <b>保存文本</b>：点击顶部的 <b>+</b> 新建；<b>双击</b>标签重命名,清空浏览器缓存即删除所有文件。</p>
       <p>4. <b>作为app使用</b>：在浏览器菜单中选择“添加到主屏幕”。</p>
     </div>
-     <div style="text-align:center; margin-top:20px; border-top:1px dashed #eee; padding-top:15px;">
-      <p style="font-size:11px; color:#999; margin-bottom:10px;">If this tool helps you, let me know:</p>
-     <button onclick="openModal(); closeGuide();" class="mini-coffee-btn" style="background:#f9f9f9; color:#666; border:1px solid #ddd; padding:6px 15px;">☕ coffee</button>
+      <div style="text-align:center; margin-top:20px; border-top:1px dashed #eee; padding-top:15px;">
+      <p style="font-size:11px; color:#999; margin-bottom:10px;">如果这个工具帮到了你，请点个赞：</p>
+      <button id="likeBtn" onclick="handleLike()" style="background:#fff; color:#ff4757; border:1px solid #ff4757; padding:8px 25px; border-radius:20px; cursor:pointer; font-weight:bold; transition:all 0.3s; outline:none;">
+        ❤ <span id="likeCount">...</span>
+      </button>
+      <p id="likeMsg" style="font-size:10px; color:#ff4757; margin-top:5px; visibility:hidden;">感谢点赞！</p>
     </div>
     <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:15px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
   </div>
@@ -209,7 +203,67 @@ function openModal(){ document.getElementById('coffeeModal').style.display='flex
 function closeModal(){ document.getElementById('coffeeModal').style.display='none'; }
 function openGuide(){ document.getElementById('guideModal').style.display='flex'; }
 function closeGuide(){ document.getElementById('guideModal').style.display='none'; }
+  
+// --- 1. 定义唯一的项目标识 ---
+const NAMESPACE = "cloze_master_pro_unique_2026"; 
+const KEY = "total_likes";
 
+// --- 2. 获取并显示云端点赞数 ---
+async function initLikeCount() {
+    try {
+        // 使用 jsonip.com 类似的公益接口或 countapi
+        const res = await fetch(`https://api.countapi.xyz/get/${NAMESPACE}/${KEY}`);
+        const data = await res.json();
+        if(data.value) document.getElementById('likeCount').innerText = data.value;
+    } catch (e) {
+        document.getElementById('likeCount').innerText = "0";
+    }
+}
+
+// --- 3. 处理点击点赞逻辑 ---
+async function handleLike() {
+    const btn = document.getElementById('likeBtn');
+    const msg = document.getElementById('likeMsg');
+    const countSpan = document.getElementById('likeCount');
+
+    // 检查本地存储，防止同一个人反复刷赞
+    if (localStorage.getItem('voted_like_2026')) {
+        msg.innerText = "已经收到你的心意啦~";
+        msg.style.visibility = "visible";
+        return;
+    }
+
+    try {
+        // 调用 hit 接口，数值在云端自动 +1
+        const res = await fetch(`https://api.countapi.xyz/hit/${NAMESPACE}/${KEY}`);
+        const data = await res.json();
+        
+        // 更新显示
+        countSpan.innerText = data.value;
+        
+        // 视觉反馈
+        btn.style.background = "#ff4757";
+        btn.style.color = "#fff";
+        msg.style.visibility = "visible";
+        
+        // 本地记录已点赞
+        localStorage.setItem('voted_like_2026', 'true');
+    } catch (e) {
+        // 网络失败时的兜底显示
+        let current = parseInt(countSpan.innerText) || 0;
+        countSpan.innerText = current + 1;
+        msg.style.visibility = "visible";
+    }
+}
+
+// --- 4. 修改你的 init 函数，让它启动 ---
+// 找到你原有的 init()，在里面加上 initLikeCount();
+function init() { 
+    renderTabs(); 
+    loadActiveFile(); 
+    initLikeCount(); // <-- 确保这行在这里
+}
+      
 init();
 </script>
 </body>
