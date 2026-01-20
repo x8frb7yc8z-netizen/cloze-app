@@ -4,168 +4,105 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Cloze Master Pro</title>
-  <link rel="manifest" href="manifest.json">
-  <link rel="apple-touch-icon" href="icon-192.png">
-  <link rel="icon" sizes="512x512" href="icon-512.png">
-  <meta property="og:title" content="Cloze Master Pro">
-  <meta property="og:image" content="https://x8frb7yc8z-netizen.github.io/cloze-app/icon-512.png">
-  <meta property="og:description" content="一个好用的文本挖空练习工具，助你高效背诵单词和课文。">
-  
   <style>
     :root { --primary: #43a047; --bg-light: #f8f9fa; --danger: #ff5252; }
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     
+    /* 核心改动：不再锁定 body 高度，允许自然滚动 */
     html, body { 
       margin: 0; padding: 0; width: 100%; 
-      height: 100dvh; 
-      font-family: -apple-system, system-ui, "Microsoft YaHei", sans-serif; 
-      background-color: #fff; color: #333; overflow: hidden;
+      background-color: #fff; color: #333;
+      font-family: -apple-system, system-ui, sans-serif;
     }
 
-    .app-container { display: flex; flex-direction: column; height: 100%; width: 100%; }
+    .app-container { display: flex; flex-direction: column; min-height: 100vh; }
     .hidden { display: none !important; }
 
-    /* 顶部标签 */
+    /* UI 组件保持原样 */
     .file-tabs-container {
       background: #fff; padding: 8px 6px; display: flex; align-items: center;
       gap: 6px; border-bottom: 1px solid #eee; overflow-x: auto; white-space: nowrap;
-      flex-shrink: 0;
     }
     .file-tab {
       padding: 6px 14px; background: var(--bg-light); border: 1px solid #ddd;
-      border-radius: 20px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center;
+      border-radius: 20px; font-size: 14px; display: inline-flex; align-items: center;
     }
     .file-tab.active { background: var(--primary); color: white; border-color: var(--primary); }
-    .add-file-btn {
-      background: var(--primary); color: white; border: none; width: 28px; height: 28px;
-      border-radius: 50%; font-size: 20px; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; cursor: pointer;
-    }
+    .add-file-btn { background: var(--primary); color: white; border: none; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 
-    /* 控制栏 */
     .header-controls {
       display: flex; align-items: center; justify-content: space-between;
       padding: 8px 10px; background: var(--bg-light); border-bottom: 1px solid #ddd; font-size: 14px;
-      flex-shrink: 0;
     }
-    .small-btn { border: 1px solid #ccc; background: #fff; padding: 2px 8px; border-radius: 4px; }
 
-    /* 中间文本区 */
-    .input-wrapper { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
+    /* 编辑区域 */
+    #editArea { flex: 1; display: flex; flex-direction: column; }
     textarea { 
-      flex: 1; width: 100%; padding: 15px 10px; border: none; outline: none; 
-      font-size: 18px; line-height: 1.6; resize: none; background: #fff;
+      flex: 1; width: 100%; min-height: 300px; padding: 15px 10px; border: none; outline: none; 
+      font-size: 18px; line-height: 1.6; resize: none;
     }
 
-    .paste-fab {
-      position: absolute; right: 20px; bottom: 25px;
-      background: var(--primary); color: white; border: none;
-      padding: 12px 22px; border-radius: 30px; font-size: 14px; font-weight: bold;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 100;
-      transition: all 0.2s;
+    /* 完美的练习区域逻辑：全页面滚动 */
+    #clozeDisplay { 
+      padding: 15px 10px 80vh 10px; /* 底部预留巨大空间供居中滚动 */
+      white-space: pre-wrap;
+      line-height: 1.8;
+      word-break: break-word;
+      display: none;
     }
-    .paste-fab:active { transform: scale(0.9); opacity: 0.8; }
-
-    .cloze-display { 
-      position: absolute; top: 0; left: 0; right: 0; bottom: 0;
-      padding: 15px 10px; white-space: pre-wrap; display: none; 
-      line-height: 1.8; word-break: break-word; overflow-y: auto; background: #fff;
-      height: 100%; -webkit-overflow-scrolling: touch;
-      /* 关键优化：给底部留出极大的空间，确保任何一行都能滚动到屏幕中心 */
-      padding-bottom: 65vh !important; 
-    }
-    .cloze-display.active { display: block; }
-
-    /* 核心改动：利用 size 属性伪装成单词的输入框样式 */
     .cloze-display input { 
-      outline: none;
-      width: auto; /* 必须为 auto 以让 size 属性生效 */
-      padding: 0 1px;
-      line-height: 1.4;
+      outline: none; width: auto; 
       border: none; border-bottom: 1.5px solid #666; 
       background: #fffde7; text-align: center; color: #000; 
       font-size: inherit; margin: 0 1px; border-radius: 0;
-      display: inline-block; /* 保持在文字流中 */
-      transition: background-color 0.2s;
+      display: inline-block;
     }
 
-    /* 底部操作区 */
-    .action-bar { display: flex; width: 100%; border-top: 1px solid #ddd; flex-shrink: 0; background: #fff; }
-    .action-bar button { flex: 1; padding: 18px; border: none; font-weight: bold; font-size: 16px; cursor: pointer; }
-    #clearBtn { background: #fff8f8; color: #d32f2f; }
+    /* 浮动与动作条 */
+    .paste-fab {
+      position: fixed; right: 20px; bottom: 85px;
+      background: var(--primary); color: white; border: none;
+      padding: 12px 22px; border-radius: 30px; font-weight: bold;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.2); z-index: 100;
+    }
+    .action-bar { display: flex; width: 100%; border-top: 1px solid #ddd; position: sticky; bottom: 0; background: #fff; }
+    .action-bar button { flex: 1; padding: 18px; border: none; font-weight: bold; font-size: 16px; }
     #generate { background: var(--primary); color: white; flex: 1.5; }
 
-    .footer-bar { 
-      background: #1a1a1a; color: #999; padding: 10px 12px; font-size: 12px;
-      display: flex; justify-content: space-between; align-items: center;
-      flex-shrink: 0;
-      padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
-    }
-
-    .modal { display: none; position: fixed; z-index: 2000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; }
-    .modal-content { background: white; padding: 22px; border-radius: 14px; width: 85%; max-width: 320px; position: relative; }
-    .close-x { position: absolute; right: 12px; top: 8px; font-size: 24px; color: #bbb; cursor: pointer; }
+    .footer-bar { background: #1a1a1a; color: #999; padding: 15px; font-size: 12px; text-align: center; }
   </style>
 </head>
 <body>
 
 <div class="app-container">
-  <div id="topSection">
+  <div id="mainView">
     <div class="file-tabs-container" id="fileTabs"></div>
     <div class="header-controls">
-      <span style="font-weight:bold; color:var(--primary); font-size: 16px;">Cloze Master</span>
-      <div style="display:flex; align-items:center; gap:8px;">
+      <span style="font-weight:bold; color:var(--primary);">Cloze Master</span>
+      <div style="display:flex; gap:5px;">
         <button class="small-btn" onclick="changeFontSize(-2)">A-</button>
-        <span id="sizeLabel" style="min-width: 20px; text-align: center;">18</span>
+        <span id="sizeLabel">18</span>
         <button class="small-btn" onclick="changeFontSize(2)">A+</button>
       </div>
-      <div>间隔 <input id="nthWord" type="number" value="4" style="width:35px; border:1px solid #ddd; text-align:center"> 词</div>
+      <div>间隔 <input id="nthWord" type="number" value="4" style="width:35px; text-align:center"></div>
+    </div>
+    <div id="editArea">
+      <textarea id="inputText" placeholder="粘贴文本..."></textarea>
+      <button class="paste-fab" onclick="handlePaste()">📋 Paste</button>
+      <div class="action-bar">
+        <button onclick="handleClear()">清空</button>
+        <button id="generate" onclick="handleGenerate()">生成练习</button>
+      </div>
     </div>
   </div>
 
-  <div class="input-wrapper">
-    <textarea id="inputText" placeholder="在此粘贴英文或中文文本..."></textarea>
-    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()">📋 Paste 粘贴</button>
-    <div id="clozeDisplay" class="cloze-display">
-      <button onclick="exitExercise()" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← Back / 返回修改</button>
-      <div id="clozeContent"></div>
-    </div>
+  <div id="clozeDisplay">
+    <button onclick="exitExercise()" style="width:100%; padding:10px; background:#f0f0f0; border:1px solid #ccc; border-radius:8px; margin-bottom:20px;">← 返回修改文字</button>
+    <div id="clozeContent"></div>
   </div>
 
-  <div class="action-bar" id="bottomAction">
-    <button id="clearBtn" onclick="handleClear()">清空</button>
-    <button id="generate" onclick="handleGenerate()">生成练习</button>
-  </div>
-
-  <div class="footer-bar" id="footerSection">
-    <div style="display:flex; gap:18px;">
-      <span style="color:#81c784; cursor:pointer; font-weight:bold;" onclick="openGuide()">📖 Guide 手册</span>
-      <a href="mailto:fnhame@gmail.com" style="color:#666; text-decoration:none;">Feedback</a>
-    </div>
-    <div style="color:#555;">Ricky @ 2026</div>
-  </div>
-</div>
-
-<div id="coffeeModal" class="modal" onclick="closeModal()">
-  <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center;">
-    <span class="close-x" onclick="closeModal()">×</span>
-    <h4 style="margin:0">Support Development</h4>
-    <img src="coffee.png" style="width:100%; border-radius:8px; margin:15px 0;" alt="Support Image">
-    <p style="font-size:12px; color:#666;">感谢您的支持与鼓励！</p>
-  </div>
-</div>
-
-<div id="guideModal" class="modal" onclick="closeGuide()">
-  <div class="modal-content" onclick="event.stopPropagation()">
-    <span class="close-x" onclick="closeGuide()">×</span>
-    <h4 style="color:var(--primary); text-align:center; margin-top:0;">📖 使用说明</h4>
-    <div style="font-size: 13px; line-height: 1.6; color: #444;">
-      <p>1. <b>挖空间隔</b>：填 4 表示每 4 个词挖一个空。</p>
-      <p>2. <b>单词提示</b>：按键盘<b>空格键</b>可提示下一个正确字母。</p>
-      <p>3. <b>丝滑移动</b>：点击输入框会自动居中，完美避开软键盘。</p>
-      <p>4. <b>PWA使用</b>：在浏览器菜单中选择“添加到主屏幕”即可作为 App 使用。</p>
-    </div>
-    <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
+  <div class="footer-bar" id="footer">
+    Ricky @ 2026
   </div>
 </div>
 
@@ -177,70 +114,21 @@
 
   const inputArea = document.getElementById("inputText");
   const displayArea = document.getElementById("clozeDisplay");
-  const clozeContent = document.getElementById("clozeContent");
+  const mainView = document.getElementById("mainView");
 
   function init() { renderTabs(); loadActiveFile(); }
 
-  async function handlePaste() {
-    if (!navigator.clipboard) return;
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        inputArea.value = text;
-        updateFileContent(text);
-        const btn = document.getElementById("pasteBtn");
-        btn.style.background = "#888";
-        setTimeout(() => { btn.style.background = "var(--primary)"; }, 800);
-      }
-    } catch (err) { console.log("Paste failed"); }
-  }
-
-  function renderTabs() {
-    const tabs = document.getElementById('fileTabs');
-    tabs.innerHTML = '';
-    files.forEach(f => {
-      const div = document.createElement('div');
-      div.className = `file-tab ${f.id === activeFileId ? 'active' : ''}`;
-      div.ondblclick = () => { 
-        const n = prompt("重命名文件:", f.title); 
-        if(n){ f.title = n; save(); renderTabs(); }
-      };
-      div.innerHTML = `
-        <span onclick="switchFile(${f.id})">${f.title}</span>
-        <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>
-      `;
-      tabs.appendChild(div);
-    });
-    const btn = document.createElement('button');
-    btn.className = "add-file-btn"; btn.innerHTML = '＋';
-    btn.onclick = addNewFile;
-    tabs.appendChild(btn);
-  }
-
-  // 优化后的生成逻辑：支持中文 + 撇号单词 + size自适应
+  // 完美移动端逻辑：Size 适配 + 单词流
   function generateCloze(text, n) {
-    let index = 0; 
-    answers = [];
+    let index = 0; answers = [];
     const regex = /\([^)]*\)|[\u4e00-\u9fa5]|[a-zA-Z]+(?:[''-][a-zA-Z]+)*/g;
-    
     return text.replace(regex, (match) => {
-      if (match.startsWith('(')) {
-        return `<span style="color:#999; font-style:italic;">${match}</span>`;
-      }
+      if (match.startsWith('(')) return `<span style="color:#999; font-style:italic;">${match}</span>`;
       index++;
       if (index % n === 1) {
-        const id = answers.length; 
-        answers.push(match);
+        const id = answers.length; answers.push(match);
         const isChinese = /[\u4e00-\u9fa5]/.test(match);
-        // 使用 size 属性，中文字符占2位宽度
-        const boxSize = isChinese ? 2 : match.length;
-        
-        return `<input data-id="${id}" 
-                       size="${boxSize}" 
-                       autocomplete="off" 
-                       autocapitalize="none" 
-                       spellcheck="false" 
-                       onfocus="this.select()">`;
+        return `<input data-id="${id}" size="${isChinese ? 2 : match.length}" autocomplete="off" autocapitalize="none" spellcheck="false">`;
       }
       return match;
     });
@@ -250,25 +138,26 @@
     const val = inputArea.value.trim();
     if (!val) return;
     const n = parseInt(document.getElementById("nthWord").value) || 4;
-    clozeContent.innerHTML = generateCloze(val, n);
+    document.getElementById("clozeContent").innerHTML = generateCloze(val, n);
     
-    ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
-      document.getElementById(id).classList.add("hidden");
-    });
-    displayArea.classList.add("active");
+    // 关键改变：隐藏主视图，让 body 只有练习区
+    mainView.style.display = "none";
+    document.getElementById("footer").style.display = "none";
+    displayArea.style.display = "block";
     
+    // 滚动回顶部
+    window.scrollTo(0, 0);
+
     const allInputs = displayArea.querySelectorAll("input");
     allInputs.forEach(input => {
-      // 实时验证逻辑
       input.oninput = () => {
         const ans = answers[input.dataset.id];
         const isCorrect = input.value.trim().toLowerCase() === ans.toLowerCase();
         input.style.backgroundColor = isCorrect ? "#c8f7c5" : (input.value ? "#f7c5c5" : "#fffde7");
       };
 
-      // 空格提示逻辑
       input.onkeydown = (e) => {
-        if (e.code === 'Space' || e.keyCode === 32) {
+        if (e.keyCode === 32) { // 空格提示
           e.preventDefault();
           const ans = answers[input.dataset.id];
           input.value = ans.substring(0, input.value.length + 1);
@@ -276,9 +165,10 @@
         }
       };
 
-      // 极致丝滑的滚动居中逻辑
+      // 完美滚动核心：利用全页面的 scrollIntoView
       input.onfocus = () => {
         setTimeout(() => {
+          // 这里不再受 div 容器限制，是整个页面的居中
           input.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }, 280); 
       };
@@ -286,57 +176,46 @@
   }
 
   function exitExercise() {
-    ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
-      document.getElementById(id).classList.remove("hidden");
+    mainView.style.display = "block";
+    document.getElementById("footer").style.display = "block";
+    displayArea.style.display = "none";
+    window.scrollTo(0, 0);
+  }
+
+  // --- 基础功能逻辑 ---
+  async function handlePaste() {
+    const text = await navigator.clipboard.readText();
+    if (text) { inputArea.value = text; updateFile(text); }
+  }
+  function renderTabs() {
+    const tabs = document.getElementById('fileTabs');
+    tabs.innerHTML = '';
+    files.forEach(f => {
+      const div = document.createElement('div');
+      div.className = `file-tab ${f.id === activeFileId ? 'active' : ''}`;
+      div.onclick = () => { activeFileId = f.id; renderTabs(); loadActiveFile(); };
+      div.innerHTML = `<span>${f.title}</span>`;
+      tabs.appendChild(div);
     });
-    displayArea.classList.remove("active");
+    const btn = document.createElement('button');
+    btn.className = "add-file-btn"; btn.innerHTML = '+';
+    btn.onclick = () => {
+      const id = Date.now();
+      files.push({ id, title: 'File ' + (files.length + 1), content: '' });
+      activeFileId = id; save(); renderTabs(); loadActiveFile();
+    };
+    tabs.appendChild(btn);
   }
-
-  function handleClear() {
-    if(!confirm("确定清空当前文本吗？")) return;
-    inputArea.value = "";
-    updateFileContent("");
-  }
-
-  function updateFileContent(text) {
-    const f = files.find(x => x.id === activeFileId);
-    if (f) { f.content = text; save(); }
-  }
-
-  function addNewFile() {
-    const id = Date.now();
-    files.push({ id, title: 'File ' + (files.length + 1), content: '' });
-    activeFileId = id; save(); renderTabs(); loadActiveFile();
-  }
-
-  function switchFile(id) { activeFileId = id; renderTabs(); loadActiveFile(); }
-
-  function deleteFile(id, e) {
-    e.stopPropagation();
-    if (files.length <= 1 || !confirm("删除此文件？")) return;
-    files = files.filter(x => x.id !== id);
-    if (activeFileId === id) activeFileId = files[0].id;
-    save(); renderTabs(); loadActiveFile();
-  }
-
+  function updateFile(t) { const f = files.find(x => x.id === activeFileId); if(f){f.content=t; save();} }
   function save() { localStorage.setItem('cloze_files_v5', JSON.stringify(files)); }
-  function loadActiveFile() {
-    const f = files.find(x => x.id === activeFileId);
-    if (f) inputArea.value = f.content;
-  }
-  inputArea.oninput = () => updateFileContent(inputArea.value);
-
+  function loadActiveFile() { const f = files.find(x => x.id === activeFileId); if(f) inputArea.value = f.content; }
+  function handleClear() { inputArea.value = ""; updateFile(""); }
   function changeFontSize(d) {
     currentFontSize += d; if (currentFontSize < 12) currentFontSize = 12;
     inputArea.style.fontSize = displayArea.style.fontSize = currentFontSize + "px";
     document.getElementById("sizeLabel").innerText = currentFontSize;
   }
-
-  function openModal() { document.getElementById('coffeeModal').style.display = 'flex'; }
-  function closeModal() { document.getElementById('coffeeModal').style.display = 'none'; }
-  function openGuide() { document.getElementById('guideModal').style.display = 'flex'; }
-  function closeGuide() { document.getElementById('guideModal').style.display = 'none'; }
-
+  inputArea.oninput = () => updateFile(inputArea.value);
   init();
 </script>
 </body>
