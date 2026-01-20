@@ -265,10 +265,12 @@
       };
       input.onfocus = () => {
         setTimeout(() => {
-          input.scrollIntoView({
-            behavior: "smooth",
-            block: "center"
-          });
+          const inputRect = input.getBoundingClientRect();
+          const containerRect = displayArea.getBoundingClientRect();
+          const overflow = inputRect.bottom - containerRect.bottom;
+          if (overflow > 0) {
+            displayArea.scrollTop += overflow + 20;
+          }
         }, 300);
       };
     });
