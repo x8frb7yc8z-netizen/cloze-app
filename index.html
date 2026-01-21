@@ -133,6 +133,7 @@ function init() {
     renderTabs(); 
     loadActiveFile(); 
     initLikeCount(); 
+    initGuideModal();
 }
 
 // ---------------- 粘贴 ----------------
@@ -366,6 +367,17 @@ async function handleLike() {
         countSpan.innerText = current + 1;
         msg.style.visibility = "visible";
     }
+}
+
+// ---------------- Guide 弹窗 ----------------
+function initGuideModal(){
+    const guideModal = document.getElementById('guideModal');
+    if(!guideModal) return;
+    guideModal.addEventListener('click', ()=>{ guideModal.style.display='none'; });
+    const content = guideModal.querySelector('.modal-content');
+    if(content) content.addEventListener('click', e=>e.stopPropagation());
+    const btn = document.querySelector('.footer-link[onclick="openGuide()"]');
+    if(btn) btn.addEventListener('click', ()=>{ guideModal.style.display='flex'; });
 }
 
 // ---------------- 初始化 ----------------
