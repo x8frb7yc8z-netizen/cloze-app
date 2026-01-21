@@ -188,7 +188,7 @@ function handleGenerate(){
 function exitExercise(){ ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.remove("hidden")); displayArea.classList.remove("active"); }
 
 function handleClear(){ if(!confirm("确定清空当前文本吗？")) return; inputArea.value=""; saveActiveFile(""); }
-function addNewFile(){ const id=Date.now(); files.push({id,title:'File '+(files.length+1),content:''}); activeFileId=id; save(); renderTabs(); loadActiveFile(); }
+function addNewFile(){ const id=Date.now(); files.push({id,title:'File '+(files.length+1),content:''}); activeFileId=id; save(); renderTabs(); loadActiveFile(); const tabs=document.getElementById('fileTabs'); tabs.scrollLeft=tabs.scrollWidth; }
 function switchFile(id){ activeFileId=id; renderTabs(); loadActiveFile(); }
 function deleteFile(id,e){ e.stopPropagation(); if(files.length<=1||!confirm("删除此文件？")) return; files=files.filter(x=>x.id!==id); if(activeFileId===id) activeFileId=files[0].id; save(); renderTabs(); loadActiveFile(); }
 
