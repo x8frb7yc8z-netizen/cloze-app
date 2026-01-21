@@ -86,6 +86,7 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
   <div class="action-bar" id="bottomAction">
     <button id="clearBtn" onclick="handleClear()">清空</button>
     <button id="generate" onclick="handleGenerate()">生成练习</button>
+    <button id="customClozeBtn" onclick="enableCustomCloze()">自定义挖空</button>
   </div>
 
   <div class="footer-bar" id="footerSection">
@@ -263,7 +264,60 @@ function init() {
     loadActiveFile(); 
     initLikeCount(); // <-- 确保这行在这里
 }
-      
+
+function enableCustomCloze() {
+    const text = inputArea.value.trim();
+    if (!text) return;
+
+    // 1. 按空格或标点拆词，并包裹 span
+    const regex = /[\u4e00-\u9fa5]+|[a-zA-Z]+|[^\s\w\u4e00-\u9fa5]/g;
+    let wrappedText = text.replace(regex, match => `<span class="word-span">${match}</span>`);
+    
+    clozeContent.innerHTML = wrappedText;
+    displayArea.classList.add("active");
+    ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.add("hidden"));
+
+    // 2. 点击挖空
+    answers = [];
+    clozeContent.querySelectorAll(".word-span").forEach((span, idx) => {
+        span.style.cursor = "pointer";
+        span.onclick = function() {
+            const word = span.innerText;
+            if (!word) return;
+
+            // 避免重复挖空
+            if(span.tagName.toLowerCase() === 'input') return;
+
+            // 计算宽度（中文、英文）
+            const isChinese = /[\u4e00-\u9fa5]/.test(word);
+            const boxWidth = isChinese ? 2.2 : word.length + 1.2;
+
+            // 生成 input
+            const inputEl = document.createElement("input");
+            const answerId = answers.length;
+            answers.push(word);
+            inputEl.dataset.id = answerId;
+            inputEl.style.width = boxWidth + "ch";
+            inputEl.style.fontFamily = "inherit";
+            inputEl.autocomplete = "off";
+            inputEl.oninput = () => {
+                const ans = answers[inputEl.dataset.id];
+                inputEl.style.backgroundColor = inputEl.value.trim().toLowerCase()===ans.toLowerCase()?"#c8f7c5":(inputEl.value?"#f7c5c5":"#fffde7");
+            };
+            inputEl.onkeydown = (e) => {
+                if(e.code==='Space'||e.keyCode===32){
+                    e.preventDefault();
+                    const ans = answers[inputEl.dataset.id];
+                    inputEl.value = ans.substring(0,inputEl.value.length+1);
+                    inputEl.oninput();
+                }
+            };
+
+            span.replaceWith(inputEl);
+            inputEl.focus();
+        };
+    });
+}
 init();
 </script>
 </body>
