@@ -118,9 +118,8 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:15px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
   </div>
 </div>
-
 <script>
-let files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{ id: Date.now(), title: 'File 1', content: '' }];
+let files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{ id: Date.now(), title: 'File 1', content: '', clozePositions: [] }];
 let activeFileId = files[0].id;
 let currentFontSize = 18;
 let answers = [];
@@ -129,32 +128,101 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
-function init() { renderTabs(); loadActiveFile(); }
+// ---------------- 初始化 ----------------
+function init() { 
+    renderTabs(); 
+    loadActiveFile(); 
+    initLikeCount(); 
+}
 
+// ---------------- 粘贴 ----------------
 async function handlePaste() {
   if (!navigator.clipboard) return;
   try {
     const text = await navigator.clipboard.readText();
-    if (text) { inputArea.value=text; saveActiveFile(); const btn=document.getElementById("pasteBtn"); btn.style.background="#888"; setTimeout(()=>{btn.style.background="var(--primary)";},800); }
+    if (text) { inputArea.value=text; saveActiveFile(); 
+      const btn=document.getElementById("pasteBtn"); 
+      btn.style.background="#888"; 
+      setTimeout(()=>{btn.style.background="var(--primary)";},800); 
+    }
   } catch { console.log("Paste failed"); }
 }
 
+// ---------------- 文件标签 ----------------
 function renderTabs() {
   const tabs = document.getElementById('fileTabs'); tabs.innerHTML='';
   files.forEach(f=>{
-    const div=document.createElement('div'); div.className=`file-tab ${f.id===activeFileId?'active':''}`;
-    div.ondblclick=()=>{ const n=prompt("重命名文件:", f.title); if(n){f.title=n; save(); renderTabs();} };
+    const div=document.createElement('div'); 
+    div.className=`file-tab ${f.id===activeFileId?'active':''}`;
+    div.ondblclick=()=>{ 
+      const n=prompt("重命名文件:", f.title); 
+      if(n){f.title=n; save(); renderTabs();}
+    };
     div.innerHTML=`<span onclick="switchFile(${f.id})">${f.title}</span>
       <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>`;
     tabs.appendChild(div);
   });
-  const btn=document.createElement('button'); btn.className="add-file-btn"; btn.innerHTML='＋'; btn.onclick=addNewFile;
+  const btn=document.createElement('button'); 
+  btn.className="add-file-btn"; btn.innerHTML='＋'; btn.onclick=addNewFile;
   tabs.appendChild(btn);
 }
 
+// ---------------- 保存 / 加载 ----------------
+function save(){ localStorage.setItem('cloze_files_v5',JSON.stringify(files)); }
+function saveActiveFile(val){ 
+  const f=files.find(x=>x.id===activeFileId); 
+  if(f){ 
+    f.content=(val!==undefined)?val:inputArea.value; 
+    save(); 
+  } 
+}
+function loadActiveFile(){ 
+  const f=files.find(x=>x.id===activeFileId); 
+  if(!f) return;
+  inputArea.value=f.content || ""; 
+  answers = [];
+}
+
+// ---------------- 文件操作 ----------------
+function addNewFile(){ 
+  const id=Date.now(); 
+  files.push({id,title:'File '+(files.length+1),content:'', clozePositions: []}); 
+  activeFileId=id; 
+  save(); 
+  renderTabs(); 
+  loadActiveFile(); 
+  const tabs=document.getElementById('fileTabs'); tabs.scrollLeft=tabs.scrollWidth; 
+}
+function switchFile(id){ activeFileId=id; renderTabs(); loadActiveFile(); }
+function deleteFile(id,e){ 
+  e.stopPropagation(); 
+  if(files.length<=1||!confirm("删除此文件？")) return; 
+  files=files.filter(x=>x.id!==id); 
+  if(activeFileId===id) activeFileId=files[0].id; 
+  save(); renderTabs(); loadActiveFile(); 
+}
+
+// ---------------- 字体 ----------------
+function changeFontSize(d){ 
+  currentFontSize+=d; 
+  if(currentFontSize<12) currentFontSize=12; 
+  inputArea.style.fontSize=displayArea.style.fontSize=currentFontSize+"px"; 
+  document.getElementById("sizeLabel").innerText=currentFontSize; 
+}
+
+// ---------------- 清空 ----------------
+function handleClear(){ 
+  if(!confirm("确定清空当前文本吗？")) return; 
+  inputArea.value=""; 
+  const f = files.find(x=>x.id===activeFileId); 
+  if(f) f.clozePositions = [];
+  saveActiveFile(""); 
+}
+
+// ---------------- 每 N 个词挖空 ----------------
 function generateCloze(text,n){
   let index=0; answers=[];
-  const regex=/\([^)]*\]|[\u4e00-\u9fa5]|[a-zA-Z]+/g;
+  const regex=/\([^)]*\]|[\u4e00-\u9fa5]+|[a-zA-Z]+/g;
   return text.replace(regex,(match)=>{
     if(match.startsWith('(')) return `<span style="color:#999;font-style:italic;">${match}</span>`;
     index++;
@@ -162,7 +230,7 @@ function generateCloze(text,n){
       const id=answers.length; answers.push(match);
       const isChinese=/[\u4e00-\u9fa5]/.test(match);
       const boxWidth=isChinese?2.2:match.length+1.2;
-      return `<input data-id="${id}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;" onfocus="this.scrollIntoView({behavior:'smooth',block:'center'}); this.select()">`;
+      return `<input data-id="${id}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;">`;
     }
     return match;
   });
@@ -174,11 +242,10 @@ function handleGenerate(){
   clozeContent.innerHTML=generateCloze(inputArea.value,n);
   ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.add("hidden"));
   displayArea.classList.add("active");
-  displayArea.querySelectorAll("input").forEach(input=>{
+  clozeContent.querySelectorAll("input").forEach(input=>{
     input.oninput=()=>{
       const ans=answers[input.dataset.id];
-      const isCorrect=input.value.trim().toLowerCase()===ans.toLowerCase();
-      input.style.backgroundColor=isCorrect?"#c8f7c5":(input.value?"#f7c5c5":"#fffde7");
+      input.style.backgroundColor=input.value.trim().toLowerCase()===ans.toLowerCase()?"#c8f7c5":(input.value?"#f7c5c5":"#fffde7");
     };
     input.onkeydown=(e)=>{
       if(e.code==='Space'||e.keyCode===32){ e.preventDefault(); const ans=answers[input.dataset.id]; input.value=ans.substring(0,input.value.length+1); input.oninput(); }
@@ -186,33 +253,90 @@ function handleGenerate(){
   });
 }
 
-function exitExercise(){ ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.remove("hidden")); displayArea.classList.remove("active"); }
+// ---------------- 退出 ----------------
+function exitExercise(){ 
+  ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.remove("hidden")); 
+  displayArea.classList.remove("active"); 
+}
 
-function handleClear(){ if(!confirm("确定清空当前文本吗？")) return; inputArea.value=""; saveActiveFile(""); }
-function addNewFile(){ const id=Date.now(); files.push({id,title:'File '+(files.length+1),content:''}); activeFileId=id; save(); renderTabs(); loadActiveFile(); const tabs=document.getElementById('fileTabs'); tabs.scrollLeft=tabs.scrollWidth; }
-function switchFile(id){ activeFileId=id; renderTabs(); loadActiveFile(); }
-function deleteFile(id,e){ e.stopPropagation(); if(files.length<=1||!confirm("删除此文件？")) return; files=files.filter(x=>x.id!==id); if(activeFileId===id) activeFileId=files[0].id; save(); renderTabs(); loadActiveFile(); }
+// ---------------- 点击挖空 + 保存 ----------------
+function enableCustomCloze() {
+  const text = inputArea.value.trim();
+  if (!text) return;
 
-function save(){ localStorage.setItem('cloze_files_v5',JSON.stringify(files)); }
-function saveActiveFile(val){ const f=files.find(x=>x.id===activeFileId); if(f){ f.content=(val!==undefined)?val:inputArea.value; save(); } }
-function loadActiveFile(){ const f=files.find(x=>x.id===activeFileId); if(f) inputArea.value=f.content; }
+  const regex = /[\u4e00-\u9fa5]+|[a-zA-Z]+|[^\s\w\u4e00-\u9fa5]/g;
+  const words = text.match(regex);
+  if(!words) return;
+
+  const f = files.find(x=>x.id===activeFileId);
+  if(!f.clozePositions) f.clozePositions=[];
+
+  answers = [];
+  clozeContent.innerHTML = words.map((w,i)=>{
+    if(f.clozePositions.includes(i)){
+      answers.push(w);
+      const isChinese = /[\u4e00-\u9fa5]/.test(w);
+      const boxWidth = isChinese ? 2.2 : w.length + 1.2;
+      return `<input data-id="${answers.length-1}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;">`;
+    }
+    return `<span class="word-span">${w}</span>`;
+  }).join(" ");
+
+  displayArea.classList.add("active");
+  ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.add("hidden"));
+
+  clozeContent.querySelectorAll(".word-span").forEach((span, idx)=>{
+    span.style.cursor = "pointer";
+    span.onclick = function(){
+      const word = span.innerText;
+      if(!word) return;
+      if(span.tagName.toLowerCase() === 'input') return;
+
+      const isChinese = /[\u4e00-\u9fa5]/.test(word);
+      const boxWidth = isChinese ? 2.2 : word.length + 1.2;
+
+      const inputEl = document.createElement("input");
+      const answerId = answers.length;
+      answers.push(word);
+      inputEl.dataset.id = answerId;
+      inputEl.style.width = boxWidth + "ch";
+      inputEl.style.fontFamily = "inherit";
+      inputEl.autocomplete = "off";
+      inputEl.oninput = () => {
+        const ans = answers[inputEl.dataset.id];
+        inputEl.style.backgroundColor = inputEl.value.trim().toLowerCase()===ans.toLowerCase()?"#c8f7c5":(inputEl.value?"#f7c5c5":"#fffde7");
+      };
+      inputEl.onkeydown = (e) => {
+        if(e.code==='Space'||e.keyCode===32){
+          e.preventDefault();
+          const ans = answers[inputEl.dataset.id];
+          inputEl.value = ans.substring(0,inputEl.value.length+1);
+          inputEl.oninput();
+        }
+      };
+
+      span.replaceWith(inputEl);
+      inputEl.focus();
+
+      // 保存挖空位置
+      const spanIndexes = Array.from(clozeContent.querySelectorAll(".word-span, input"));
+      const wordIndex = spanIndexes.indexOf(inputEl);
+      if(f.clozePositions.indexOf(wordIndex) === -1){
+        f.clozePositions.push(wordIndex);
+        save();
+      }
+    };
+  });
+}
+
+// ---------------- 输入区变化也要更新保存 ----------------
 inputArea.oninput=()=>saveActiveFile();
 
-function changeFontSize(d){ currentFontSize+=d; if(currentFontSize<12) currentFontSize=12; inputArea.style.fontSize=displayArea.style.fontSize=currentFontSize+"px"; document.getElementById("sizeLabel").innerText=currentFontSize; }
-
-function openModal(){ document.getElementById('coffeeModal').style.display='flex'; }
-function closeModal(){ document.getElementById('coffeeModal').style.display='none'; }
-function openGuide(){ document.getElementById('guideModal').style.display='flex'; }
-function closeGuide(){ document.getElementById('guideModal').style.display='none'; }
-  
-// --- 1. 定义唯一的项目标识 ---
+// ---------------- 点赞 ----------------
 const NAMESPACE = "cloze_master_pro_unique_2026"; 
 const KEY = "total_likes";
-
-// --- 2. 获取并显示云端点赞数 ---
 async function initLikeCount() {
     try {
-        // 使用 jsonip.com 类似的公益接口或 countapi
         const res = await fetch(`https://api.countapi.xyz/get/${NAMESPACE}/${KEY}`);
         const data = await res.json();
         if(data.value) document.getElementById('likeCount').innerText = data.value;
@@ -220,104 +344,31 @@ async function initLikeCount() {
         document.getElementById('likeCount').innerText = "0";
     }
 }
-
-// --- 3. 处理点击点赞逻辑 ---
 async function handleLike() {
     const btn = document.getElementById('likeBtn');
     const msg = document.getElementById('likeMsg');
     const countSpan = document.getElementById('likeCount');
-
-    // 检查本地存储，防止同一个人反复刷赞
     if (localStorage.getItem('voted_like_2026')) {
         msg.innerText = "已经收到你的心意啦~";
         msg.style.visibility = "visible";
         return;
     }
-
     try {
-        // 调用 hit 接口，数值在云端自动 +1
         const res = await fetch(`https://api.countapi.xyz/hit/${NAMESPACE}/${KEY}`);
         const data = await res.json();
-        
-        // 更新显示
         countSpan.innerText = data.value;
-        
-        // 视觉反馈
         btn.style.background = "#ff4757";
         btn.style.color = "#fff";
         msg.style.visibility = "visible";
-        
-        // 本地记录已点赞
         localStorage.setItem('voted_like_2026', 'true');
     } catch (e) {
-        // 网络失败时的兜底显示
         let current = parseInt(countSpan.innerText) || 0;
         countSpan.innerText = current + 1;
         msg.style.visibility = "visible";
     }
 }
 
-// --- 4. 修改你的 init 函数，让它启动 ---
-// 找到你原有的 init()，在里面加上 initLikeCount();
-function init() { 
-    renderTabs(); 
-    loadActiveFile(); 
-    initLikeCount(); // <-- 确保这行在这里
-}
-
-function enableCustomCloze() {
-    const text = inputArea.value.trim();
-    if (!text) return;
-
-    // 1. 按空格或标点拆词，并包裹 span
-    const regex = /[\u4e00-\u9fa5]+|[a-zA-Z]+|[^\s\w\u4e00-\u9fa5]/g;
-    let wrappedText = text.replace(regex, match => `<span class="word-span">${match}</span>`);
-    
-    clozeContent.innerHTML = wrappedText;
-    displayArea.classList.add("active");
-    ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.add("hidden"));
-
-    // 2. 点击挖空
-    answers = [];
-    clozeContent.querySelectorAll(".word-span").forEach((span, idx) => {
-        span.style.cursor = "pointer";
-        span.onclick = function() {
-            const word = span.innerText;
-            if (!word) return;
-
-            // 避免重复挖空
-            if(span.tagName.toLowerCase() === 'input') return;
-
-            // 计算宽度（中文、英文）
-            const isChinese = /[\u4e00-\u9fa5]/.test(word);
-            const boxWidth = isChinese ? 2.2 : word.length + 1.2;
-
-            // 生成 input
-            const inputEl = document.createElement("input");
-            const answerId = answers.length;
-            answers.push(word);
-            inputEl.dataset.id = answerId;
-            inputEl.style.width = boxWidth + "ch";
-            inputEl.style.fontFamily = "inherit";
-            inputEl.autocomplete = "off";
-            inputEl.oninput = () => {
-                const ans = answers[inputEl.dataset.id];
-                inputEl.style.backgroundColor = inputEl.value.trim().toLowerCase()===ans.toLowerCase()?"#c8f7c5":(inputEl.value?"#f7c5c5":"#fffde7");
-            };
-            inputEl.onkeydown = (e) => {
-                if(e.code==='Space'||e.keyCode===32){
-                    e.preventDefault();
-                    const ans = answers[inputEl.dataset.id];
-                    inputEl.value = ans.substring(0,inputEl.value.length+1);
-                    inputEl.oninput();
-                }
-            };
-
-            span.replaceWith(inputEl);
-            inputEl.focus();
-        };
-    });
-}
+// ---------------- 初始化 ----------------
 init();
 </script>
 </body>
