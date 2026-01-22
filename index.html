@@ -116,22 +116,25 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     If this tool helped you, please let me know 🙂
   </div>
 
-  <div
-    id="likeBtn"
-    style="font-size: 28px; cursor: pointer; color: #aaa; display:inline-block; transition: color 0.2s;"
-    onclick="likeApp()"
-  >
-    ❤️
-  </div>
+  <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+    
+    <div
+      id="likeBtn"
+      style="font-size: 28px; cursor: pointer; color: #aaa; transition: color 0.2s;"
+      onclick="likeApp()"
+    >
+      ❤️
+    </div>
 
-  <div style="margin-top: 6px; font-size: 14px; color: #666;">
-    <span id="likeCount">0</span>
+    <div style="font-size: 16px; color: #666; font-weight: bold;">
+      <span id="likeCount">0</span>
+    </div>
+
   </div>
 
   <div style="margin-top: 6px; font-size: 13px; color: #999;">
     Thank you
   </div>
-
 </div>
 
     <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:15px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
