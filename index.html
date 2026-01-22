@@ -86,7 +86,7 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
   <div class="action-bar" id="bottomAction">
     <button id="clearBtn" onclick="handleClear()">清空</button>
     <button id="generate" onclick="handleGenerate()">生成练习</button>
-    <button id="customClozeBtn" onclick="enableCustomCloze()">自定义挖空</button>
+    <button id="customClozeBtn" onclick="enableCustomCloze()">手动挖空</button>
   </div>
 
   <div class="footer-bar" id="footerSection">
@@ -104,17 +104,32 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <h4 style="color:var(--primary); text-align:center; margin-top:0;">📖 使用说明</h4>
     <div style="margin-top:10px;">
       <p>1. <b>挖空间隔</b>：在 Every...th 框中设置（如填 4 表示每 4 个词挖一个空）。</p>
+      <p>1. <b>手动挖空</b>：点击单词挖空，双击撤销。</p>
       <p>2. <b>单词提示</b>：按键盘<b>空格键</b>可提示下一个正确字母。</p>
       <p>3. <b>保存文本</b>：点击顶部的 <b>+</b> 新建；<b>双击</b>标签重命名,清空浏览器缓存即删除所有文件。</p>
       <p>4. <b>作为app使用</b>：在浏览器菜单中选择“添加到主屏幕”。</p>
     </div>
-      <div style="text-align:center; margin-top:20px; border-top:1px dashed #eee; padding-top:15px;">
-      <p style="font-size:11px; color:#999; margin-bottom:10px;">如果这个工具帮到了你，请点个赞：</p>
-      <button id="likeBtn" onclick="handleLike()" style="background:#fff; color:#ff4757; border:1px solid #ff4757; padding:8px 25px; border-radius:20px; cursor:pointer; font-weight:bold; transition:all 0.3s; outline:none;">
-        ❤ <span id="likeCount">...</span>
-      </button>
-      <p id="likeMsg" style="font-size:10px; color:#ff4757; margin-top:5px; visibility:hidden;">感谢点赞！</p>
+
+    <hr style="margin:12px 0; border:none; border-top:1px dashed #ddd;">
+    <div style="
+      display:flex;
+      justify-content:space-around;
+      align-items:center;
+      margin:10px 0;
+      font-size:14px;
+    ">
+      
+      <div>
+        👀 <br>
+        <b id="visitCount">0</b>
+      </div>
+
+      <div style="cursor:pointer;" onclick="likeApp()">
+      ❤️ <br>
+      <b id="likeCount">0</b>
+      </div>
     </div>
+
     <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:15px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
   </div>
 </div>
@@ -166,8 +181,7 @@ const clozeContent = document.getElementById("clozeContent");
 // ---------------- 初始化 ----------------
 function init() { 
     renderTabs(); 
-    loadActiveFile(); 
-    initLikeCount(); 
+    loadActiveFile();  
 }
 
 // ---------------- 粘贴 ----------------
@@ -379,44 +393,86 @@ function bindCustomEvents(f) {
 // ---------------- 输入区变化也要更新保存 ----------------
 inputArea.oninput=()=>saveActiveFile();
 
-// ---------------- 点赞 ----------------
-const NAMESPACE = "cloze_master_pro_unique_2026"; 
-const KEY = "total_likes";
-async function initLikeCount() {
-    try {
-        const res = await fetch(`https://api.countapi.xyz/get/${NAMESPACE}/${KEY}`);
-        const data = await res.json();
-        if(data.value) document.getElementById('likeCount').innerText = data.value;
-    } catch (e) {
-        document.getElementById('likeCount').innerText = "0";
-    }
-}
-async function handleLike() {
-    const btn = document.getElementById('likeBtn');
-    const msg = document.getElementById('likeMsg');
-    const countSpan = document.getElementById('likeCount');
-    if (localStorage.getItem('voted_like_2026')) {
-        msg.innerText = "已经收到你的心意啦~";
-        msg.style.visibility = "visible";
-        return;
-    }
-    try {
-        const res = await fetch(`https://api.countapi.xyz/hit/${NAMESPACE}/${KEY}`);
-        const data = await res.json();
-        countSpan.innerText = data.value;
-        btn.style.background = "#ff4757";
-        btn.style.color = "#fff";
-        msg.style.visibility = "visible";
-        localStorage.setItem('voted_like_2026', 'true');
-    } catch (e) {
-        let current = parseInt(countSpan.innerText) || 0;
-        countSpan.innerText = current + 1;
-        msg.style.visibility = "visible";
-    }
+
+
+// ---------------- 弹窗控制 ----------------
+function openGuide() {
+  document.getElementById("guideModal").style.display = "flex";
 }
 
+function closeGuide() {
+  document.getElementById("guideModal").style.display = "none";
+}
 // ---------------- 初始化 ----------------
 init();
+</script>
+<script type="module">
+  // 🔹 Firebase 核心
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+  import { getDatabase, ref, get, set, runTransaction } 
+    from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+
+  // 🔹 Firebase 配置（你的原配置，没动）
+  const firebaseConfig = {
+    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+    authDomain: "cloze-master-pro.firebaseapp.com",
+    projectId: "cloze-master-pro",
+    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+    storageBucket: "cloze-master-pro.firebasestorage.app",
+    messagingSenderId: "697808901954",
+    appId: "1:697808901954:web:32455d94bf67e522e01adb"
+  };
+
+  // 🔹 初始化
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // ========= 以下是给你工具用的逻辑 =========
+
+  // 匿名用户唯一 ID（存 localStorage）
+  window.getUserId = function () {
+    let id = localStorage.getItem("cloze_uid");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("cloze_uid", id);
+    }
+    return id;
+  };
+
+  // 记录访问（每次打开页面 +1）
+  window.recordVisit = function () {
+    const visitRef = ref(db, "stats/visits");
+    runTransaction(visitRef, v => (v || 0) + 1);
+  };
+
+  // 点赞（每个用户只能一次）
+  window.likeApp = async function () {
+    const uid = getUserId();
+    const userLikeRef = ref(db, `likedUsers/${uid}`);
+    const snap = await get(userLikeRef);
+
+    if (snap.exists()) {
+      alert("你已经点过赞啦 ❤️");
+      return;
+    }
+
+    await set(userLikeRef, true);
+    await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
+    loadStats();
+  };
+
+  // 读取统计数据
+  window.loadStats = async function () {
+    const snap = await get(ref(db, "stats"));
+    if (!snap.exists()) return;
+    const { visits = 0, likes = 0 } = snap.val();
+    document.getElementById("visitCount").innerText = visits;
+    document.getElementById("likeCount").innerText = likes;
+  };
+
+  // 页面加载时执行
+  recordVisit();
+  loadStats();
 </script>
 </body>
 </html>
