@@ -261,114 +261,83 @@ function exitExercise(){
 
 // ---------------- 点击挖空 + 保存 ----------------
 function enableCustomCloze() {
-  const text = inputArea.value.trim();
+  const text = inputArea.value; // 去掉 .trim() 以保留原始换行
   if (!text) return;
 
-  const regex = /[\u4e00-\u9fa5]+|[a-zA-Z]+|[^\s\w\u4e00-\u9fa5]/g;
-  const words = text.match(regex);
-  if(!words) return;
-
-  const f = files.find(x=>x.id===activeFileId);
-  if(!f.clozePositions) f.clozePositions=[];
+  // 这里的正则修改为：匹配[中文]、[英文单词]、或[非空白的标点/符号]，其余空格/换行会被 split 保留
+  const regex = /([\u4e00-\u9fa5]+|[a-zA-Z]+|[^\s\w\u4e00-\u9fa5]+)/g;
+  
+  // 使用 split 结合正则捕获组，可以保留分隔符（即空格和换行）
+  const segments = text.split(regex);
+  
+  const f = files.find(x => x.id === activeFileId);
+  if (!f.clozePositions) f.clozePositions = [];
 
   answers = [];
-  clozeContent.innerHTML = words.map((w,i)=>{
-    if(f.clozePositions.includes(i)){
-      answers.push(w);
-      const isChinese = /[\u4e00-\u9fa5]/.test(w);
-      const boxWidth = isChinese ? 2.2 : w.length + 1.2;
-      return `<input data-id="${answers.length-1}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;">`;
+  let wordCount = 0; // 用于记录真正的“词”的索引
+
+  clozeContent.innerHTML = segments.map((seg) => {
+    // 如果是纯空格或换行，直接返回
+    if (!seg.trim()) return seg; 
+    // 如果是括号里的内容（可选：保持一致性）
+    if (seg.startsWith('(')) return `<span style="color:#999;font-style:italic;">${seg}</span>`;
+
+    const currentWordIdx = wordCount++;
+    const isChinese = /[\u4e00-\u9fa5]/.test(seg);
+    const boxWidth = isChinese ? 2.2 : seg.length + 1.2;
+
+    // 检查这个位置是否已经被挖空
+    if (f.clozePositions.includes(currentWordIdx)) {
+      answers.push(seg);
+      return `<input data-id="${answers.length - 1}" data-index="${currentWordIdx}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;">`;
     }
-    return `<span class="word-span">${w}</span>`;
-  }).join(" ");
+
+    return `<span class="word-span" data-index="${currentWordIdx}">${seg}</span>`;
+  }).join(""); // 注意这里 join("") 不要加空格
 
   displayArea.classList.add("active");
-  ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.add("hidden"));
+  ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => document.getElementById(id).classList.add("hidden"));
 
-  clozeContent.querySelectorAll(".word-span").forEach((span, idx)=>{
-    span.style.cursor = "pointer";
-    span.onclick = function(){
-      const word = span.innerText;
-      if(!word) return;
-      if(span.tagName.toLowerCase() === 'input') return;
+  // 绑定事件逻辑处理
+  bindCustomEvents(f);
+}
 
-      const isChinese = /[\u4e00-\u9fa5]/.test(word);
-      const boxWidth = isChinese ? 2.2 : word.length + 1.2;
-
-      const inputEl = document.createElement("input");
-      const answerId = answers.length;
-      answers.push(word);
-      inputEl.dataset.id = answerId;
-      inputEl.style.width = boxWidth + "ch";
-      inputEl.style.fontFamily = "inherit";
-      inputEl.autocomplete = "off";
-      inputEl.oninput = () => {
-        const ans = answers[inputEl.dataset.id];
-        inputEl.style.backgroundColor = inputEl.value.trim().toLowerCase()===ans.toLowerCase()?"#c8f7c5":(inputEl.value?"#f7c5c5":"#fffde7");
-      };
-      inputEl.onkeydown = (e) => {
-        if(e.code==='Space'||e.keyCode===32){
-          e.preventDefault();
-          const ans = answers[inputEl.dataset.id];
-          inputEl.value = ans.substring(0,inputEl.value.length+1);
-          inputEl.oninput();
-        }
-      };
-      
-      // ... 现有的 inputEl.onkeydown 逻辑 ...
-      inputEl.onkeydown = (e) => {
-        if(e.code==='Space'||e.keyCode===32){
-          e.preventDefault();
-          const ans = answers[inputEl.dataset.id];
-          inputEl.value = ans.substring(0,inputEl.value.length+1);
-          inputEl.oninput();
-        }
-      };
-
-      // --- 插入以下撤销挖空代码 ---
-      inputEl.ondblclick = () => {
-        const originalWord = answers[inputEl.dataset.id];
-        const span = document.createElement("span");
-        span.className = "word-span";
-        span.innerText = originalWord;
-        span.style.cursor = "pointer";
-        
-        // 获取当前 input 在所有节点中的位置索引
-        const allNodes = Array.from(clozeContent.querySelectorAll(".word-span, input"));
-        const wordIndex = allNodes.indexOf(inputEl);
-        
-        // 从保存的数组中移除该索引
-        const posIndex = f.clozePositions.indexOf(wordIndex);
-        if (posIndex > -1) {
-          f.clozePositions.splice(posIndex, 1);
-          save(); // 保存到 localStorage
-        }
-
-        // 重新绑定点击事件，让它以后还能再被挖空
-        span.onclick = () => { 
-            // 这里为了简洁，可以直接调用外部已经写好的逻辑或者刷新当前模式
-            // 最简单的方法是重新执行一次该 span 的点击转换逻辑
-            inputEl.replaceWith(span); 
-        };
-        
-        // 执行替换并刷新模式（为了重新绑定所有事件，建议直接调一下 enableCustomCloze）
-        inputEl.replaceWith(span);
-        enableCustomCloze(); 
-      };
-      // --- 插入结束 ---
-
-      
-      span.replaceWith(inputEl);
-      inputEl.focus();
-
-      // 保存挖空位置
-      const spanIndexes = Array.from(clozeContent.querySelectorAll(".word-span, input"));
-      const wordIndex = spanIndexes.indexOf(inputEl);
-      if(f.clozePositions.indexOf(wordIndex) === -1){
+// 提取事件绑定逻辑，防止代码冗余
+function bindCustomEvents(f) {
+  clozeContent.querySelectorAll(".word-span, input").forEach((el) => {
+    // 针对 span 的点击变输入框逻辑
+    if (el.tagName === "SPAN" && el.classList.contains('word-span')) {
+      el.style.cursor = "pointer";
+      el.onclick = () => {
+        const word = el.innerText;
+        const wordIndex = parseInt(el.dataset.index);
         f.clozePositions.push(wordIndex);
         save();
-      }
-    };
+        enableCustomCloze(); // 重新渲染以保持结构一致
+      };
+    }
+
+    // 针对 input 的双击还原逻辑
+    if (el.tagName === "INPUT") {
+      el.oninput = () => {
+        const ans = answers[el.dataset.id];
+        el.style.backgroundColor = el.value.trim().toLowerCase() === ans.toLowerCase() ? "#c8f7c5" : (el.value ? "#f7c5c5" : "#fffde7");
+      };
+      el.onkeydown = (e) => {
+        if (e.code === 'Space' || e.keyCode === 32) {
+          e.preventDefault();
+          const ans = answers[el.dataset.id];
+          el.value = ans.substring(0, el.value.length + 1);
+          el.oninput();
+        }
+      };
+      el.ondblclick = () => {
+        const wordIndex = parseInt(el.dataset.index);
+        f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
+        save();
+        enableCustomCloze();
+      };
+    }
   });
 }
 
