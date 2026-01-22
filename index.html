@@ -119,7 +119,42 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
   </div>
 </div>
 <script>
-let files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{ id: Date.now(), title: 'File 1', content: '', clozePositions: [] }];
+const DEFAULT_TEXT = `这是一个示例文本。
+
+Hello?
+
+- Sara, it's Lara.
+
+- Oh, hi Lara, what's up?
+
+Just wanted to check and make sure you're still coming into work tonight.
+
+Sure, I could really use the money.
+
+Mom, finally cut off my finances.
+
+Oh, okay.
+
+Well, we've got something really important to talk about when you get here.
+
+Sure, well, I'll be there in a little bit.
+
+Yeah, don't rush though, it's so dead in here.
+
+Oh, that's too bad.
+
+Well, I'll see ya.
+
+Okay, bye.`;
+
+let storedFiles = JSON.parse(localStorage.getItem('cloze_files_v5'));
+let files = storedFiles || [{
+  id: Date.now(),
+  title: 'File 1',
+  content: DEFAULT_TEXT,
+  clozePositions: []
+}];
+
 let activeFileId = files[0].id;
 let currentFontSize = 18;
 let answers = [];
