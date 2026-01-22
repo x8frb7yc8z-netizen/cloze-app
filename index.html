@@ -110,22 +110,28 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
       <p>4. <b>作为app使用</b>：在浏览器菜单中选择“添加到主屏幕”。</p>
     </div>
     
-<div id="likeBox" style="text-align:center; margin: 24px 0;">
+<div id="likeBox" style="text-align:center; margin: 24px 0; font-family: sans-serif;">
+  
+  <div style="margin-bottom: 6px; font-size: 13px; color: #999;">
+    If this tool helped you, please let me know 🙂
+  </div>
+
   <div
     id="likeBtn"
-    style="font-size: 28px; cursor: pointer; color: #aaa;"
+    style="font-size: 28px; cursor: pointer; color: #aaa; display:inline-block; transition: color 0.2s;"
     onclick="likeApp()"
   >
     ❤️
   </div>
 
   <div style="margin-top: 6px; font-size: 14px; color: #666;">
-    <span id="likeCount">0</span>  
+    <span id="likeCount">0</span>
   </div>
 
-  <div style="margin-top: 8px; font-size: 13px; color: #999;">
-    如果这个工具帮到你了，请让我知道 🙂
+  <div style="margin-top: 6px; font-size: 13px; color: #999;">
+    Thank you
   </div>
+
 </div>
 
     <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:15px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
