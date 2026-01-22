@@ -109,40 +109,23 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
       <p>3. <b>保存文本</b>：点击顶部的 <b>+</b> 新建；<b>双击</b>标签重命名,清空浏览器缓存即删除所有文件。</p>
       <p>4. <b>作为app使用</b>：在浏览器菜单中选择“添加到主屏幕”。</p>
     </div>
-
-<hr style="margin:12px 0; border:none; border-top:1px dashed #ddd;">
-
-<div style="
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  margin:12px 0;
-  font-size:14px;
-  color:#555;
-  text-align:center;
-  line-height:1.5;
-">
-  如果这个工具帮到你了，请让我知道 🙂
-</div>
-
-<div style="
-  display:flex;
-  justify-content:center;
-  align-items:center;
-  margin:10px 0;
-">
-  <span
+    
+<div id="likeBox" style="text-align:center; margin: 24px 0;">
+  <div
     id="likeBtn"
-    style="
-      cursor:pointer;
-      font-size:28px;
-      color:#bbb;
-      transition:transform 0.2s, color 0.2s;
-    "
+    style="font-size: 28px; cursor: pointer; color: #aaa;"
     onclick="likeApp()"
   >
     ❤️
-  </span>
+  </div>
+
+  <div style="margin-top: 6px; font-size: 14px; color: #666;">
+    <span id="likeCount">0</span>  
+  </div>
+
+  <div style="margin-top: 8px; font-size: 13px; color: #999;">
+    如果这个工具帮到你了，请让我知道 🙂
+  </div>
 </div>
 
     <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:15px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
