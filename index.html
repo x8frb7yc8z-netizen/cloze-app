@@ -110,25 +110,34 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
       <p>4. <b>作为app使用</b>：在浏览器菜单中选择“添加到主屏幕”。</p>
     </div>
     
-    <hr style="margin:12px 0; border:none; border-top:1px dashed #ddd;">
-    <div style="
-      display:flex;
-      justify-content:space-around;
-      align-items:center;
-      margin:10px 0;
-      font-size:14px;
-    ">
-      
-      <div>
-        👀 <br>
-        <b id="visitCount">0</b>
-      </div>
+<div style="text-align:center; margin: 24px 0; font-family: sans-serif;">
+  
+  <div style="margin-bottom: 12px; font-size: 13px; color: #888;">
+    If this tool helped you, please let me know
+  </div>
 
-      <div style="cursor:pointer;" onclick="likeApp()">
-      ❤️ <br>
-      <b id="likeCount">0</b>
-      </div>
+  <hr style="margin:12px 0; border:none; border-top:1px dashed #ddd;">
+
+  <div style="
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    margin: 10px 0;
+    font-size: 16px;
+  ">
+    
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span title="Visits">📈</span> 
+      <b id="visitCount" style="color: #666;">0</b>
     </div>
+
+    <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="likeApp()">
+      <span>❤️</span>
+      <b id="likeCount" style="color: #666;">0</b>
+    </div>
+
+  </div>
+</div>
 
     <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:15px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
   </div>
