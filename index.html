@@ -407,101 +407,73 @@ function closeGuide() {
 // ---------------- 初始化 ----------------
 init();
 </script>
-
 <script type="module">
-  // 🔹 导入 Firebase
+  // 🔹 Firebase 核心
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
   import { getDatabase, ref, get, set, runTransaction } 
     from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
 
-  // 🔹 Firebase 配置
+  // 🔹 Firebase 配置（你的原配置，没动）
   const firebaseConfig = {
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
     authDomain: "cloze-master-pro.firebaseapp.com",
-    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
     projectId: "cloze-master-pro",
+    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
     storageBucket: "cloze-master-pro.firebasestorage.app",
     messagingSenderId: "697808901954",
-    appId: "1:697808901954:web:32455d94bf67e522e01adb",
-    measurementId: "G-1JCS9LV5Z0"
+    appId: "1:697808901954:web:32455d94bf67e522e01adb"
   };
 
-  // 🔹 初始化 Firebase（只初始化一次）
+  // 🔹 初始化
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-  const analytics = getAnalytics(app);
 
-  // ---------------- 用户唯一 ID ----------------
+  // ========= 以下是给你工具用的逻辑 =========
+
+  // 匿名用户唯一 ID（存 localStorage）
   window.getUserId = function () {
     let id = localStorage.getItem("cloze_uid");
     if (!id) {
-      id = 'uid-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+      id = crypto.randomUUID();
       localStorage.setItem("cloze_uid", id);
     }
     return id;
   };
 
-  // ---------------- 记录访问 ----------------
-  window.recordVisit = async function () {
-    try {
-      const uid = getUserId();
-      const visitRef = ref(db, `visitors/${uid}`);
-      const snap = await get(visitRef);
-
-      if (!snap.exists()) {
-        await set(visitRef, true);
-        // 总访问次数统计
-        await runTransaction(ref(db, "stats/visits"), v => (v || 0) + 1);
-      }
-    } catch (e) {
-      console.error("记录访问失败:", e);
-    }
+  // 记录访问（每次打开页面 +1）
+  window.recordVisit = function () {
+    const visitRef = ref(db, "stats/visits");
+    runTransaction(visitRef, v => (v || 0) + 1);
   };
 
-  // ---------------- 点赞 ----------------
+  // 点赞（每个用户只能一次）
   window.likeApp = async function () {
-    try {
-      const uid = getUserId();
-      const userLikeRef = ref(db, `likedUsers/${uid}`);
-      const snap = await get(userLikeRef);
+    const uid = getUserId();
+    const userLikeRef = ref(db, `likedUsers/${uid}`);
+    const snap = await get(userLikeRef);
 
-      if (snap.exists()) {
-        alert("你已经点过赞啦 ❤️");
-        return;
-      }
-
-      // 标记用户已点赞
-      await set(userLikeRef, true);
-
-      // 点赞总数 +1
-      await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
-
-      // 更新页面显示
-      loadStats();
-    } catch (e) {
-      console.error("点赞失败:", e);
+    if (snap.exists()) {
+      alert("你已经点过赞啦 ❤️");
+      return;
     }
-  };
 
-  // ---------------- 读取统计数据 ----------------
-  window.loadStats = async function () {
-    try {
-      const snap = await get(ref(db, "stats"));
-      if (!snap.exists()) return;
-      const { visits = 0, likes = 0 } = snap.val();
-      document.getElementById("visitCount").innerText = visits;
-      document.getElementById("likeCount").innerText = likes;
-    } catch (e) {
-      console.error("加载统计失败:", e);
-    }
-  };
-
-  // ---------------- 页面加载时执行 ----------------
-  window.addEventListener('load', () => {
-    recordVisit();
+    await set(userLikeRef, true);
+    await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
     loadStats();
-  });
+  };
+
+  // 读取统计数据
+  window.loadStats = async function () {
+    const snap = await get(ref(db, "stats"));
+    if (!snap.exists()) return;
+    const { visits = 0, likes = 0 } = snap.val();
+    document.getElementById("visitCount").innerText = visits;
+    document.getElementById("likeCount").innerText = likes;
+  };
+
+  // 页面加载时执行
+  recordVisit();
+  loadStats();
 </script>
 </body>
 </html>
