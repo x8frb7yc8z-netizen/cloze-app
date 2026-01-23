@@ -494,7 +494,7 @@ onAuthStateChanged(auth, (user) => {
 
     if (user) {
         currentUser = user;
-        btnLabel.innerText = "✅ 已同步: " + user.email.split('@')[0];
+        btnLabel.innerText = "✅ 已同步";
         btnLabel.style.color = "#81c784";
         logoutBtn.classList.remove('hidden');
 
