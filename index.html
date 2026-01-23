@@ -414,7 +414,7 @@ init();
   import { getDatabase, ref, get, set, runTransaction } 
     from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
 
-  // 🔹 Firebase 配置（你的原配置，没动）
+  // 🔹 Firebase 配置
   const firebaseConfig = {
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
     authDomain: "cloze-master-pro.firebaseapp.com",
@@ -429,9 +429,8 @@ init();
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
 
-  // ========= 以下是给你工具用的逻辑 =========
-
-  // 匿名用户唯一 ID（存 localStorage）
+  // 1. 获取唯一ID (修复后的位置)
+  window.getUserId = function () {
     let id = localStorage.getItem("cloze_uid");
     if (!id) {
       id = 'uid-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
@@ -440,36 +439,41 @@ init();
     return id;
   };
 
-  // 记录访问（每次打开页面 +1）
+  // 2. 记录访问
   window.recordVisit = function () {
     const visitRef = ref(db, "stats/visits");
     runTransaction(visitRef, v => (v || 0) + 1);
   };
 
-window.likeApp = async function () {
-  if (localStorage.getItem("liked")) {
-    alert("You already liked it ❤️");
-    return;
-  }
-
-  await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
-  localStorage.setItem("liked", "1");
-
-  loadStats();
-};
-
-  // 读取统计数据
-  window.loadStats = async function () {
-    const snap = await get(ref(db, "stats"));
-    if (!snap.exists()) return;
-    const { visits = 0, likes = 0 } = snap.val();
-    document.getElementById("visitCount").innerText = visits;
-    document.getElementById("likeCount").innerText = likes;
+  // 3. 点赞逻辑
+  window.likeApp = async function () {
+    if (localStorage.getItem("liked")) {
+      alert("你已经点过赞啦 ❤️");
+      return;
+    }
+    await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
+    localStorage.setItem("liked", "1");
+    loadStats();
   };
 
-  // 页面加载时执行
-  recordVisit();
-  loadStats();
+  // 4. 读取统计数据
+  window.loadStats = async function () {
+    try {
+      const snap = await get(ref(db, "stats"));
+      if (!snap.exists()) return;
+      const { visits = 0, likes = 0 } = snap.val();
+      document.getElementById("visitCount").innerText = visits;
+      document.getElementById("likeCount").innerText = likes;
+    } catch (e) {
+      console.error("加载统计失败:", e);
+    }
+  };
+
+  // 5. 确保在页面加载后执行
+  window.addEventListener('load', () => {
+    recordVisit();
+    loadStats();
+  });
 </script>
 </body>
 </html>
