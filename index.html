@@ -120,20 +120,21 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 
   <div style="
     display: flex;
-    justify-content: space-around;
+    justify-content: center;
     align-items: center;
+    gap: 20px;
     margin: 10px 0;
     font-size: 16px;
   ">
-    
-    <div style="display: flex; align-items: center; gap: 6px;">
-      <span title="Visits">📈</span> 
-      <b id="visitCount" style="color: #666;">0</b>
-    </div>
 
     <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="likeApp()">
       <span>❤️</span>
       <b id="likeCount" style="color: #666;">0</b>
+    </div>
+    
+    <div style="display: flex; align-items: center; gap: 6px;">
+      <span title="Visits">📈</span> 
+      <b id="visitCount" style="color: #666;">0</b>
     </div>
 
   </div>
@@ -280,16 +281,18 @@ function handleClear(){
 // ---------------- 每 N 个词挖空 ----------------
 function generateCloze(text,n){
   let index=0; answers=[];
-  const regex=/\([^)]*\]|[\u4e00-\u9fa5]+|[a-zA-Z]+/g;
+  const regex = /\([^)]*\)|[a-zA-Z]+|[\u4e00-\u9fa5]/g;
   return text.replace(regex,(match)=>{
-    if(match.startsWith('(')) return `<span style="color:#999;font-style:italic;">${match}</span>`;
+    if (match.startsWith('(')) return `<span style="color:#999;font-style:italic;">${match}</span>`;
     index++;
     if(index%n===1){
-      const id=answers.length; answers.push(match);
-      const isChinese=/[\u4e00-\u9fa5]/.test(match);
-      const boxWidth=isChinese?2.2:match.length+1.2;
+      const id = answers.length;
+      answers.push(match);
+      const isChinese = /[\u4e00-\u9fa5]/.test(match);
+      const boxWidth = isChinese ? 2 : match.length + 1;
      // 找到这一行并修改
-return `<input data-id="${id}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
+  return `<input data-id="${id}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
+ 
     }
     return match;
   });
@@ -320,44 +323,38 @@ function exitExercise(){
 
 // ---------------- 点击挖空 + 保存 ----------------
 function enableCustomCloze() {
-  const text = inputArea.value; // 去掉 .trim() 以保留原始换行
+  const text = inputArea.value;
   if (!text) return;
 
-  // 这里的正则修改为：匹配[中文]、[英文单词]、或[非空白的标点/符号]，其余空格/换行会被 split 保留
-  const regex = /([\u4e00-\u9fa5]+|[a-zA-Z]+|[^\s\w\u4e00-\u9fa5]+)/g;
-  
-  // 使用 split 结合正则捕获组，可以保留分隔符（即空格和换行）
+  // 正则说明：匹配英文单词、单个中文字符、或者非空白标点
+  const regex = /([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g;
   const segments = text.split(regex);
   
   const f = files.find(x => x.id === activeFileId);
   if (!f.clozePositions) f.clozePositions = [];
 
   answers = [];
-  let wordCount = 0; // 用于记录真正的“词”的索引
+  let unitCount = 0; 
 
   clozeContent.innerHTML = segments.map((seg) => {
-    // 如果是纯空格或换行，直接返回
-    if (!seg.trim()) return seg; 
-    // 如果是括号里的内容（可选：保持一致性）
+    if (!seg || !seg.trim()) return seg; 
     if (seg.startsWith('(')) return `<span style="color:#999;font-style:italic;">${seg}</span>`;
 
-    const currentWordIdx = wordCount++;
+    const currentIdx = unitCount++;
     const isChinese = /[\u4e00-\u9fa5]/.test(seg);
-    const boxWidth = isChinese ? 2.2 : seg.length + 1.2;
+    const boxWidth = isChinese ? 2 : seg.length + 1;
 
-    // 检查这个位置是否已经被挖空
-    if (f.clozePositions.includes(currentWordIdx)) {
+    if (f.clozePositions.includes(currentIdx)) {
       answers.push(seg);
-      return `<input data-id="${answers.length - 1}" data-index="${currentWordIdx}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
+      return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
     }
 
-    return `<span class="word-span" data-index="${currentWordIdx}">${seg}</span>`;
-  }).join(""); // 注意这里 join("") 不要加空格
+    return `<span class="word-span" data-index="${currentIdx}">${seg}</span>`;
+  }).join("");
 
   displayArea.classList.add("active");
   ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => document.getElementById(id).classList.add("hidden"));
 
-  // 绑定事件逻辑处理
   bindCustomEvents(f);
 }
 
