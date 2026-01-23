@@ -45,11 +45,26 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 
 /* 底部操作区 */
 .action-bar { display:flex; width:100%; border-top:1px solid #ddd; flex-shrink:0; background:#fff; }
-.action-bar button { flex:1; padding:18px; border:none; font-weight:bold; font-size:16px; cursor:pointer; }
+.action-bar button { flex:1; padding:12px 12px; border:none; font-weight:bold; font-size:14px; cursor:pointer; min-width:80px;}
 #clearBtn { background:#fff8f8; color:#d32f2f; }
-#generate { background:var(--primary); color:white; flex:1.5; }
+#generate { background:var(--primary); color:white; flex:1; }
 
-.footer-bar { background:#1a1a1a; color:#999; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; padding-bottom:calc(env(safe-area-inset-bottom)+8px); }
+.footer-bar { 
+    background: #1a1a1a; 
+    color: #bbb;         /* 调亮文字颜色，增强可读性 */
+    padding: 12px 15px;  /* 增加边距 */
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    flex-shrink: 0; 
+    font-size: 13px;     /* 调整整体字体大小 */
+}
+
+/* 针对特定的链接文字（如 Guide 手册） */
+.footer-link {
+    font-size: 12px;     /* 让手册和同步状态更清晰 */
+    font-weight: 600;
+}
 
 /* 弹窗 */
 .modal { display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.8); align-items:center; justify-content:center; }
