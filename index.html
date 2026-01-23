@@ -180,7 +180,7 @@ Well, I'll see ya.
 
 Okay, bye.`;
 
-let storedFiles = JSON.parse(localStorage.getItem('cloze_files_v5_data'));
+let storedFiles = JSON.parse(localStorage.getItem('cloze_files_v5'));
 let files = storedFiles || [{
   id: Date.now(),
   title: 'File 1',
@@ -198,10 +198,6 @@ const clozeContent = document.getElementById("clozeContent");
 
 // ---------------- 初始化 ----------------
 function init() { 
-    let stored = JSON.parse(localStorage.getItem('cloze_files_v5_data'));
-    if (stored && stored.files) {
-        files = stored.files;
-    }
     renderTabs(); 
     loadActiveFile();  
 }
@@ -240,15 +236,12 @@ function renderTabs() {
 
 // ---------------- 保存 / 加载 ----------------
 function save() {
-    const dataToSave = {
-        files: files,
-        lastUpdated: Date.now()
-    };
-    // 统一使用 cloze_files_v5_data
-    localStorage.setItem('cloze_files_v5_data', JSON.stringify(dataToSave));
+    // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
+    localStorage.setItem('cloze_files_v5', JSON.stringify(files));
     
+    // 2. 触发云端同步 (如果用户已登录，此函数会在 Firebase 模块中被定义)
     if (window.syncToCloud) {
-        window.syncToCloud(dataToSave);
+        window.syncToCloud(files);
     }
 }
 
@@ -459,7 +452,7 @@ init();
   const db = getDatabase(app);
   const auth = getAuth(app);
   let currentUser = null;
-  let isFirstSync = true; // 核心标记
+  
 
   // --- 登录/注册逻辑 ---
   window.handleEmailAuth = async (type) => {
@@ -500,67 +493,38 @@ init();
     }
   });
 
-// --- 2. 修改后的 startRealtimeSync 函数 (修正 const 拼写和逻辑) ---
-let isLocalUpdate = false; 
+  // --- 实时监听逻辑 ---
 function startRealtimeSync(uid) {
-    const dataRef = ref(db, `users/${uid}/data`);
-    onValue(dataRef, (snapshot) => {
-        // 如果是本地上传激发的更新，直接跳过处理
-        if (isLocalUpdate) {
-            isLocalUpdate = false;
-            return;
-        }
+  const fileRef = ref(db, `users/${uid}/files`);
+  
+  onValue(fileRef, (snapshot) => {
+    if (!snapshot.exists()) return;
+    const cloudData = snapshot.val();
+    const localData = JSON.parse(localStorage.getItem('cloze_files_v5'));
 
-        if (snapshot.exists()) {
-            const cloudData = snapshot.val();
-            const localRaw = localStorage.getItem('cloze_files_v5_data');
-            const localData = localRaw ? JSON.parse(localRaw) : { lastUpdated: 0, files: [] };
-
-            // 比较时间戳
-            if (cloudData.lastUpdated > (localData.lastUpdated || 0)) {
-                // 修正拼写错误：onst -> const
-                const isLocalEmpty = !localRaw || (localData.files.length <= 1 && (!localData.files[0] || !localData.files[0].content));
-                
-                if (isLocalEmpty) {
-                    // 本地无内容，直接静默同步
-                    applyData(cloudData.files, cloudData.lastUpdated);
-                } else {
-                    // 本地有内容，提示确认
-                    if (confirm("发现云端有更新的同步数据（来自其他设备），是否覆盖本地？")) {
-                        applyData(cloudData.files, cloudData.lastUpdated);
-                    }
-                }
-            }
-        }
-    });
-}
-
-// --- 3. 修改后的 applyData 函数 (增加时间戳同步) ---
-function applyData(filesData, timestamp) {
-    window.files = filesData;
-    // 存入本地时，使用传入的云端时间戳，防止再次触发同步判断
-    localStorage.setItem('cloze_files_v5_data', JSON.stringify({
-        files: filesData,
-        lastUpdated: timestamp || Date.now()
-    }));
-
-    if (window.renderTabs) {
-        renderTabs(); 
-        loadActiveFile();
-        console.log("UI已自动刷新");
+    // 如果内容不同，直接应用云端数据
+    if (JSON.stringify(cloudData) !== JSON.stringify(localData)) {
+      console.log("同步云端数据到本地...");
+      applyData(cloudData);
     }
+  });
 }
+
+  // --- 辅助：应用数据并刷新界面 ---
+  function applyData(data) {
+    window.files = data;
+    localStorage.setItem('cloze_files_v5', JSON.stringify(data));
+    // 调用全局函数刷新 UI
+    if (window.renderTabs) { 
+        renderTabs(); 
+        loadActiveFile(); 
+    }
+  }
 
   // --- 云端上传函数 ---
-  window.syncToCloud = async function (dataToSave) {
+  window.syncToCloud = async function (data) {
     if (!currentUser) return; 
-    try {
-      isLocalUpdate = true; // 标记开始上传
-      await set(ref(db, `users/${currentUser.uid}/data`), dataToSave);
-    } catch (e) {
-      isLocalUpdate = false;
-      console.error("同步失败", e);
-    }
+    try { await set(ref(db, `users/${currentUser.uid}/files`), data); } catch (e) { console.error("同步失败", e); }
   };
 
   // --- 统计逻辑 ---
