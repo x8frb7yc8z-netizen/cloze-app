@@ -433,7 +433,6 @@ init();
   // ========= 以下是给你工具用的逻辑 =========
 
   // 匿名用户唯一 ID（存 localStorage）
-  window.getUserId = function () {
     let id = localStorage.getItem("cloze_uid");
     if (!id) {
       id = 'uid-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
@@ -448,21 +447,17 @@ init();
     runTransaction(visitRef, v => (v || 0) + 1);
   };
 
-  // 点赞（每个用户只能一次）
-  window.likeApp = async function () {
-    const uid = getUserId();
-    const userLikeRef = ref(db, `likedUsers/${uid}`);
-    const snap = await get(userLikeRef);
+window.likeApp = async function () {
+  if (localStorage.getItem("liked")) {
+    alert("You already liked it ❤️");
+    return;
+  }
 
-    if (snap.exists()) {
-      alert("你已经点过赞啦 ❤️");
-      return;
-    }
+  await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
+  localStorage.setItem("liked", "1");
 
-    await set(userLikeRef, true);
-    await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
-    loadStats();
-  };
+  loadStats();
+};
 
   // 读取统计数据
   window.loadStats = async function () {
