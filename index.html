@@ -519,24 +519,15 @@ function startRealtimeSync(uid) {
 }
 
 // ------------------ 应用云端数据到本地函数 ------------------
-function applyData(data, forceUpdate = false) {
-    // 1. 更新内存中的文件数组
+function applyData(data) {
     window.files = data;
-
-    // 2. 更新 LocalStorage
     localStorage.setItem('cloze_files_v5', JSON.stringify(data));
 
-    // 3. 更新文件标签
     if (window.renderTabs) renderTabs();
 
-    // 4. 更新当前激活文件内容
     const f = files.find(x => x.id === activeFileId);
     if (f) {
-        const inputArea = document.getElementById("inputText");
-        // 如果强制更新或输入框没有被聚焦，则刷新内容
-        if (forceUpdate || !inputArea.matches(':focus')) {
-            inputArea.value = f.content || "";
-        }
+        document.getElementById("inputText").value = f.content || "";
     }
 }
 
