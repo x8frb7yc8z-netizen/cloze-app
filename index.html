@@ -433,9 +433,9 @@ init();
 </script>
 
 <script type="module">
-  // 引入 Firebase 核心、数据库、身份验证模块
+  // 1. 导入部分：注意增加了 onValue
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-  import { getDatabase, ref, get, set, runTransaction } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+  import { getDatabase, ref, get, set, runTransaction, onValue } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
   const firebaseConfig = {
@@ -452,8 +452,9 @@ init();
   const db = getDatabase(app);
   const auth = getAuth(app);
   let currentUser = null;
+  let isFirstSync = true; // 核心标记
 
-  // --- 1. 登录/注册逻辑 ---
+  // --- 登录/注册逻辑 ---
   window.handleEmailAuth = async (type) => {
     const email = document.getElementById('authEmail').value;
     const password = document.getElementById('authPassword').value;
@@ -472,7 +473,7 @@ init();
 
   window.handleLogout = () => { if(confirm("确定退出登录吗？")) signOut(auth); };
 
-  // --- 2. 核心状态监听 ---
+  // --- 核心状态监听 ---
   onAuthStateChanged(auth, (user) => {
     const btnLabel = document.getElementById('loginBtnLabel');
     const logoutBtn = document.getElementById('logoutBtn');
@@ -481,34 +482,61 @@ init();
       btnLabel.innerText = "✅ 已同步: " + user.email.split('@')[0];
       btnLabel.style.color = "#81c784";
       logoutBtn.classList.remove('hidden');
-      loadFromCloud(user.uid);
+      // 开启监听
+      startRealtimeSync(user.uid);
     } else {
       currentUser = null;
       btnLabel.innerText = "👤 登录/同步";
       btnLabel.style.color = "#42a5f5";
       logoutBtn.classList.add('hidden');
+      isFirstSync = true; 
     }
   });
 
-  // --- 3. 云端同步函数 ---
+  // --- 实时监听逻辑 ---
+  function startRealtimeSync(uid) {
+    const fileRef = ref(db, `users/${uid}/files`);
+    onValue(fileRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const cloudData = snapshot.val();
+        const localData = JSON.parse(localStorage.getItem('cloze_files_v5'));
+        
+        // 对比内容
+        if (JSON.stringify(cloudData) !== JSON.stringify(localData)) {
+          if (isFirstSync) {
+            // 首次同步：询问
+            if (confirm("发现云端有备份数据，是否同步到此设备？(本地内容将被替换)")) {
+              applyData(cloudData);
+            }
+            isFirstSync = false; 
+          } else {
+            // 后续变动：静默同步
+            console.log("检测到云端更新，正在静默同步...");
+            applyData(cloudData);
+          }
+        }
+      }
+    });
+  }
+
+  // --- 辅助：应用数据并刷新界面 ---
+  function applyData(data) {
+    window.files = data;
+    localStorage.setItem('cloze_files_v5', JSON.stringify(data));
+    // 调用全局函数刷新 UI
+    if (window.renderTabs) { 
+        renderTabs(); 
+        loadActiveFile(); 
+    }
+  }
+
+  // --- 云端上传函数 ---
   window.syncToCloud = async function (data) {
     if (!currentUser) return; 
     try { await set(ref(db, `users/${currentUser.uid}/files`), data); } catch (e) { console.error("同步失败", e); }
   };
 
-  async function loadFromCloud(uid) {
-    const snap = await get(ref(db, `users/${uid}/files`));
-    if (snap.exists()) {
-      const cloudData = snap.val();
-      if(confirm("发现云端有备份数据，是否同步到此设备？(本地内容将被替换)")) {
-          window.files = cloudData;
-          localStorage.setItem('cloze_files_v5', JSON.stringify(cloudData));
-          if (window.renderTabs) { renderTabs(); loadActiveFile(); }
-      }
-    }
-  }
-
-  // --- 4. 统计逻辑 (保留你之前的) ---
+  // --- 统计逻辑 ---
   window.loadStats = async () => {
     const snap = await get(ref(db, "stats"));
     if (snap.exists()) {
@@ -528,11 +556,9 @@ init();
     window.loadStats();
   };
 
-  // 弹窗辅助
   window.openLoginModal = () => document.getElementById("loginModal").style.display = "flex";
   window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
-  // 初始化统计
   runTransaction(ref(db, "stats/visits"), v => (v || 0) + 1);
   window.loadStats();
 </script>
