@@ -180,13 +180,13 @@ Well, I'll see ya.
 
 Okay, bye.`;
 
-let storedFiles = JSON.parse(localStorage.getItem('cloze_files_v5'));
-let files = storedFiles || [{
+window.files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{
   id: Date.now(),
   title: 'File 1',
   content: DEFAULT_TEXT,
   clozePositions: []
 }];
+let activeFileId = window.files[0].id; // 指向全局 files
 
 let activeFileId = files[0].id;
 let currentFontSize = 18;
@@ -520,20 +520,28 @@ function startRealtimeSync(uid) {
 }
 
 function applyData(data) {
-    // 更新全局文件数组
+    // 1. 同步全局变量和本地缓存
     window.files = data;
     localStorage.setItem('cloze_files_v5', JSON.stringify(data));
 
-    // 更新标签
-    if (window.renderTabs) renderTabs();
+    // 2. 强制重新渲染顶部的标签页
+    if (typeof renderTabs === 'function') {
+        renderTabs();
+    }
 
-    // 更新当前激活文件内容
-    const f = files.find(x => x.id === activeFileId);
+    // 3. 强制更新当前编辑框的内容 (删除了 focus 判断)
+    const f = window.files.find(x => x.id === activeFileId);
     if (f) {
         const inputArea = document.getElementById("inputText");
-        // 如果用户没有聚焦编辑，则直接更新内容
-        if (!inputArea.matches(':focus')) {
-            inputArea.value = f.content || "";
+        // 记录光标位置防止跳动（可选，建议保留）
+        const start = inputArea.selectionStart;
+        const end = inputArea.selectionEnd;
+        
+        inputArea.value = f.content || "";
+        
+        // 如果之前有焦点，尝试还原光标
+        if (document.activeElement === inputArea) {
+            inputArea.setSelectionRange(start, end);
         }
     }
 }
