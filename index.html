@@ -524,16 +524,25 @@ function startRealtimeSync(uid) {
     });
 }
 
-// ------------------ 应用云端数据到本地函数 ------------------
+// ------------------ 应用云端数据到本地 ------------------
 function applyData(data) {
+    if (!Array.isArray(data)) {
+        console.warn("❌ 云端数据不是数组，已忽略", data);
+        return;
+    }
+
+    // 1. 覆盖内存数据
     window.files = data;
+
+    // 2. 写入 LocalStorage（刷新后也一致）
     localStorage.setItem('cloze_files_v5', JSON.stringify(data));
 
-    // 如果当前 activeFileId 在云端数据里不存在，自动校正
+    // 3. 如果当前文件已被云端删除，自动切换
     if (!files.find(f => f.id === activeFileId)) {
         activeFileId = files[0]?.id;
     }
 
+    // 4. 统一刷新 UI
     renderTabs();
     loadActiveFile();
 }
