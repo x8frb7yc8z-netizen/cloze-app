@@ -4,13 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>Cloze Master Pro</title>
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="icon" sizes="512x512" href="icon-512.png">
-<meta property="og:title" content="Cloze Master Pro">
-<meta property="og:image" content="https://x8frb7yc8z-netizen.github.io/cloze-app/icon-512.png">
-<meta property="og:description" content="一个好用的文本挖空练习工具，助你高效背诵单词和课文。">
-
 <style>
 :root { --primary: #43a047; --bg-light: #f8f9fa; --danger: #ff5252; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -55,7 +48,6 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 .modal { display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.8); align-items:center; justify-content:center; }
 .modal-content { background:white; padding:22px; border-radius:14px; width:85%; max-width:320px; position:relative; }
 .close-x { position:absolute; right:12px; top:8px; font-size:24px; color:#bbb; cursor:pointer; }
-.mini-coffee-btn { border-radius:6px; transition:background 0.2s; cursor:pointer; }
 </style>
 </head>
 
@@ -89,12 +81,13 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <button id="customClozeBtn" onclick="enableCustomCloze()">手动挖空</button>
   </div>
 
-<div class="footer-bar" id="footerSection">
-  <div class="footer-left" style="display:flex; gap:18px; align-items:center;">
-    <span class="footer-link" onclick="openGuide()" style="cursor:pointer; font-weight:bold; color:#81c784;">📖 Guide 手册</span>
-    <span id="loginBtnLabel" class="footer-link" onclick="openLoginModal()" style="cursor:pointer; font-weight:bold; color:#42a5f5;">👤 登录/同步</span>
+  <div class="footer-bar" id="footerSection">
+    <div class="footer-left" style="display:flex; gap:18px; align-items:center;">
+      <span class="footer-link" onclick="openGuide()" style="cursor:pointer; font-weight:bold; color:#81c784;">📖 Guide 手册</span>
+      <span id="loginBtnLabel" class="footer-link" onclick="openLoginModal()" style="cursor:pointer; font-weight:bold; color:#42a5f5;">👤 登录/同步</span>
+    </div>
+    <div class="footer-right" style="color:#999; font-size:12px;">Ricky @ 2026</div>
   </div>
-  <div class="footer-right" style="color:#999; font-size:12px;">Ricky @ 2026</div>
 </div>
 
 <div id="loginModal" class="modal" onclick="closeLoginModal()">
@@ -103,485 +96,154 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <h4 style="color:#42a5f5; margin-top:0;">👤 账号登录</h4>
     <div style="display:flex; flex-direction:column; gap:12px;">
       <input type="email" id="authEmail" placeholder="邮箱" style="padding:12px; border:1px solid #ddd; border-radius:8px; font-size:16px;">
-      <input type="password" id="authPassword" placeholder="密码 (不少于6位)" style="padding:12px; border:1px solid #ddd; border-radius:8px; font-size:16px;">
-      <button onclick="handleEmailAuth('login')" style="padding:12px; background:#42a5f5; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">登 录</button>
-      <button onclick="handleEmailAuth('signup')" style="padding:10px; background:#fff; color:#42a5f5; border:1px solid #42a5f5; border-radius:8px; cursor:pointer;">新用户注册</button>
-      <button id="logoutBtn" class="hidden" onclick="handleLogout()" style="padding:10px; color:#ff5252; border:none; background:none; font-size:12px; cursor:pointer;">退出登录</button>
+      <input type="password" id="authPassword" placeholder="密码" style="padding:12px; border:1px solid #ddd; border-radius:8px; font-size:16px;">
+      <button onclick="handleEmailAuth('login')" style="padding:12px; background:#42a5f5; color:white; border:none; border-radius:8px; font-weight:bold;">登 录</button>
+      <button onclick="handleEmailAuth('signup')" style="padding:10px; background:#fff; color:#42a5f5; border:1px solid #42a5f5; border-radius:8px;">新用户注册</button>
+      <button id="logoutBtn" class="hidden" onclick="handleLogout()" style="color:#ff5252; border:none; background:none; font-size:12px;">退出登录</button>
     </div>
   </div>
 </div>
 
-<div id="guideModal" class="modal" onclick="closeGuide()">
-  <div class="modal-content" onclick="event.stopPropagation()" style="max-width:320px; width:85%; text-align:left; font-size:13px; line-height:1.6; color:#444;">
-    <span class="close-x" onclick="closeGuide()">×</span>
-    <h4 style="color:var(--primary); text-align:center; margin-top:0;">📖 使用说明</h4>
-    <div style="margin-top:10px;">
-      <p>1. <b>挖空间隔</b>：在 Every...th 框中设置（如填 4 表示每 4 个词挖一个空）。</p>
-      <p>1. <b>手动挖空</b>：点击单词挖空，双击撤销。</p>
-      <p>2. <b>单词提示</b>：按键盘<b>空格键</b>可提示下一个正确字母。</p>
-      <p>3. <b>保存文本</b>：点击顶部的 <b>+</b> 新建；<b>双击</b>标签重命名。</p>
-      <p>4. <b>作为app使用</b>：在浏览器菜单中选择“添加到主屏幕”。</p>
-    </div>
-    
-    <div style="text-align:center; margin: 20px 0; font-family: sans-serif;">
-      <div style="margin-bottom: 12px; font-size: 13px; color: #888;">
-        If this tool helped you, please let me know
-      </div>
-
-      <hr style="margin:12px 0; border:none; border-top:1px dashed #ddd;">
-
-      <div style="display: flex; justify-content: center; align-items: center; gap: 40px; margin: 10px 0; font-size: 16px;">
-        <div style="display: flex; align-items: center; gap: 6px;">
-          <span title="Visits">📈</span> 
-          <b id="visitCount" style="color: #666;">0</b>
-        </div>
-        <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="likeApp()">
-          <span>❤️</span>
-          <b id="likeCount" style="color: #666;">0</b>
-        </div>
-      </div>
-
-      <div style="margin-top: 15px;">
-        <a href="mailto:fnhame@gmail.com" style="text-decoration:none; color:#43a047; font-size: 12px; font-weight: bold;">
-          📩 如果你有任何意见联系我
-        </a>
-      </div>
-    </div>
-
-    <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
-  </div>
-</div>
 <script>
-const DEFAULT_TEXT = `这是一个示例文本。
-
-Hello?
-
-- Sara, it's Lara.
-
-- Oh, hi Lara, what's up?
-
-Just wanted to check and make sure you're still coming into work tonight.
-
-Sure, I could really use the money.
-
-Mom, finally cut off my finances.
-
-Oh, okay.
-
-Well, we've got something really important to talk about when you get here.
-
-Sure, well, I'll be there in a little bit.
-
-Yeah, don't rush though, it's so dead in here.
-
-Oh, that's too bad.
-
-Well, I'll see ya.
-
-Okay, bye.`;
-
-let storedFiles = JSON.parse(localStorage.getItem('cloze_files_v5'));
-let files = storedFiles || [{
+// --- 核心修改：数据源挂载到 window ---
+const DEFAULT_TEXT = `Hello world! This is a test.`;
+window.files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{
   id: Date.now(),
   title: 'File 1',
   content: DEFAULT_TEXT,
   clozePositions: []
 }];
-
-let activeFileId = files[0].id;
+let activeFileId = window.files[0].id;
 let currentFontSize = 18;
 let answers = [];
 
 const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
-const clozeContent = document.getElementById("clozeContent");
 
-// ---------------- 初始化 ----------------
-function init() { 
-    renderTabs(); 
-    loadActiveFile();  
-}
+function init() { renderTabs(); loadActiveFile(); }
 
-// ---------------- 粘贴 ----------------
-async function handlePaste() {
-  if (!navigator.clipboard) return;
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) { inputArea.value=text; saveActiveFile(); 
-      const btn=document.getElementById("pasteBtn"); 
-      btn.style.background="#888"; 
-      setTimeout(()=>{btn.style.background="var(--primary)";},800); 
-    }
-  } catch { console.log("Paste failed"); }
-}
-
-// ---------------- 文件标签 ----------------
 function renderTabs() {
   const tabs = document.getElementById('fileTabs'); tabs.innerHTML='';
-  files.forEach(f=>{
-    const div=document.createElement('div'); 
+  window.files.forEach(f=>{
+    const div=document.createElement('div');
     div.className=`file-tab ${f.id===activeFileId?'active':''}`;
-    div.ondblclick=()=>{ 
-      const n=prompt("重命名文件:", f.title); 
-      if(n){f.title=n; save(); renderTabs();}
-    };
     div.innerHTML=`<span onclick="switchFile(${f.id})">${f.title}</span>
-      <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>`;
+      <span style="color:var(--danger);margin-left:10px;" onclick="deleteFile(${f.id}, event)">×</span>`;
     tabs.appendChild(div);
   });
-  const btn=document.createElement('button'); 
-  btn.className="add-file-btn"; btn.innerHTML='＋'; btn.onclick=addNewFile;
+  const btn=document.createElement('button'); btn.className="add-file-btn"; btn.innerHTML='＋'; btn.onclick=addNewFile;
   tabs.appendChild(btn);
 }
 
-// ---------------- 保存 / 加载 ----------------
 function save() {
-    // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
-    localStorage.setItem('cloze_files_v5', JSON.stringify(files));
-    
-    // 2. 触发云端同步 (如果用户已登录，此函数会在 Firebase 模块中被定义)
-    if (window.syncToCloud) {
-        window.syncToCloud(files);
-    }
+    localStorage.setItem('cloze_files_v5', JSON.stringify(window.files));
+    if (window.syncToCloud) window.syncToCloud(window.files);
 }
 
 function saveActiveFile(val) {
-    const f = files.find(x => x.id === activeFileId);
+    const f = window.files.find(x => x.id === activeFileId);
     if (f) {
-        // 如果 val 有传值（比如清空操作），则使用 val；否则读取输入框的内容
         f.content = (val !== undefined) ? val : inputArea.value;
-        save(); // 这里会同时触发本地保存和云端同步
+        save();
     }
 }
-function loadActiveFile(){ 
-  const f=files.find(x=>x.id===activeFileId); 
+
+function loadActiveFile(){
+  const f=window.files.find(x=>x.id===activeFileId);
   if(!f) return;
-  inputArea.value=f.content || ""; 
-  answers = [];
+  inputArea.value=f.content || "";
 }
 
-// ---------------- 文件操作 ----------------
-function addNewFile(){ 
-  const id=Date.now(); 
-  files.push({id,title:'File '+(files.length+1),content:'', clozePositions: []}); 
-  activeFileId=id; 
-  save(); 
-  renderTabs(); 
-  loadActiveFile(); 
-  const tabs=document.getElementById('fileTabs'); tabs.scrollLeft=tabs.scrollWidth; 
-}
 function switchFile(id){ activeFileId=id; renderTabs(); loadActiveFile(); }
-function deleteFile(id,e){ 
-  e.stopPropagation(); 
-  if(files.length<=1||!confirm("删除此文件？")) return; 
-  files=files.filter(x=>x.id!==id); 
-  if(activeFileId===id) activeFileId=files[0].id; 
-  save(); renderTabs(); loadActiveFile(); 
+function addNewFile(){
+  const id=Date.now();
+  window.files.push({id, title:'File '+(window.files.length+1), content:'', clozePositions:[]});
+  activeFileId=id; save(); renderTabs(); loadActiveFile();
 }
 
-// ---------------- 字体 ----------------
-function changeFontSize(d){ 
-  currentFontSize+=d; 
-  if(currentFontSize<12) currentFontSize=12; 
-  inputArea.style.fontSize=displayArea.style.fontSize=currentFontSize+"px"; 
-  document.getElementById("sizeLabel").innerText=currentFontSize; 
-}
-
-// ---------------- 清空 ----------------
-function handleClear(){ 
-  if(!confirm("确定清空当前文本吗？")) return; 
-  inputArea.value=""; 
-  const f = files.find(x=>x.id===activeFileId); 
-  if(f) f.clozePositions = [];
-  saveActiveFile(""); 
-}
-
-// ---------------- 每 N 个词挖空 ----------------
-function generateCloze(text,n){
-  let index=0; answers=[];
-  const regex = /\([^)]*\)|[a-zA-Z]+|[\u4e00-\u9fa5]/g;
-  return text.replace(regex,(match)=>{
-    if (match.startsWith('(')) return `<span style="color:#999;font-style:italic;">${match}</span>`;
-    index++;
-    if(index%n===1){
-      const id = answers.length;
-      answers.push(match);
-      const isChinese = /[\u4e00-\u9fa5]/.test(match);
-      const boxWidth = isChinese ? 2 : match.length + 1;
-     // 找到这一行并修改
-  return `<input data-id="${id}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
- 
-    }
-    return match;
-  });
-}
-
-function handleGenerate(){
-  if(!inputArea.value.trim()) return;
-  const n=parseInt(document.getElementById("nthWord").value)||4;
-  clozeContent.innerHTML=generateCloze(inputArea.value,n);
-  ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.add("hidden"));
-  displayArea.classList.add("active");
-  clozeContent.querySelectorAll("input").forEach(input=>{
-    input.oninput=()=>{
-      const ans=answers[input.dataset.id];
-      input.style.backgroundColor=input.value.trim().toLowerCase()===ans.toLowerCase()?"#c8f7c5":(input.value?"#f7c5c5":"#fffde7");
-    };
-    input.onkeydown=(e)=>{
-      if(e.code==='Space'||e.keyCode===32){ e.preventDefault(); const ans=answers[input.dataset.id]; input.value=ans.substring(0,input.value.length+1); input.oninput(); }
-    };
-  });
-}
-
-// ---------------- 退出 ----------------
-function exitExercise(){ 
-  ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.remove("hidden")); 
-  displayArea.classList.remove("active"); 
-}
-
-// ---------------- 点击挖空 + 保存 ----------------
-function enableCustomCloze() {
-  const text = inputArea.value;
-  if (!text) return;
-
-  // 正则说明：匹配英文单词、单个中文字符、或者非空白标点
-  const regex = /([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g;
-  const segments = text.split(regex);
-  
-  const f = files.find(x => x.id === activeFileId);
-  if (!f.clozePositions) f.clozePositions = [];
-
-  answers = [];
-  let unitCount = 0; 
-
-  clozeContent.innerHTML = segments.map((seg) => {
-    if (!seg || !seg.trim()) return seg; 
-    if (seg.startsWith('(')) return `<span style="color:#999;font-style:italic;">${seg}</span>`;
-
-    const currentIdx = unitCount++;
-    const isChinese = /[\u4e00-\u9fa5]/.test(seg);
-    const boxWidth = isChinese ? 2 : seg.length + 1;
-
-    if (f.clozePositions.includes(currentIdx)) {
-      answers.push(seg);
-      return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
-    }
-
-    return `<span class="word-span" data-index="${currentIdx}">${seg}</span>`;
-  }).join("");
-
-  displayArea.classList.add("active");
-  ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => document.getElementById(id).classList.add("hidden"));
-
-  bindCustomEvents(f);
-}
-
-// 提取事件绑定逻辑，防止代码冗余
-function bindCustomEvents(f) {
-  clozeContent.querySelectorAll(".word-span, input").forEach((el) => {
-    // 针对 span 的点击变输入框逻辑
-    if (el.tagName === "SPAN" && el.classList.contains('word-span')) {
-      el.style.cursor = "pointer";
-      el.onclick = () => {
-        const word = el.innerText;
-        const wordIndex = parseInt(el.dataset.index);
-        f.clozePositions.push(wordIndex);
-        save();
-        enableCustomCloze(); // 重新渲染以保持结构一致
-      };
-    }
-
-    // 针对 input 的双击还原逻辑
-    if (el.tagName === "INPUT") {
-      el.oninput = () => {
-        const ans = answers[el.dataset.id];
-        el.style.backgroundColor = el.value.trim().toLowerCase() === ans.toLowerCase() ? "#c8f7c5" : (el.value ? "#f7c5c5" : "#fffde7");
-      };
-      el.onkeydown = (e) => {
-        if (e.code === 'Space' || e.keyCode === 32) {
-          e.preventDefault();
-          const ans = answers[el.dataset.id];
-          el.value = ans.substring(0, el.value.length + 1);
-          el.oninput();
-        }
-      };
-      el.ondblclick = () => {
-        const wordIndex = parseInt(el.dataset.index);
-        f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
-        save();
-        enableCustomCloze();
-      };
-    }
-  });
-}
-
-// ---------------- 输入区变化也要更新保存 ----------------
 inputArea.oninput=()=>saveActiveFile();
-
-
-
-// ---------------- 弹窗控制 ----------------
-function openGuide() {
-  document.getElementById("guideModal").style.display = "flex";
-}
-
-function closeGuide() {
-  document.getElementById("guideModal").style.display = "none";
-}
-// ---------------- 初始化 ----------------
 init();
 </script>
 
 <script type="module">
-  // 1. 导入部分：注意增加了 onValue
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
   import { getDatabase, ref, get, set, runTransaction, onValue } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+  import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
     authDomain: "cloze-master-pro.firebaseapp.com",
     projectId: "cloze-master-pro",
     databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-    storageBucket: "cloze-master-pro.firebasestorage.app",
-    messagingSenderId: "697808901954",
-    appId: "1:697808901954:web:32455d94bf67e522e01adb"
   };
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
   const auth = getAuth(app);
   let currentUser = null;
-  
 
-  // --- 登录/注册逻辑 ---
+  // --- 登录监听 ---
+  onAuthStateChanged(auth, (user) => {
+    const btnLabel = document.getElementById('loginBtnLabel');
+    if (user) {
+      currentUser = user;
+      btnLabel.innerText = "✅ 已同步: " + user.email.split('@')[0];
+      // 开启实时监听
+      startRealtimeSync(user.uid);
+    } else {
+      currentUser = null;
+      btnLabel.innerText = "👤 登录/同步";
+    }
+  });
+
+  // --- 实时监听逻辑（修复核心） ---
+  function startRealtimeSync(uid) {
+    onValue(ref(db, `users/${uid}/files`), (snapshot) => {
+      if (!snapshot.exists()) return;
+      const cloudData = snapshot.val();
+      
+      // 深度比较，避免死循环上传
+      if (JSON.stringify(cloudData) !== JSON.stringify(window.files)) {
+        console.log("检测到云端更新，正在强制覆盖本地...");
+        applyData(cloudData);
+      }
+    });
+  }
+
+  function applyData(data) {
+    // 1. 更新全局数据
+    window.files = data;
+    localStorage.setItem('cloze_files_v5', JSON.stringify(data));
+
+    // 2. 刷新文件标签页
+    if (window.renderTabs) window.renderTabs();
+
+    // 3. 强制更新编辑框（带光标保护，按要求删掉 focus 判断）
+    const f = window.files.find(x => x.id === activeFileId);
+    if (f) {
+      const inputArea = document.getElementById("inputText");
+      const start = inputArea.selectionStart; // 记录光标位置
+      const end = inputArea.selectionEnd;
+      
+      inputArea.value = f.content || "";
+      
+      // 还原光标位置，防止打字时跳动
+      inputArea.setSelectionRange(start, end);
+    }
+  }
+
+  window.syncToCloud = async (data) => {
+    if (currentUser) await set(ref(db, `users/${currentUser.uid}/files`), data);
+  };
+
+  // 绑定全局登录函数
   window.handleEmailAuth = async (type) => {
     const email = document.getElementById('authEmail').value;
     const password = document.getElementById('authPassword').value;
-    if (!email || !password) return alert("请输入邮箱和密码");
-    try {
-      if (type === 'signup') {
-        await createUserWithEmailAndPassword(auth, email, password);
-        alert("注册成功！数据将同步至此账号。");
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-        alert("登录成功！");
-      }
-      window.closeLoginModal();
-    } catch (e) { alert("操作失败: " + e.message); }
+    if (type === 'signup') await createUserWithEmailAndPassword(auth, email, password);
+    else await signInWithEmailAndPassword(auth, email, password);
+    window.closeLoginModal();
   };
-
-  window.handleLogout = () => { if(confirm("确定退出登录吗？")) signOut(auth); };
-
-// ------------------ 登录状态监听 ------------------
-onAuthStateChanged(auth, (user) => {
-    const btnLabel = document.getElementById('loginBtnLabel');
-    const logoutBtn = document.getElementById('logoutBtn');
-
-    if (user) {
-        currentUser = user;
-        btnLabel.innerText = "✅ 已同步: " + user.email.split('@')[0];
-        btnLabel.style.color = "#81c784";
-        logoutBtn.classList.remove('hidden');
-
-        // 登录后立即拉取云端数据并刷新 UI
-        get(ref(db, `users/${user.uid}/files`))
-            .then(snapshot => {
-                if (snapshot.exists()) applyData(snapshot.val());
-            });
-
-        // 开启实时监听云端变化
-        startRealtimeSync(user.uid);
-
-    } else {
-        currentUser = null;
-        btnLabel.innerText = "👤 登录/同步";
-        btnLabel.style.color = "#42a5f5";
-        logoutBtn.classList.add('hidden');
-    }
-});
-
-// ------------------ 实时同步函数（完整可用版） ------------------
-function startRealtimeSync(uid) {
-    if (!uid) return;
-
-    const path = `users/${uid}/files`;
-    const fileRef = ref(db, path);
-
-    console.log("📡 开始监听云端路径:", path);
-
-    // 绑定实时监听
-    onValue(fileRef, (snapshot) => {
-        if (!snapshot.exists()) {
-            console.log("⚠️ 云端暂无数据");
-            return;
-        }
-
-        const cloudData = snapshot.val();
-        console.log("🔥 云端数据变更，自动同步到本地", cloudData);
-
-        applyData(cloudData);
-    });
-}
-
-// ------------------ 应用云端数据到本地 ------------------
-function applyData(data) {
-    if (!Array.isArray(data)) {
-        console.warn("❌ 云端数据不是数组，已忽略", data);
-        return;
-    }
-
-    // 1. 覆盖内存数据
-    window.files = data;
-
-    // 2. 写入 LocalStorage（刷新后也一致）
-    localStorage.setItem('cloze_files_v5', JSON.stringify(data));
-
-    // 3. 如果当前文件已被云端删除，自动切换
-    if (!files.find(f => f.id === activeFileId)) {
-        activeFileId = files[0]?.id;
-    }
-
-    // 4. 统一刷新 UI
-    renderTabs();
-    loadActiveFile();
-}
-
-// ------------------ 自动上传 ------------------
-window.syncToCloud = async function (data) {
-    if (!currentUser) return;
-    try {
-        await set(ref(db, `users/${currentUser.uid}/files`), data);
-    } catch (e) {
-        console.error("同步失败", e);
-    }
-};
-
-  // --- 统计逻辑 ---
-  window.loadStats = async () => {
-    const snap = await get(ref(db, "stats"));
-    if (snap.exists()) {
-      const { visits = 0, likes = 0 } = snap.val();
-      document.getElementById("visitCount").innerText = visits;
-      document.getElementById("likeCount").innerText = likes;
-    }
-  };
-
-  window.likeApp = async () => {
-    const uid = currentUser ? currentUser.uid : localStorage.getItem("cloze_uid");
-    const userLikeRef = ref(db, `likedUsers/${uid}`);
-    const snap = await get(userLikeRef);
-    if (snap.exists()) return alert("你已经点过赞啦 ❤️");
-    await set(userLikeRef, true);
-    await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
-    window.loadStats();
-  };
-
-  window.openLoginModal = () => document.getElementById("loginModal").style.display = "flex";
-  window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
-
-  runTransaction(ref(db, "stats/visits"), v => (v || 0) + 1);
-  window.loadStats();
 </script>
 </body>
 </html>
