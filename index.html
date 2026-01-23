@@ -103,41 +103,38 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <h4 style="color:var(--primary); text-align:center; margin-top:0;">📖 使用说明</h4>
     <div style="margin-top:10px;">
       <p>1. <b>挖空间隔</b>：在 Every...th 框中设置（如填 4 表示每 4 个词挖一个空）。</p>
-      <p>2. <b>手动挖空</b>：点击单词挖空，双击撤销。</p>
-      <p>3. <b>单词提示</b>：按键盘<b>空格键</b>可提示下一个正确字母。</p>
-      <p>4. <b>保存文本</b>：点击顶部的 <b>+</b> 新建；<b>双击</b>标签重命名,清空浏览器缓存即删除所有文件。</p>
-      <p>5. <b>作为app使用</b>：在浏览器菜单中选择“添加到主屏幕”。</p>
+      <p>1. <b>手动挖空</b>：点击单词挖空，双击撤销。</p>
+      <p>2. <b>单词提示</b>：按键盘<b>空格键</b>可提示下一个正确字母。</p>
+      <p>3. <b>保存文本</b>：点击顶部的 <b>+</b> 新建；<b>双击</b>标签重命名。</p>
+      <p>4. <b>作为app使用</b>：在浏览器菜单中选择“添加到主屏幕”。</p>
     </div>
     
-<div style="text-align:center; margin: 24px 0; font-family: sans-serif;">
-  
-  <div style="margin-bottom: 12px; font-size: 13px; color: #888;">
-    If this tool helped you, please let me know
-  </div>
+    <div style="text-align:center; margin: 20px 0; font-family: sans-serif;">
+      <div style="margin-bottom: 12px; font-size: 13px; color: #888;">
+        If this tool helped you, please let me know
+      </div>
 
-  <hr style="margin:12px 0; border:none; border-top:1px dashed #ddd;">
+      <hr style="margin:12px 0; border:none; border-top:1px dashed #ddd;">
 
-  <div style="
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    margin: 10px 0;
-    font-size: 16px;
-  ">
-    
-    <div style="display: flex; align-items: center; gap: 6px;">
-      <span title="Visits">📈</span> 
-      <b id="visitCount" style="color: #666;">0</b>
+      <div style="display: flex; justify-content: center; align-items: center; gap: 40px; margin: 10px 0; font-size: 16px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <span title="Visits">📈</span> 
+          <b id="visitCount" style="color: #666;">0</b>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="likeApp()">
+          <span>❤️</span>
+          <b id="likeCount" style="color: #666;">0</b>
+        </div>
+      </div>
+
+      <div style="margin-top: 15px;">
+        <a href="mailto:fnhame@gmail.com" style="text-decoration:none; color:#43a047; font-size: 12px; font-weight: bold;">
+          📩 如果你有任何意见联系我
+        </a>
+      </div>
     </div>
 
-    <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="likeApp()">
-      <span>❤️</span>
-      <b id="likeCount" style="color: #666;">0</b>
-    </div>
-  </div>
-</div>
-
-    <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:15px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
+    <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
   </div>
 </div>
 <script>
