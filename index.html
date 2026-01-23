@@ -89,11 +89,25 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <button id="customClozeBtn" onclick="enableCustomCloze()">手动挖空</button>
   </div>
 
-  <div class="footer-bar" id="footerSection">
-    <div class="footer-left" style="display:flex; gap:18px; align-items:center;">
-      <span class="footer-link" onclick="openGuide()" style="cursor:pointer; font-weight:bold; color:#81c784;">📖 Guide 手册</span>
+<div class="footer-bar" id="footerSection">
+  <div class="footer-left" style="display:flex; gap:18px; align-items:center;">
+    <span class="footer-link" onclick="openGuide()" style="cursor:pointer; font-weight:bold; color:#81c784;">📖 Guide 手册</span>
+    <span id="loginBtnLabel" class="footer-link" onclick="openLoginModal()" style="cursor:pointer; font-weight:bold; color:#42a5f5;">👤 登录/同步</span>
+  </div>
+  <div class="footer-right" style="color:#999; font-size:12px;">Ricky @ 2026</div>
+</div>
+
+<div id="loginModal" class="modal" onclick="closeLoginModal()">
+  <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center;">
+    <span class="close-x" onclick="closeLoginModal()">×</span>
+    <h4 style="color:#42a5f5; margin-top:0;">👤 账号登录</h4>
+    <div style="display:flex; flex-direction:column; gap:12px;">
+      <input type="email" id="authEmail" placeholder="邮箱" style="padding:12px; border:1px solid #ddd; border-radius:8px; font-size:16px;">
+      <input type="password" id="authPassword" placeholder="密码 (不少于6位)" style="padding:12px; border:1px solid #ddd; border-radius:8px; font-size:16px;">
+      <button onclick="handleEmailAuth('login')" style="padding:12px; background:#42a5f5; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">登 录</button>
+      <button onclick="handleEmailAuth('signup')" style="padding:10px; background:#fff; color:#42a5f5; border:1px solid #42a5f5; border-radius:8px; cursor:pointer;">新用户注册</button>
+      <button id="logoutBtn" class="hidden" onclick="handleLogout()" style="padding:10px; color:#ff5252; border:none; background:none; font-size:12px; cursor:pointer;">退出登录</button>
     </div>
-    <div class="footer-right" style="color:#999; font-size:12px;">Ricky @ 2026</div>
   </div>
 </div>
 
@@ -221,13 +235,23 @@ function renderTabs() {
 }
 
 // ---------------- 保存 / 加载 ----------------
-function save(){ localStorage.setItem('cloze_files_v5',JSON.stringify(files)); }
-function saveActiveFile(val){ 
-  const f=files.find(x=>x.id===activeFileId); 
-  if(f){ 
-    f.content=(val!==undefined)?val:inputArea.value; 
-    save(); 
-  } 
+function save() {
+    // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
+    localStorage.setItem('cloze_files_v5', JSON.stringify(files));
+    
+    // 2. 触发云端同步 (如果用户已登录，此函数会在 Firebase 模块中被定义)
+    if (window.syncToCloud) {
+        window.syncToCloud(files);
+    }
+}
+
+function saveActiveFile(val) {
+    const f = files.find(x => x.id === activeFileId);
+    if (f) {
+        // 如果 val 有传值（比如清空操作），则使用 val；否则读取输入框的内容
+        f.content = (val !== undefined) ? val : inputArea.value;
+        save(); // 这里会同时触发本地保存和云端同步
+    }
 }
 function loadActiveFile(){ 
   const f=files.find(x=>x.id===activeFileId); 
@@ -407,13 +431,13 @@ function closeGuide() {
 // ---------------- 初始化 ----------------
 init();
 </script>
-<script type="module">
-  // 🔹 Firebase 核心
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-  import { getDatabase, ref, get, set, runTransaction } 
-    from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
 
-  // 🔹 Firebase 配置（你的原配置，没动）
+<script type="module">
+  // 引入 Firebase 核心、数据库、身份验证模块
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+  import { getDatabase, ref, get, set, runTransaction } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+
   const firebaseConfig = {
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
     authDomain: "cloze-master-pro.firebaseapp.com",
@@ -424,56 +448,93 @@ init();
     appId: "1:697808901954:web:32455d94bf67e522e01adb"
   };
 
-  // 🔹 初始化
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
+  const auth = getAuth(app);
+  let currentUser = null;
 
-  // ========= 以下是给你工具用的逻辑 =========
+  // --- 1. 登录/注册逻辑 ---
+  window.handleEmailAuth = async (type) => {
+    const email = document.getElementById('authEmail').value;
+    const password = document.getElementById('authPassword').value;
+    if (!email || !password) return alert("请输入邮箱和密码");
+    try {
+      if (type === 'signup') {
+        await createUserWithEmailAndPassword(auth, email, password);
+        alert("注册成功！数据将同步至此账号。");
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
+        alert("登录成功！");
+      }
+      window.closeLoginModal();
+    } catch (e) { alert("操作失败: " + e.message); }
+  };
 
-  // 匿名用户唯一 ID（存 localStorage）
-  window.getUserId = function () {
-    let id = localStorage.getItem("cloze_uid");
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem("cloze_uid", id);
+  window.handleLogout = () => { if(confirm("确定退出登录吗？")) signOut(auth); };
+
+  // --- 2. 核心状态监听 ---
+  onAuthStateChanged(auth, (user) => {
+    const btnLabel = document.getElementById('loginBtnLabel');
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (user) {
+      currentUser = user;
+      btnLabel.innerText = "✅ 已同步: " + user.email.split('@')[0];
+      btnLabel.style.color = "#81c784";
+      logoutBtn.classList.remove('hidden');
+      loadFromCloud(user.uid);
+    } else {
+      currentUser = null;
+      btnLabel.innerText = "👤 登录/同步";
+      btnLabel.style.color = "#42a5f5";
+      logoutBtn.classList.add('hidden');
     }
-    return id;
+  });
+
+  // --- 3. 云端同步函数 ---
+  window.syncToCloud = async function (data) {
+    if (!currentUser) return; 
+    try { await set(ref(db, `users/${currentUser.uid}/files`), data); } catch (e) { console.error("同步失败", e); }
   };
 
-  // 记录访问（每次打开页面 +1）
-  window.recordVisit = function () {
-    const visitRef = ref(db, "stats/visits");
-    runTransaction(visitRef, v => (v || 0) + 1);
+  async function loadFromCloud(uid) {
+    const snap = await get(ref(db, `users/${uid}/files`));
+    if (snap.exists()) {
+      const cloudData = snap.val();
+      if(confirm("发现云端有备份数据，是否同步到此设备？(本地内容将被替换)")) {
+          window.files = cloudData;
+          localStorage.setItem('cloze_files_v5', JSON.stringify(cloudData));
+          if (window.renderTabs) { renderTabs(); loadActiveFile(); }
+      }
+    }
+  }
+
+  // --- 4. 统计逻辑 (保留你之前的) ---
+  window.loadStats = async () => {
+    const snap = await get(ref(db, "stats"));
+    if (snap.exists()) {
+      const { visits = 0, likes = 0 } = snap.val();
+      document.getElementById("visitCount").innerText = visits;
+      document.getElementById("likeCount").innerText = likes;
+    }
   };
 
-  // 点赞（每个用户只能一次）
-  window.likeApp = async function () {
-    const uid = getUserId();
+  window.likeApp = async () => {
+    const uid = currentUser ? currentUser.uid : localStorage.getItem("cloze_uid");
     const userLikeRef = ref(db, `likedUsers/${uid}`);
     const snap = await get(userLikeRef);
-
-    if (snap.exists()) {
-      alert("你已经点过赞啦 ❤️");
-      return;
-    }
-
+    if (snap.exists()) return alert("你已经点过赞啦 ❤️");
     await set(userLikeRef, true);
     await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
-    loadStats();
+    window.loadStats();
   };
 
-  // 读取统计数据
-  window.loadStats = async function () {
-    const snap = await get(ref(db, "stats"));
-    if (!snap.exists()) return;
-    const { visits = 0, likes = 0 } = snap.val();
-    document.getElementById("visitCount").innerText = visits;
-    document.getElementById("likeCount").innerText = likes;
-  };
+  // 弹窗辅助
+  window.openLoginModal = () => document.getElementById("loginModal").style.display = "flex";
+  window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
-  // 页面加载时执行
-  recordVisit();
-  loadStats();
+  // 初始化统计
+  runTransaction(ref(db, "stats/visits"), v => (v || 0) + 1);
+  window.loadStats();
 </script>
 </body>
 </html>
