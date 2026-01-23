@@ -473,59 +473,80 @@ init();
 
   window.handleLogout = () => { if(confirm("确定退出登录吗？")) signOut(auth); };
 
-  // --- 核心状态监听 ---
-  onAuthStateChanged(auth, (user) => {
+// ------------------ 登录状态监听 ------------------
+onAuthStateChanged(auth, (user) => {
     const btnLabel = document.getElementById('loginBtnLabel');
     const logoutBtn = document.getElementById('logoutBtn');
+
     if (user) {
-      currentUser = user;
-      btnLabel.innerText = "✅ 已同步: " + user.email.split('@')[0];
-      btnLabel.style.color = "#81c784";
-      logoutBtn.classList.remove('hidden');
-      // 开启监听
-      startRealtimeSync(user.uid);
+        currentUser = user;
+        btnLabel.innerText = "✅ 已同步: " + user.email.split('@')[0];
+        btnLabel.style.color = "#81c784";
+        logoutBtn.classList.remove('hidden');
+
+        // 登录后立即拉取云端数据并刷新 UI
+        get(ref(db, `users/${user.uid}/files`))
+            .then(snapshot => {
+                if (snapshot.exists()) applyData(snapshot.val());
+            });
+
+        // 开启实时监听云端变化
+        startRealtimeSync(user.uid);
+
     } else {
-      currentUser = null;
-      btnLabel.innerText = "👤 登录/同步";
-      btnLabel.style.color = "#42a5f5";
-      logoutBtn.classList.add('hidden');
-      isFirstSync = true; 
+        currentUser = null;
+        btnLabel.innerText = "👤 登录/同步";
+        btnLabel.style.color = "#42a5f5";
+        logoutBtn.classList.add('hidden');
     }
-  });
+});
 
   // --- 实时监听逻辑 ---
+// ------------------ 实时监听云端 ------------------
 function startRealtimeSync(uid) {
-  const fileRef = ref(db, `users/${uid}/files`);
-  
-  onValue(fileRef, (snapshot) => {
-    if (!snapshot.exists()) return;
-    const cloudData = snapshot.val();
-    const localData = JSON.parse(localStorage.getItem('cloze_files_v5'));
+    const fileRef = ref(db, `users/${uid}/files`);
 
-    // 如果内容不同，直接应用云端数据
-    if (JSON.stringify(cloudData) !== JSON.stringify(localData)) {
-      console.log("同步云端数据到本地...");
-      applyData(cloudData);
-    }
-  });
+    onValue(fileRef, (snapshot) => {
+        if (!snapshot.exists()) return;
+        const cloudData = snapshot.val();
+        const localData = JSON.parse(localStorage.getItem('cloze_files_v5')) || [];
+
+        // 云端内容与本地不同，直接覆盖
+        if (JSON.stringify(cloudData) !== JSON.stringify(localData)) {
+            console.log("同步云端数据到本地...");
+            applyData(cloudData);
+        }
+    });
 }
 
-  // --- 辅助：应用数据并刷新界面 ---
-  function applyData(data) {
+function applyData(data) {
+    // 更新全局文件数组
     window.files = data;
     localStorage.setItem('cloze_files_v5', JSON.stringify(data));
-    // 调用全局函数刷新 UI
-    if (window.renderTabs) { 
-        renderTabs(); 
-        loadActiveFile(); 
-    }
-  }
 
-  // --- 云端上传函数 ---
-  window.syncToCloud = async function (data) {
-    if (!currentUser) return; 
-    try { await set(ref(db, `users/${currentUser.uid}/files`), data); } catch (e) { console.error("同步失败", e); }
-  };
+    // 更新标签
+    if (window.renderTabs) renderTabs();
+
+    // 更新当前激活文件内容
+    const f = files.find(x => x.id === activeFileId);
+    if (f) {
+        const inputArea = document.getElementById("inputText");
+        // 如果用户没有聚焦编辑，则直接更新内容
+        if (!inputArea.matches(':focus')) {
+            inputArea.value = f.content || "";
+        }
+    }
+}
+
+// ------------------ 自动上传 ------------------
+window.syncToCloud = async function (data) {
+    if (!currentUser) return;
+    try {
+        await set(ref(db, `users/${currentUser.uid}/files`), data);
+    } catch (e) {
+        console.error("同步失败", e);
+    }
+};
 
   // --- 统计逻辑 ---
   window.loadStats = async () => {
