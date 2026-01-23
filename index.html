@@ -409,27 +409,30 @@ init();
 </script>
 
 <script type="module">
-  // 🔹 Firebase 核心
+  // 🔹 导入 Firebase
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
   import { getDatabase, ref, get, set, runTransaction } 
     from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-analytics.js";
 
   // 🔹 Firebase 配置
   const firebaseConfig = {
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
     authDomain: "cloze-master-pro.firebaseapp.com",
-    projectId: "cloze-master-pro",
     databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "cloze-master-pro",
     storageBucket: "cloze-master-pro.firebasestorage.app",
     messagingSenderId: "697808901954",
-    appId: "1:697808901954:web:32455d94bf67e522e01adb"
+    appId: "1:697808901954:web:32455d94bf67e522e01adb",
+    measurementId: "G-1JCS9LV5Z0"
   };
 
-  // 🔹 初始化
+  // 🔹 初始化 Firebase（只初始化一次）
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
+  const analytics = getAnalytics(app);
 
-  // 1. 获取唯一ID (修复后的位置)
+  // ---------------- 用户唯一 ID ----------------
   window.getUserId = function () {
     let id = localStorage.getItem("cloze_uid");
     if (!id) {
@@ -439,24 +442,49 @@ init();
     return id;
   };
 
-  // 2. 记录访问
-  window.recordVisit = function () {
-    const visitRef = ref(db, "stats/visits");
-    runTransaction(visitRef, v => (v || 0) + 1);
-  };
+  // ---------------- 记录访问 ----------------
+  window.recordVisit = async function () {
+    try {
+      const uid = getUserId();
+      const visitRef = ref(db, `visitors/${uid}`);
+      const snap = await get(visitRef);
 
-  // 3. 点赞逻辑
-  window.likeApp = async function () {
-    if (localStorage.getItem("liked")) {
-      alert("你已经点过赞啦 ❤️");
-      return;
+      if (!snap.exists()) {
+        await set(visitRef, true);
+        // 总访问次数统计
+        await runTransaction(ref(db, "stats/visits"), v => (v || 0) + 1);
+      }
+    } catch (e) {
+      console.error("记录访问失败:", e);
     }
-    await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
-    localStorage.setItem("liked", "1");
-    loadStats();
   };
 
-  // 4. 读取统计数据
+  // ---------------- 点赞 ----------------
+  window.likeApp = async function () {
+    try {
+      const uid = getUserId();
+      const userLikeRef = ref(db, `likedUsers/${uid}`);
+      const snap = await get(userLikeRef);
+
+      if (snap.exists()) {
+        alert("你已经点过赞啦 ❤️");
+        return;
+      }
+
+      // 标记用户已点赞
+      await set(userLikeRef, true);
+
+      // 点赞总数 +1
+      await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
+
+      // 更新页面显示
+      loadStats();
+    } catch (e) {
+      console.error("点赞失败:", e);
+    }
+  };
+
+  // ---------------- 读取统计数据 ----------------
   window.loadStats = async function () {
     try {
       const snap = await get(ref(db, "stats"));
@@ -469,7 +497,7 @@ init();
     }
   };
 
-  // 5. 确保在页面加载后执行
+  // ---------------- 页面加载时执行 ----------------
   window.addEventListener('load', () => {
     recordVisit();
     loadStats();
