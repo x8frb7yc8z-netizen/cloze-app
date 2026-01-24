@@ -220,7 +220,7 @@ const clozeContent = document.getElementById("clozeContent");
 // ---------------- 初始化 ----------------
 function init() { 
     renderTabs(); 
-    loadActiveFile();  
+    loadActiveFile(); 
 }
 
 // ---------------- 粘贴 ----------------
@@ -275,36 +275,37 @@ function saveActiveFile(val) {
     }
 }
 function loadActiveFile(){ 
-  const f=files.find(x=>x.id===activeFileId); 
-  if(!f) return;
-  inputArea.value=f.content || ""; 
-  answers = [];
+    const f = window.files.find(x => x.id === activeFileId); 
+    if(!f) {
+        inputArea.value = "";
+        return;
+    }
+    inputArea.value = f.content || ""; 
+    answers = [];
 }
 
 // ---------------- 文件操作 ----------------
 function addNewFile() { 
     const id = Date.now(); 
-    files.push({id, title: 'File ' + (files.length + 1), content: '', clozePositions: []}); 
+    window.files.push({id, title: '新文件 ' + (window.files.length + 1), content: '', clozePositions: []}); 
     activeFileId = id; 
-    localStorage.setItem('cloze_last_active_id', id); // 记录新文件ID
-    save(); 
+    save(); // 同步到云端
     renderTabs(); 
     loadActiveFile(); 
-    const tabs = document.getElementById('fileTabs'); 
-    tabs.scrollLeft = tabs.scrollWidth; 
 }
 function switchFile(id) { 
     activeFileId = id; 
-    localStorage.setItem('cloze_last_active_id', id); // 记录当前打开的文件ID
     renderTabs(); 
     loadActiveFile(); 
 }
-function deleteFile(id,e){ 
-  e.stopPropagation(); 
-  if(files.length<=1||!confirm("删除此文件？")) return; 
-  files=files.filter(x=>x.id!==id); 
-  if(activeFileId===id) activeFileId=files[0].id; 
-  save(); renderTabs(); loadActiveFile(); 
+function deleteFile(id, e){ 
+    e.stopPropagation(); 
+    if(window.files.length <= 1 || !confirm("确定从云端永久删除此文件？")) return; 
+    window.files = window.files.filter(x => x.id !== id); 
+    if(activeFileId === id) activeFileId = window.files[0].id; 
+    save(); // 同步到云端
+    renderTabs(); 
+    loadActiveFile(); 
 }
 
 // ---------------- 字体 ----------------
@@ -554,56 +555,35 @@ window.handleGoogleAuth = async () => {
 
   window.handleLogout = () => { if(confirm("确定退出登录吗？")) signOut(auth); };
 
-// ------------------ 修改后的登录状态监听函数 (完整版) ------------------
+// ------------------ 登录状态监听 ------------------
 onAuthStateChanged(auth, (user) => {
     const btnLabel = document.getElementById('loginBtnLabel');
     const logoutBtn = document.getElementById('logoutBtn');
 
     if (user) {
-        // 1. 状态更新
         currentUser = user;
-        console.log("👤 当前登录用户:", user.displayName || user.email);
+        btnLabel.innerText = "✅ 已同步";
+        btnLabel.style.color = "#81c784";
+        logoutBtn.classList.remove('hidden');
 
-        // 2. UI 反馈
-        if (btnLabel) {
-            btnLabel.innerText = "✅ 已同步";
-            btnLabel.style.color = "#81c784";
-        }
-        if (logoutBtn) {
-            logoutBtn.classList.remove('hidden');
-        }
-
-        // 3. 数据拉取：登录后立即尝试从云端同步最新数据
-        const userRef = ref(db, `users/${user.uid}/files`);
-        get(userRef).then((snapshot) => {
-            if (snapshot.exists()) {
-                console.log("☁️ 检测到云端数据，正在应用...");
-                applyData(snapshot.val()); // 调用你之前的应用数据函数
-            } else {
-                console.log("☁️ 云端尚无数据，准备首次同步...");
-                // 如果云端是空的，可以考虑把当前本地的数据传上去
-                if (window.files && window.files.length > 0) {
-                    window.syncToCloud(window.files);
-                }
-            }
-        }).catch(err => console.error("读取云端失败:", err));
-
-        // 4. 开启实时监听：确保多端同时操作时数据一致
-        if (typeof startRealtimeSync === 'function') {
-            startRealtimeSync(user.uid);
-        }
-
+        // 开启实时监听：云端一旦有变动，applyData 会自动重绘页面
+        startRealtimeSync(user.uid);
     } else {
-        // 5. 登出处理
         currentUser = null;
-        if (btnLabel) {
-            btnLabel.innerText = "👤 登录/同步";
-            btnLabel.style.color = "#42a5f5";
-        }
-        if (logoutBtn) {
-            logoutBtn.classList.add('hidden');
-        }
-        console.log("🚪 用户已退出登录");
+        btnLabel.innerText = "👤 登录/同步";
+        btnLabel.style.color = "#42a5f5";
+        logoutBtn.classList.add('hidden');
+
+        // 登出清理：清空内存中的所有文件资料，不留痕迹
+        window.files = [{
+            id: Date.now(),
+            title: '未登录',
+            content: '已退出登录，请重新登录以加载云端数据。',
+            clozePositions: []
+        }];
+        activeFileId = window.files[0].id;
+        renderTabs();
+        loadActiveFile();
     }
 });
 
@@ -632,23 +612,17 @@ function startRealtimeSync(uid) {
 
 // ------------------ 应用云端数据到本地 ------------------
 function applyData(data) {
-    if (!Array.isArray(data)) {
-        console.warn("❌ 云端数据不是数组，已忽略", data);
-        return;
-    }
-
+    if (!Array.isArray(data)) return;
+    
     // 1. 覆盖内存数据
     window.files = data;
 
-    // 2. 写入 LocalStorage（刷新后也一致）
-    localStorage.setItem('cloze_files_v5', JSON.stringify(data));
-
-    // 3. 如果当前文件已被云端删除，自动切换
-    if (!files.find(f => f.id === activeFileId)) {
-        activeFileId = files[0]?.id;
+    // 2. 检查当前选中的文件是否还存在
+    if (!window.files.find(f => f.id === activeFileId)) {
+        activeFileId = window.files[0]?.id;
     }
 
-    // 4. 统一刷新 UI
+    // 3. 刷新 UI 界面
     renderTabs();
     loadActiveFile();
 }
