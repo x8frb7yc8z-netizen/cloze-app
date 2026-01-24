@@ -91,7 +91,7 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 
   <div class="input-wrapper">
     <textarea id="inputText" placeholder="在此粘贴英文或中文文本..."></textarea>
-    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 Paste 粘贴</button>
+    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()">📋 Paste 粘贴</button>
     <div id="clozeDisplay" class="cloze-display">
       <button onclick="exitExercise()" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← Back / 返回修改</button>
       <div id="clozeContent"></div>
@@ -99,15 +99,14 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
   </div>
 
   <div class="action-bar" id="bottomAction">
-    <button id="clearBtn" onclick="handleClear()" data-i18n="clear">清空</button>
-    <button id="generate" onclick="handleGenerate()" data-i18n="generate">生成练习</button>
-    <button id="customClozeBtn" onclick="enableCustomCloze()" data-i18n="custom">手动挖空</button>
+    <button id="clearBtn" onclick="handleClear()">清空</button>
+    <button id="generate" onclick="handleGenerate()">生成练习</button>
+    <button id="customClozeBtn" onclick="enableCustomCloze()">手动挖空</button>
   </div>
 
 <div class="footer-bar" id="footerSection">
   <div class="footer-left">
-    <span class="footer-link" onclick="openGuide()" style="cursor:pointer; font-weight:bold; color:#81c784;" data-i18n="guide">📖 Guide 手册</span>
-    <span class="footer-link" onclick="toggleLanguage()" style="cursor:pointer; font-weight:bold; color:#ffb74d;">🌐 EN/中文</span>  
+    <span class="footer-link" onclick="openGuide()" style="cursor:pointer; font-weight:bold; color:#81c784;">📖 Guide 手册</span>
   </div>
   <div class="footer-right">
     <span id="loginBtnLabel" class="footer-link" onclick="openLoginModal()" style="cursor:pointer; font-weight:bold; color:#42a5f5;">👤 登录/同步</span>
@@ -717,97 +716,6 @@ window.syncToCloud = async function (data) {
 
   runTransaction(ref(db, "stats/visits"), v => (v || 0) + 1);
   window.loadStats();
-
-  // ================= 多语言配置整组函数 =================
-
-const translations = {
-    zh: {
-        guide: "📖 Guide 手册",
-        login: "👤 登录/同步",
-        synced: "✅ 已同步",
-        clear: "清空",
-        generate: "生成练习",
-        custom: "手动挖空",
-        paste: "📋 Paste 粘贴",
-        placeholder: "在此粘贴英文或中文文本...",
-        back: "← Back / 返回修改",
-        confirmClear: "确定清空当前文本吗？",
-        confirmDelete: "删除此文件？",
-        confirmRevoke: "确定撤销这个挖空吗？",
-        rename: "重命名文件:",
-        logoutConfirm: "确定退出登录吗？",
-        cloudTitle: "☁️ 云同步已开启",
-        cloudTip1: "🚀 自动上传：您在本地做的任何修改都会实时同步至云端。",
-        cloudTip2: "📥 自动下载：登录新设备时，您的记录会自动恢复。",
-        cloudTip3: "🔐 多端备份：数据在浏览器和云端双重保存。",
-        logoutBtn: "退出当前账号"
-    },
-    en: {
-        guide: "📖 Guide",
-        login: "👤 Login/Sync",
-        synced: "✅ Synced",
-        clear: "Clear",
-        generate: "Generate",
-        custom: "Manual",
-        paste: "📋 Paste",
-        placeholder: "Paste text here...",
-        back: "← Back",
-        confirmClear: "Clear current text?",
-        confirmDelete: "Delete this file?",
-        confirmRevoke: "Revoke this cloze?",
-        rename: "Rename file:",
-        logoutConfirm: "Log out?",
-        cloudTitle: "☁️ Cloud Sync Active",
-        cloudTip1: "🚀 Auto Upload: Changes sync to cloud in real-time.",
-        cloudTip2: "📥 Auto Download: Records restore on new devices.",
-        cloudTip3: "🔐 Secure Backup: Double protection for your data.",
-        logoutBtn: "Log Out"
-    }
-};
-
-let currentLang = localStorage.getItem('app_lang') || 'zh';
-
-// 核心：切换语言函数
-window.toggleLanguage = function() {
-    currentLang = currentLang === 'zh' ? 'en' : 'zh';
-    localStorage.setItem('app_lang', currentLang);
-    applyLanguage();
-};
-
-// 核心：应用语言函数（自动遍历 DOM）
-function applyLanguage() {
-    const dict = translations[currentLang];
-    
-    // 1. 翻译带有 data-i18n 属性的所有元素
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (dict[key]) {
-            // 如果是 input 的 placeholder，特殊处理
-            if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-                el.placeholder = dict[key];
-            } else {
-                el.innerText = dict[key];
-            }
-        }
-    });
-
-    // 2. 特殊逻辑处理 (如根据登录状态变化的按钮文字)
-    updateLoginUIStrings();
-}
-
-// 辅助：更新登录状态相关的文字
-function updateLoginUIStrings() {
-    const btnLabel = document.getElementById('loginBtnLabel');
-    if (btnLabel) {
-        if (window.currentUser) {
-            btnLabel.innerText = translations[currentLang].synced;
-        } else {
-            btnLabel.innerText = translations[currentLang].login;
-        }
-    }
-}
-
-// =====================================================
 </script>
 </body>
 </html>
