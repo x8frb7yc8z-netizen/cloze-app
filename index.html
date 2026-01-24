@@ -451,7 +451,7 @@ function generateCloze(text,n){
       const isChinese = /[\u4e00-\u9fa5]/.test(match);
       const boxWidth = isChinese ? 2 : match.length + 1;
      // 找到这一行并修改
-  return `<input data-id="${id}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
+  return `<input data-id="${id}" autocomplete="off" style="width:${boxWidth}ch; font-family:inherit; vertical-align:middle; line-height:1; height:1.5em;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
  
     }
     return match;
@@ -517,7 +517,7 @@ function enableCustomCloze() {
 
     if (f.clozePositions.includes(currentIdx)) {
       answers.push(seg);
-      return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" style="width:${boxWidth}ch;font-family:inherit;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
+      return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" style="width:${boxWidth}ch; font-family:inherit; vertical-align:middle; line-height:1; height:1.5em;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
     }
 
     return `<span class="word-span" data-index="${currentIdx}">${seg}</span>`;
