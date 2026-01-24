@@ -85,31 +85,32 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
         <span id="sizeLabel" style="min-width:20px; text-align:center;">18</span>
         <button class="small-btn" onclick="changeFontSize(2)">A+</button>
       </div>
-      <div>间隔 <input id="nthWord" type="number" value="4" style="width:35px; border:1px solid #ddd; text-align:center"> 词</div>
+      <div><span data-i18n="interval">间隔</span> <input id="nthWord" type="number" value="4" style="width:35px; border:1px solid #ddd; text-align:center"> <span data-i18n="words">词</span></div>
     </div>
   </div>
 
   <div class="input-wrapper">
-    <textarea id="inputText" placeholder="在此粘贴英文或中文文本..."></textarea>
-    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()">📋 Paste 粘贴</button>
+    <textarea id="inputText" data-i18n="placeholder"></textarea>
+    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
     <div id="clozeDisplay" class="cloze-display">
-      <button onclick="exitExercise()" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← Back / 返回修改</button>
+      <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
       <div id="clozeContent"></div>
     </div>
   </div>
 
   <div class="action-bar" id="bottomAction">
-    <button id="clearBtn" onclick="handleClear()">清空</button>
-    <button id="generate" onclick="handleGenerate()">生成练习</button>
-    <button id="customClozeBtn" onclick="enableCustomCloze()">手动挖空</button>
+    <button id="clearBtn" onclick="handleClear()" data-i18n="clear">清空</button>
+    <button id="generate" onclick="handleGenerate()" data-i18n="generate">生成练习</button>
+    <button id="customClozeBtn" onclick="enableCustomCloze()" data-i18n="custom">手动挖空</button>
   </div>
 
 <div class="footer-bar" id="footerSection">
-  <div class="footer-left">
-    <span class="footer-link" onclick="openGuide()" style="cursor:pointer; font-weight:bold; color:#81c784;">📖 Guide 手册</span>
+  <div class="footer-left" style="display:flex; gap:10px;">
+    <span class="footer-link" onclick="Guide()" style="cursor:pointer; font-weight:bold; color:#81c784;" data-i18n="guide">📖 手册</span>
+    <span class="footer-link" onclick="toggleLanguage()" style="cursor:pointer; color:#ffb74d;">🌐 EN/中文</span>
   </div>
   <div class="footer-right">
-    <span id="loginBtnLabel" class="footer-link" onclick="openLoginModal()" style="cursor:pointer; font-weight:bold; color:#42a5f5;">👤 登录/同步</span>
+    <span id="loginBtnLabel" class="footer-link" onclick="openLoginModal()" style="cursor:pointer; font-weight:bold; color:#42a5f5;" data-i18n="login">👤 登录/同步</span>
   </div>
 </div>
 
@@ -118,42 +119,43 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <span class="close-x" onclick="closeLoginModal()">×</span>
 
     <div id="loggedOutUI">
-      <h4 style="color:#42a5f5; margin-top:0;">👤 账号登录</h4>
+      <h4 style="color:#42a5f5; margin-top:0;" data-i18n="loginTitle">👤 账号登录</h4>
       <div style="display:flex; flex-direction:column; gap:12px;">
         <button onclick="handleGoogleAuth()" style="padding:12px; background:#fff; color:#444; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18"> 使用 Google 登录
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18"> <span data-i18n="googleLogin">使用 Google 登录</span>
         </button>
-        <div style="margin: 5px 0; color: #ccc; font-size: 12px;">———— 或者 ————</div>
-        <input type="email" id="authEmail" placeholder="邮箱" style="padding:12px; border:1px solid #ddd; border-radius:8px;">
-        <input type="password" id="authPassword" placeholder="密码" style="padding:12px; border:1px solid #ddd; border-radius:8px;">
-        <button onclick="handleEmailAuth('login')" style="padding:12px; background:#42a5f5; color:white; border:none; border-radius:8px; font-weight:bold;">登 录</button>
-        <button onclick="handleEmailAuth('signup')" style="padding:10px; background:#fff; color:#42a5f5; border:1px solid #42a5f5; border-radius:8px;">新用户注册</button>
+        <div style="margin: 5px 0; color: #ccc; font-size: 12px;" data-i18n="or">———— 或者 ————</div>
+        <input type="email" id="authEmail" data-i18n="emailPlace" style="padding:12px; border:1px solid #ddd; border-radius:8px;">
+        <input type="password" id="authPassword" data-i18n="passPlace" style="padding:12px; border:1px solid #ddd; border-radius:8px;">
+        <button onclick="handleEmailAuth('login')" style="padding:12px; background:#42a5f5; color:white; border:none; border-radius:8px; font-weight:bold;" data-i18n="loginBtn">登 录</button>
+        <button onclick="handleEmailAuth('signup')" style="padding:10px; background:#fff; color:#42a5f5; border:1px solid #42a5f5; border-radius:8px;" data-i18n="signupBtn">新用户注册</button>
       </div>
     </div>
 
     <div id="loggedInUI" class="hidden">
-      <h4 style="color:#43a047; margin-top:0;">☁️ 云同步已开启</h4>
+      <h4 style="color:#43a047; margin-top:0;" data-i18n="syncTitle">☁️ 云同步已开启</h4>
       <div style="text-align:left; font-size:13px; color:#555; line-height:1.6; background:#f0f7f0; padding:15px; border-radius:10px; margin-bottom:15px; border:1px solid #e0eee0;">
-        <p style="margin:0 0 8px 0;">🚀 <b>自动上传：</b>您在本地做的任何修改都会实时同步至云端。</p>
-        <p style="margin:0 0 8px 0;">📥 <b>自动下载：</b>登录新设备时，您的课本和挖空记录会自动恢复。</p>
-        <p style="margin:0;">🔐 <b>多端备份：</b>数据在浏览器和云端双重保存，无需担心丢失。</p>
+        <p>🚀 <b data-i18n="s1t">自动上传</b>：<span data-i18n="s1d">您在本地做的任何修改都会实时同步至云端。</span></p>
+        <p>📥 <b data-i18n="s2t">自动下载</b>：<span data-i18n="s2d">登录新设备时，您的课本和挖空记录会自动恢复。</span></p>
       </div>
       <p id="userEmailDisplay" style="font-size:12px; color:#999; margin-bottom:15px;"></p>
-      <button onclick="handleLogout()" style="width:100%; padding:10px; color:#ff5252; border:1px solid #ff5252; background:none; border-radius:8px; font-weight:bold; cursor:pointer;">退出当前账号</button>
+      <button onclick="handleLogout()" style="width:100%; padding:10px; color:#ff5252; border:1px solid #ff5252; background:none; border-radius:8px; font-weight:bold; cursor:pointer;" data-i18n="logoutBtn">退出当前账号</button>
+    </div>
     </div>
   </div>
 </div>
 
 <div id="guideModal" class="modal" onclick="closeGuide()">
-  <div class="modal-content" onclick="event.stopPropagation()" style="max-width:320px; width:85%; text-align:left; font-size:13px; line-height:1.6; color:#444;">
+  <div class="modal-content" onclick="event.stopPropagation()">
     <span class="close-x" onclick="closeGuide()">×</span>
-    <h4 style="color:var(--primary); text-align:center; margin-top:0;">📖 使用说明</h4>
-    <div style="margin-top:10px;">
-      <p>1. <b>挖空间隔</b>：在 Every...th 框中设置（如填 4 表示每 4 个词挖一个空）。</p>
-      <p>1. <b>手动挖空</b>：点击单词挖空，长按撤销。</p>
-      <p>2. <b>单词提示</b>：按<b>空格键</b>可提示下一个正确字母。</p>
-      <p>3. <b>复习单词</b>：通过账号登录保存当前课本，持续跟进个人学习进度。</p>
-      <p>4. <b>安装为App</b>：在浏览器菜单中选择“添加到主屏幕”。</p>
+    <h4 style="color:var(--primary); text-align:center; margin-top:0;" data-i18n="guideTitle">📖 使用说明</h4>
+    <div style="font-size:13px; line-height:1.6;">
+      <p>1. <b data-i18n="g1t">挖空间隔</b>：<span data-i18n="g1d">在 Every...th 框中设置。</span></p>
+      <p>2. <b data-i18n="g2t">手动挖空</b>：<span data-i18n="g2d">点击单词挖空，长按撤销。</span></p>
+      <p>3. <b data-i18n="g3t">单词提示</b>：<span data-i18n="g3d">按空格键提示下一个正确字母。</span></p>
+      <p>4. <b data-i18n="g4t">复习单词</b>：<span data-i18n="g4d">通过账号登录保存当前课本，持续跟进个人学习进度。</span></p>
+      <p>5. <b data-i18n="g4t">安装为App</b>：<span data-i18n="g4d">在浏览器菜单中选择“添加到主屏幕”</span></p>
+
     </div>
     
     <div style="text-align:center; margin: 20px 0; font-family: sans-serif;">
@@ -185,6 +187,79 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
   </div>
 </div>
 <script>
+// ================= i18n 国际化核心整组函数 =================
+const translations = {
+    zh: {
+        interval: "间隔", words: "词", placeholder: "在此粘贴英文或中文文本...", paste: "📋 粘贴",
+        clear: "清空", generate: "生成练习", custom: "手动挖空", guide: "📖 手册", login: "👤 登录/同步",
+        synced: "✅ 已同步", back: "← 返回",
+        // Login Modal
+        loginTitle: "👤 账号登录", googleLogin: "使用 Google 登录", or: "———— 或者 ————",
+        emailPlace: "邮箱", passPlace: "密码", loginBtn: "登 录", signupBtn: "新用户注册",
+        syncTitle: "☁️ 云同步已开启", s1t: "自动上传", s1d: "您在本地做的任何修改都会实时同步至云端",
+        s2t: "自动下载", s2d: "登录新设备时，您的课本和挖空记录会自动恢复。", logoutBtn: "退出当前账号",
+        // Guide Modal
+        guideTitle: "📖 使用说明", gotIt: "知道了",
+        g1t: "挖空间隔", g1d: "在 Every...th 框中设置。",
+        g2t: "手动挖空", g2d: "点击单词挖空，长按撤销。",
+        g3t: "单词提示", g3d: "按空格键提示下一个正确字母。",
+        g4t: "保存进度", g4d: "通过账号登录保存当前课本，持续跟进个人学习进度。",
+        g4t: "安装为App", g4d: "在浏览器菜单中选择“添加到主屏幕”",
+        // Confirmations
+        confirmClear: "确定清空当前文本吗？", logoutConfirm: "确定退出登录吗？",
+        deleteConfirm: "删除此文件？", revokeConfirm: "确定撤销这个挖空吗？",
+        renamePrompt: "重命名文件:"
+    },
+    en: {
+        interval: "Every", words: "words", placeholder: "Paste English or Chinese text here...", paste: "📋 Paste Text",
+        clear: "Clear", generate: "Generate", custom: "Manual", guide: "📖 Guide", login: "👤 Login/Sync",
+        synced: "✅ Synced", back: "← Back",
+        // Login Modal
+        loginTitle: "👤 Account Login", googleLogin: "Sign in with Google", or: "———— OR ————",
+        emailPlace: "Email", passPlace: "Password", loginBtn: "Login", signupBtn: "Sign Up",
+        syncTitle: "☁️ Cloud Sync Active", s1t: "Auto Upload", s1d: "Changes sync to cloud instantly.",
+        s2t: "Auto Download", s2d: "Data restores on new devices.", logoutBtn: "Log Out",
+        // Guide Modal
+        guideTitle: "📖 Instructions", gotIt: "Got it",
+        g1t: "Interval", g1d: "Set gaps in the 'Every...th' box.",
+        g2t: "Manual Mode", g2d: "Click a word to hide, long press to undo.",
+        g3t: "Hints", g3d: "Press Space for the next correct letter.",
+        g4t: "Sync Progress", g4d: "Sign in to save books and track progress.",
+        // Confirmations
+        confirmClear: "Are you sure you want to clear the text?", logoutConfirm: "Are you sure you want to log out?",
+        deleteConfirm: "Delete this file?", revokeConfirm: "Revoke this cloze?",
+        renamePrompt: "Rename file to:"
+    }
+};
+
+let currentLang = localStorage.getItem('app_lang') || 'zh';
+
+window.toggleLanguage = function() {
+    currentLang = currentLang === 'zh' ? 'en' : 'zh';
+    localStorage.setItem('app_lang', currentLang);
+    applyLanguage();
+};
+
+window.applyLanguage = function() {
+    const dict = translations[currentLang];
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        if (dict[key]) {
+            if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+                el.placeholder = dict[key];
+            } else {
+                el.innerHTML = dict[key];
+            }
+        }
+    });
+    // 特殊状态更新
+    const loginLabel = document.getElementById('loginBtnLabel');
+    if (loginLabel) {
+        loginLabel.innerText = window.currentUser ? dict.synced : dict.login;
+    }
+};
+// =====================================================
+  
 const DEFAULT_TEXT = `"示例文本"。
 
 Hello?
@@ -231,7 +306,8 @@ const clozeContent = document.getElementById("clozeContent");
 // ---------------- 初始化 ----------------
 function init() { 
     renderTabs(); 
-    loadActiveFile();  
+    loadActiveFile();
+    applyLanguage(); // 新增：页面加载时应用语言
 }
 
 // ---------------- 粘贴 ----------------
@@ -312,7 +388,7 @@ function switchFile(id) {
 }
 function deleteFile(id,e){ 
   e.stopPropagation(); 
-  if(files.length<=1||!confirm("删除此文件？")) return; 
+  if(files.length<=1||!confirm(translations[currentLang].deleteConfirm)) return; 
   files=files.filter(x=>x.id!==id); 
   if(activeFileId===id) activeFileId=files[0].id; 
   save(); renderTabs(); loadActiveFile(); 
@@ -328,7 +404,7 @@ function changeFontSize(d){
 
 // ---------------- 清空 ----------------
 function handleClear(){ 
-  if(!confirm("确定清空当前文本吗？")) return; 
+  if(!confirm(translations[currentLang].confirmClear)) return; 
   inputArea.value=""; 
   const f = files.find(x=>x.id===activeFileId); 
   if(f) f.clozePositions = [];
@@ -471,7 +547,7 @@ function bindCustomEvents(f) {
       let longPressTimer;
       el.ontouchstart = () => {
         longPressTimer = setTimeout(() => {
-          if(confirm("确定撤销这个挖空吗？")) {
+          if(confirm(translations[currentLang].revokeConfirm)) {
             const wordIndex = parseInt(el.dataset.index);
             f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
             save();
@@ -570,7 +646,7 @@ window.handleGoogleAuth = async () => {
     } catch (e) { alert("操作失败: " + e.message); }
   };
 
-  window.handleLogout = () => { if(confirm("确定退出登录吗？")) signOut(auth); };
+  window.handleLogout = () => { if(confirm(translations[currentLang].logoutConfirm)) signOut(auth); };
 
 // ------------------ 修复后的登录状态监听 ------------------
 onAuthStateChanged(auth, (user) => {
