@@ -12,6 +12,20 @@
 <meta property="og:description" content="一个好用的文本挖空练习工具，助你高效背诵单词和课文。">
 
 <style>
+/* 1. 让 Chrome, Safari, Edge 的小箭头一直显示 (不再需要鼠标悬停) */
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { 
+    opacity: 1 !important; /* 强制显示 */
+    appearance: auto !important;
+    -webkit-appearance: auto !important;
+}
+
+/* 2. 针对 Firefox 的修复 */
+input[type=number] {
+    -moz-appearance: textfield; /* 如果你想彻底去掉换成自己的，用这个 */
+}
+
+
 @keyframes side-bounce {
   0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
   40% { transform: translateY(4px); }
