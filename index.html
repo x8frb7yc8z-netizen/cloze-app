@@ -116,19 +116,30 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 <div id="loginModal" class="modal" onclick="closeLoginModal()">
   <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center;">
     <span class="close-x" onclick="closeLoginModal()">×</span>
-    <h4 style="color:#42a5f5; margin-top:0;">👤 账号登录</h4>
-    <div style="display:flex; flex-direction:column; gap:12px;">
-      <button onclick="handleGoogleAuth()" style="padding:12px; background:#fff; color:#444; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
-      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18"> 使用 Google 登录
-      </button>
 
-      <div style="margin: 5px 0; color: #ccc; font-size: 12px;">———— 或者 ————</div>
-      
-      <input type="email" id="authEmail" placeholder="邮箱" style="padding:12px; border:1px solid #ddd; border-radius:8px; font-size:16px;">
-      <input type="password" id="authPassword" placeholder="密码 (不少于6位)" style="padding:12px; border:1px solid #ddd; border-radius:8px; font-size:16px;">
-      <button onclick="handleEmailAuth('login')" style="padding:12px; background:#42a5f5; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">登 录</button>
-      <button onclick="handleEmailAuth('signup')" style="padding:10px; background:#fff; color:#42a5f5; border:1px solid #42a5f5; border-radius:8px; cursor:pointer;">新用户注册</button>
-      <button id="logoutBtn" class="hidden" onclick="handleLogout()" style="padding:10px; color:#ff5252; border:none; background:none; font-size:12px; cursor:pointer;">退出登录</button>
+    <div id="loggedOutUI">
+      <h4 style="color:#42a5f5; margin-top:0;">👤 账号登录</h4>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <button onclick="handleGoogleAuth()" style="padding:12px; background:#fff; color:#444; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18"> 使用 Google 登录
+        </button>
+        <div style="margin: 5px 0; color: #ccc; font-size: 12px;">———— 或者 ————</div>
+        <input type="email" id="authEmail" placeholder="邮箱" style="padding:12px; border:1px solid #ddd; border-radius:8px;">
+        <input type="password" id="authPassword" placeholder="密码" style="padding:12px; border:1px solid #ddd; border-radius:8px;">
+        <button onclick="handleEmailAuth('login')" style="padding:12px; background:#42a5f5; color:white; border:none; border-radius:8px; font-weight:bold;">登 录</button>
+        <button onclick="handleEmailAuth('signup')" style="padding:10px; background:#fff; color:#42a5f5; border:1px solid #42a5f5; border-radius:8px;">新用户注册</button>
+      </div>
+    </div>
+
+    <div id="loggedInUI" class="hidden">
+      <h4 style="color:#43a047; margin-top:0;">☁️ 云同步已开启</h4>
+      <div style="text-align:left; font-size:13px; color:#555; line-height:1.6; background:#f0f7f0; padding:15px; border-radius:10px; margin-bottom:15px; border:1px solid #e0eee0;">
+        <p style="margin:0 0 8px 0;">🚀 <b>自动上传：</b>您在本地做的任何修改都会实时同步至云端。</p>
+        <p style="margin:0 0 8px 0;">📥 <b>自动下载：</b>登录新设备时，您的课本和挖空记录会自动恢复。</p>
+        <p style="margin:0;">🔐 <b>多端备份：</b>数据在浏览器和云端双重保存，无需担心丢失。</p>
+      </div>
+      <p id="userEmailDisplay" style="font-size:12px; color:#999; margin-bottom:15px;"></p>
+      <button onclick="handleLogout()" style="width:100%; padding:10px; color:#ff5252; border:1px solid #ff5252; background:none; border-radius:8px; font-weight:bold; cursor:pointer;">退出当前账号</button>
     </div>
   </div>
 </div>
@@ -202,20 +213,14 @@ Well, I'll see ya.
 
 Okay, bye.`;
 
-// 1. 获取会话数据 (SessionStorage：关闭网页即消失)
-const sessionData = sessionStorage.getItem('cloze_session_files');
-
-window.files = sessionData ? JSON.parse(sessionData) : [{
-    id: Date.now(),
-    title: '临时文本',
-    content: DEFAULT_TEXT, // 这里确保你之前定义了 DEFAULT_TEXT
-    clozePositions: []
+window.files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{
+  id: Date.now(),
+  title: 'File 1',
+  content: DEFAULT_TEXT,
+  clozePositions: []
 }];
 
-// 2. 获取当前激活的文件ID (同样从 Session 读取，不碰 LocalStorage)
-let activeFileId = Number(sessionStorage.getItem('cloze_session_active_id')) || (window.files[0] ? window.files[0].id : null);
-
-// 3. 其他变量初始化
+let activeFileId = Number(localStorage.getItem('cloze_last_active_id')) || (files[0] ? files[0].id : null);
 let currentFontSize = 18;
 let answers = [];
 
@@ -226,7 +231,7 @@ const clozeContent = document.getElementById("clozeContent");
 // ---------------- 初始化 ----------------
 function init() { 
     renderTabs(); 
-    loadActiveFile(); 
+    loadActiveFile();  
 }
 
 // ---------------- 粘贴 ----------------
@@ -263,58 +268,54 @@ function renderTabs() {
 
 // ---------------- 保存 / 加载 ----------------
 function save() {
-    if (!currentUser) {
-        // 未登录时：仅保存在当前会话，确保关掉网页就没痕迹
-        sessionStorage.setItem('cloze_session_files', JSON.stringify(window.files));
-    } else {
-        // 已登录时：同步到云端，同时清理本地临时会话
-        sessionStorage.removeItem('cloze_session_files');
-        if (window.syncToCloud) {
-            window.syncToCloud(window.files);
-        }
+    // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
+    localStorage.setItem('cloze_files_v5', JSON.stringify(files));
+    
+    // 2. 触发云端同步 (如果用户已登录，此函数会在 Firebase 模块中被定义)
+    if (window.syncToCloud) {
+        window.syncToCloud(files);
     }
 }
 
-// 确保输入框变化时，实时保存到 Session
 function saveActiveFile(val) {
-    const f = window.files.find(x => x.id === activeFileId);
+    const f = files.find(x => x.id === activeFileId);
     if (f) {
+        // 如果 val 有传值（比如清空操作），则使用 val；否则读取输入框的内容
         f.content = (val !== undefined) ? val : inputArea.value;
-        save(); 
+        save(); // 这里会同时触发本地保存和云端同步
     }
 }
 function loadActiveFile(){ 
-    const f = window.files.find(x => x.id === activeFileId); 
-    if(!f) {
-        inputArea.value = "";
-        return;
-    }
-    inputArea.value = f.content || ""; 
-    answers = [];
+  const f=files.find(x=>x.id===activeFileId); 
+  if(!f) return;
+  inputArea.value=f.content || ""; 
+  answers = [];
 }
 
 // ---------------- 文件操作 ----------------
 function addNewFile() { 
     const id = Date.now(); 
-    window.files.push({id, title: '新文件 ' + (window.files.length + 1), content: '', clozePositions: []}); 
+    files.push({id, title: 'File ' + (files.length + 1), content: '', clozePositions: []}); 
     activeFileId = id; 
-    save(); // 同步到云端
+    localStorage.setItem('cloze_last_active_id', id); // 记录新文件ID
+    save(); 
     renderTabs(); 
     loadActiveFile(); 
+    const tabs = document.getElementById('fileTabs'); 
+    tabs.scrollLeft = tabs.scrollWidth; 
 }
 function switchFile(id) { 
     activeFileId = id; 
+    localStorage.setItem('cloze_last_active_id', id); // 记录当前打开的文件ID
     renderTabs(); 
     loadActiveFile(); 
 }
-function deleteFile(id, e){ 
-    e.stopPropagation(); 
-    if(window.files.length <= 1 || !confirm("确定从云端永久删除此文件？")) return; 
-    window.files = window.files.filter(x => x.id !== id); 
-    if(activeFileId === id) activeFileId = window.files[0].id; 
-    save(); // 同步到云端
-    renderTabs(); 
-    loadActiveFile(); 
+function deleteFile(id,e){ 
+  e.stopPropagation(); 
+  if(files.length<=1||!confirm("删除此文件？")) return; 
+  files=files.filter(x=>x.id!==id); 
+  if(activeFileId===id) activeFileId=files[0].id; 
+  save(); renderTabs(); loadActiveFile(); 
 }
 
 // ---------------- 字体 ----------------
@@ -564,35 +565,51 @@ window.handleGoogleAuth = async () => {
 
   window.handleLogout = () => { if(confirm("确定退出登录吗？")) signOut(auth); };
 
-// ------------------ 登录状态监听 ------------------
+// ------------------ 修复后的登录状态监听 ------------------
 onAuthStateChanged(auth, (user) => {
     const btnLabel = document.getElementById('loginBtnLabel');
-    const logoutBtn = document.getElementById('logoutBtn');
+    const loggedOutUI = document.getElementById('loggedOutUI');
+    const loggedInUI = document.getElementById('loggedInUI');
+    const emailDisplay = document.getElementById('userEmailDisplay');
 
     if (user) {
         currentUser = user;
-        btnLabel.innerText = "✅ 已同步";
-        btnLabel.style.color = "#81c784";
-        logoutBtn.classList.remove('hidden');
+        // 更新底部按钮文字
+        if (btnLabel) {
+            btnLabel.innerText = "✅ 已同步";
+            btnLabel.style.color = "#81c784";
+        }
+        
+        // 切换 UI 面板：显示同步说明，隐藏登录框
+        if (loggedOutUI) loggedOutUI.classList.add('hidden');
+        if (loggedInUI) {
+            loggedInUI.classList.remove('hidden');
+            // 确保同步说明文字正确显示
+            if (emailDisplay) emailDisplay.innerText = "当前账号: " + user.email;
+        }
 
-        // 开启实时监听：云端一旦有变动，applyData 会自动重绘页面
+        // 执行云端数据加载
+        get(ref(db, `users/${user.uid}/files`)).then(snapshot => {
+            if (snapshot.exists()) applyData(snapshot.val());
+        });
         startRealtimeSync(user.uid);
     } else {
         currentUser = null;
-        btnLabel.innerText = "👤 登录/同步";
-        btnLabel.style.color = "#42a5f5";
-        logoutBtn.classList.add('hidden');
-
-        // 登出清理：清空内存中的所有文件资料，不留痕迹
-        window.files = [{
-            id: Date.now(),
-            title: '未登录',
-            content: '已退出登录，请重新登录以加载云端数据。',
-            clozePositions: []
-        }];
-        activeFileId = window.files[0].id;
-        renderTabs();
-        loadActiveFile();
+        // 恢复底部按钮文字
+        if (btnLabel) {
+            btnLabel.innerText = "👤 登录/同步";
+            btnLabel.style.color = "#42a5f5";
+        }
+        
+        // 恢复 UI 面板：显示登录框，隐藏同步说明
+        if (loggedOutUI) loggedOutUI.classList.remove('hidden');
+        if (loggedInUI) loggedInUI.classList.add('hidden');
+        
+        // 清空输入框，防止下次登录带入错误数据
+        const emailInput = document.getElementById('authEmail');
+        const passInput = document.getElementById('authPassword');
+        if (emailInput) emailInput.value = "";
+        if (passInput) passInput.value = "";
     }
 });
 
@@ -621,19 +638,23 @@ function startRealtimeSync(uid) {
 
 // ------------------ 应用云端数据到本地 ------------------
 function applyData(data) {
-    if (!Array.isArray(data)) return;
-    
-    // 覆盖内存数据
-    window.files = data;
-
-    // 彻底不再写 localStorage，确保本地硬盘始终是干净的
-    // 同时也清理掉 Session 里的临时内容
-    sessionStorage.removeItem('cloze_session_files');
-
-    if (!window.files.find(f => f.id === activeFileId)) {
-        activeFileId = window.files[0]?.id;
+    if (!Array.isArray(data)) {
+        console.warn("❌ 云端数据不是数组，已忽略", data);
+        return;
     }
 
+    // 1. 覆盖内存数据
+    window.files = data;
+
+    // 2. 写入 LocalStorage（刷新后也一致）
+    localStorage.setItem('cloze_files_v5', JSON.stringify(data));
+
+    // 3. 如果当前文件已被云端删除，自动切换
+    if (!files.find(f => f.id === activeFileId)) {
+        activeFileId = files[0]?.id;
+    }
+
+    // 4. 统一刷新 UI
     renderTabs();
     loadActiveFile();
 }
