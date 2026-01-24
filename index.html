@@ -532,19 +532,26 @@ init();
   const googleProvider = new GoogleAuthProvider(); // 初始化 Google 提供者
   let currentUser = null;
 
+  googleProvider.setCustomParameters({
+    prompt: 'select_account'
+  });
+
   // 新增：处理 Google 登录的完整函数
 window.handleGoogleAuth = async () => {
     try {
+        // 这次它会强制弹窗让你选账号
         const result = await signInWithPopup(auth, googleProvider);
-        // 登录成功后的逻辑处理
         const user = result.user;
         console.log("Google 登录成功:", user.displayName);
         window.closeLoginModal();
     } catch (error) {
         console.error("Google 登录失败:", error.message);
-        alert("Google 登录失败: " + error.message);
+        // 如果用户直接关闭了弹窗，这里会捕获到错误
+        if (error.code !== 'auth/popup-closed-by-user') {
+            alert("Google 登录失败: " + error.message);
+        }
     }
-};
+}
   
   // --- 登录/注册逻辑 ---
   window.handleEmailAuth = async (type) => {
