@@ -787,14 +787,40 @@ window.syncToCloud = async function (data) {
     }
 };
 
-  // --- 统计逻辑 ---
+// --- 统计逻辑 ---
   window.loadStats = async () => {
+    // 1. 先读取并显示当前数据（无论是否增加，都要显示）
     const snap = await get(ref(db, "stats"));
     if (snap.exists()) {
       const { visits = 0, likes = 0 } = snap.val();
       document.getElementById("visitCount").innerText = visits;
       document.getElementById("likeCount").innerText = likes;
     }
+  };
+
+  // 新增：安全增加访问量的函数
+  const incrementVisit = async () => {
+    const NOW = Date.now();
+    const ONE_HOUR = 60 * 60 * 1000; // 一小时的毫秒数
+    const lastVisit = localStorage.getItem('last_visit_time');
+
+    // 检查：如果没有记录，或者距离上次记录超过一小时
+    if (!lastVisit || (NOW - parseInt(lastVisit) > ONE_HOUR)) {
+      try {
+        // 增加云端访问次数
+        await runTransaction(ref(db, "stats/visits"), v => (v || 0) + 1);
+        // 更新本地时间戳
+        localStorage.setItem('last_visit_time', NOW.toString());
+        console.log("🚀 访问量已更新 (新时段)");
+      } catch (e) {
+        console.error("更新访问量失败:", e);
+      }
+    } else {
+      console.log("⏳ 处于一小时保护期内，不重复计算访问量");
+    }
+    
+    // 无论是否增加，最后都刷新一下 UI 显示
+    window.loadStats();
   };
 
   window.likeApp = async () => {
@@ -810,7 +836,7 @@ window.syncToCloud = async function (data) {
   window.openLoginModal = () => document.getElementById("loginModal").style.display = "flex";
   window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
-  runTransaction(ref(db, "stats/visits"), v => (v || 0) + 1);
+  incrementVisit();
   window.loadStats();
 </script>
 </body>
