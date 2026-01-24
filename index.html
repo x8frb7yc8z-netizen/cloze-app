@@ -98,13 +98,18 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
   <div id="topSection">
     <div class="file-tabs-container" id="fileTabs"></div>
     <div class="header-controls">
-      <span style="font-weight:bold; color:var(--primary); font-size:16px;">Cloze Master</span>
+      <span style="font-weight:bold; color:var(--primary); font-size:16px;" data-i18n="appTitle">完形填空</span>
       <div style="display:flex; align-items:center; gap:8px;">
         <button class="small-btn" onclick="changeFontSize(-2)">A-</button>
         <span id="sizeLabel" style="min-width:20px; text-align:center;">18</span>
         <button class="small-btn" onclick="changeFontSize(2)">A+</button>
       </div>
-      <div><span data-i18n="interval">间隔</span> <input id="nthWord" type="number" value="4" style="width:35px; border:1px solid #ddd; text-align:center"> <span data-i18n="words">词</span></div>
+      <div style="display: flex; align-items: center; justify-content: center;">
+  <span data-i18n="interval">间隔</span>
+  <input id="nthWord" type="number" value="4" 
+         style="width:35px; border:1px solid #ddd; text-align:center; margin: 0 2px;">
+  <span data-i18n="words" style="margin-left: -2px;">词</span>
+</div>
     </div>
   </div>
 
@@ -203,6 +208,7 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 // ================= i18n 国际化核心整组函数 =================
 const translations = {
     zh: {
+	appTitle: "完形填空",
         gotIt: "知道了",
         feedback: "如果这个工具有帮助",
         contactLink: "如在使用过程中遇到问题，请联系我 📩",
@@ -227,10 +233,11 @@ const translations = {
         renamePrompt: "重命名文件:"
     },
     en: {
+	appTitle: "Cloze Test",
         gotIt: "Got it",
         feedback: "If this tool helped you",
         contactLink: "Found an issue? Contact me 📩",
-        interval: "Every", words: "words", placeholder: "Paste English or Chinese text here...", paste: "📋 Paste Text",
+        interval: "Every", words: "th", placeholder: "Paste English or Chinese text here...", paste: "📋 Paste Text",
         clear: "Clear", generate: "Generate", custom: "Manual", guide: "📖 Guide", login: "👤 Login/Sync",
         synced: "✅ Synced", back: "← Back",
         // Login Modal
