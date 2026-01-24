@@ -202,14 +202,20 @@ Well, I'll see ya.
 
 Okay, bye.`;
 
-window.files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{
-  id: Date.now(),
-  title: 'File 1',
-  content: DEFAULT_TEXT,
-  clozePositions: []
+// 1. 获取会话数据 (SessionStorage：关闭网页即消失)
+const sessionData = sessionStorage.getItem('cloze_session_files');
+
+window.files = sessionData ? JSON.parse(sessionData) : [{
+    id: Date.now(),
+    title: '临时文本',
+    content: DEFAULT_TEXT, // 这里确保你之前定义了 DEFAULT_TEXT
+    clozePositions: []
 }];
 
-let activeFileId = Number(localStorage.getItem('cloze_last_active_id')) || (files[0] ? files[0].id : null);
+// 2. 获取当前激活的文件ID (同样从 Session 读取，不碰 LocalStorage)
+let activeFileId = Number(sessionStorage.getItem('cloze_session_active_id')) || (window.files[0] ? window.files[0].id : null);
+
+// 3. 其他变量初始化
 let currentFontSize = 18;
 let answers = [];
 
@@ -257,21 +263,24 @@ function renderTabs() {
 
 // ---------------- 保存 / 加载 ----------------
 function save() {
-    // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
-    localStorage.setItem('cloze_files_v5', JSON.stringify(files));
-    
-    // 2. 触发云端同步 (如果用户已登录，此函数会在 Firebase 模块中被定义)
-    if (window.syncToCloud) {
-        window.syncToCloud(files);
+    if (!currentUser) {
+        // 未登录时：仅保存在当前会话，确保关掉网页就没痕迹
+        sessionStorage.setItem('cloze_session_files', JSON.stringify(window.files));
+    } else {
+        // 已登录时：同步到云端，同时清理本地临时会话
+        sessionStorage.removeItem('cloze_session_files');
+        if (window.syncToCloud) {
+            window.syncToCloud(window.files);
+        }
     }
 }
 
+// 确保输入框变化时，实时保存到 Session
 function saveActiveFile(val) {
-    const f = files.find(x => x.id === activeFileId);
+    const f = window.files.find(x => x.id === activeFileId);
     if (f) {
-        // 如果 val 有传值（比如清空操作），则使用 val；否则读取输入框的内容
         f.content = (val !== undefined) ? val : inputArea.value;
-        save(); // 这里会同时触发本地保存和云端同步
+        save(); 
     }
 }
 function loadActiveFile(){ 
@@ -614,15 +623,17 @@ function startRealtimeSync(uid) {
 function applyData(data) {
     if (!Array.isArray(data)) return;
     
-    // 1. 覆盖内存数据
+    // 覆盖内存数据
     window.files = data;
 
-    // 2. 检查当前选中的文件是否还存在
+    // 彻底不再写 localStorage，确保本地硬盘始终是干净的
+    // 同时也清理掉 Session 里的临时内容
+    sessionStorage.removeItem('cloze_session_files');
+
     if (!window.files.find(f => f.id === activeFileId)) {
         activeFileId = window.files[0]?.id;
     }
 
-    // 3. 刷新 UI 界面
     renderTabs();
     loadActiveFile();
 }
