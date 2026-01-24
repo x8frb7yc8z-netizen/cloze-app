@@ -118,6 +118,12 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <span class="close-x" onclick="closeLoginModal()">×</span>
     <h4 style="color:#42a5f5; margin-top:0;">👤 账号登录</h4>
     <div style="display:flex; flex-direction:column; gap:12px;">
+      <button onclick="handleGoogleAuth()" style="padding:12px; background:#fff; color:#444; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
+      <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18"> 使用 Google 登录
+      </button>
+
+      <div style="margin: 5px 0; color: #ccc; font-size: 12px;">———— 或者 ————</div>
+      
       <input type="email" id="authEmail" placeholder="邮箱" style="padding:12px; border:1px solid #ddd; border-radius:8px; font-size:16px;">
       <input type="password" id="authPassword" placeholder="密码 (不少于6位)" style="padding:12px; border:1px solid #ddd; border-radius:8px; font-size:16px;">
       <button onclick="handleEmailAuth('login')" style="padding:12px; background:#42a5f5; color:white; border:none; border-radius:8px; font-weight:bold; cursor:pointer;">登 录</button>
@@ -497,7 +503,7 @@ init();
   // 1. 导入部分：注意增加了 onValue
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
   import { getDatabase, ref, get, set, runTransaction, onValue } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
@@ -512,9 +518,23 @@ init();
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
   const auth = getAuth(app);
+  const googleProvider = new GoogleAuthProvider(); // 初始化 Google 提供者
   let currentUser = null;
-  
 
+  // 新增：处理 Google 登录的完整函数
+window.handleGoogleAuth = async () => {
+    try {
+        const result = await signInWithPopup(auth, googleProvider);
+        // 登录成功后的逻辑处理
+        const user = result.user;
+        console.log("Google 登录成功:", user.displayName);
+        window.closeLoginModal();
+    } catch (error) {
+        console.error("Google 登录失败:", error.message);
+        alert("Google 登录失败: " + error.message);
+    }
+};
+  
   // --- 登录/注册逻辑 ---
   window.handleEmailAuth = async (type) => {
     const email = document.getElementById('authEmail').value;
@@ -608,13 +628,28 @@ function applyData(data) {
     loadActiveFile();
 }
 
-// ------------------ 自动上传 ------------------
+// ------------------ 修改后的云端同步函数 (完整版) ------------------
 window.syncToCloud = async function (data) {
-    if (!currentUser) return;
+    // 1. 检查是否有用户登录，没登录则不上传
+    if (!currentUser) {
+        console.log("☁️ 用户未登录，数据仅保存在本地");
+        return;
+    }
+
     try {
-        await set(ref(db, `users/${currentUser.uid}/files`), data);
+        const userPath = `users/${currentUser.uid}/files`;
+        const userRef = ref(db, userPath);
+        
+        // 2. 执行上传
+        await set(userRef, data);
+        
+        console.log(`✅ 数据已安全同步至路径: ${userPath}`);
     } catch (e) {
-        console.error("同步失败", e);
+        console.error("❌ 同步到云端失败:", e.message);
+        // 如果是因为权限问题（Rules设置），这里会抓到错误
+        if (e.message.includes("Permission denied")) {
+            alert("同步失败：您没有权限操作此路径。");
+        }
     }
 };
 
