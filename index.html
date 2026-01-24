@@ -159,8 +159,8 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     </div>
     
     <div style="text-align:center; margin: 20px 0; font-family: sans-serif;">
-      <div style="margin-bottom: 12px; font-size: 13px; color: #888;">
-        If this tool helped you, please let me know
+      <div style="margin-bottom: 12px; font-size: 13px; color: #888;" data-i18n="feedback">如果这个工具有帮助，请告诉我。</div>
+        
       </div>
 
       <hr style="margin:12px 0; border:none; border-top:1px dashed #ddd;">
@@ -177,19 +177,22 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
       </div>
 
       <div style="margin-top: 15px;">
-        <a href="mailto:fnhame@gmail.com" style="text-decoration:none; color:#43a047; font-size: 12px; font-weight: bold;">
+        <a href="mailto:fnhame@gmail.com" style="text-decoration:none; color:#43a047; font-size: 12px; font-weight: bold;" data-i18n="contactLink">
          如在使用过程中遇到问题，请联系我 📩
         </a>
       </div>
     </div>
 
-    <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;">知道了</button>
+    <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;" data-i18n="gotIt">知道了</button>
   </div>
 </div>
 <script>
 // ================= i18n 国际化核心整组函数 =================
 const translations = {
     zh: {
+        gotIt: "知道了",
+        feedback: "如果这个工具有帮助，请告诉我",
+        contactLink: "如在使用过程中遇到问题，请联系我 📩",
         interval: "间隔", words: "词", placeholder: "在此粘贴英文或中文文本...", paste: "📋 粘贴",
         clear: "清空", generate: "生成练习", custom: "手动挖空", guide: "📖 手册", login: "👤 登录/同步",
         synced: "✅ 已同步", back: "← 返回",
@@ -211,6 +214,9 @@ const translations = {
         renamePrompt: "重命名文件:"
     },
     en: {
+        gotIt: "Got it",
+        feedback: "If this tool helped you, please let me know",
+        contactLink: "Found an issue? Contact me 📩",
         interval: "Every", words: "words", placeholder: "Paste English or Chinese text here...", paste: "📋 Paste Text",
         clear: "Clear", generate: "Generate", custom: "Manual", guide: "📖 Guide", login: "👤 Login/Sync",
         synced: "✅ Synced", back: "← Back",
