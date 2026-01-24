@@ -554,31 +554,56 @@ window.handleGoogleAuth = async () => {
 
   window.handleLogout = () => { if(confirm("确定退出登录吗？")) signOut(auth); };
 
-// ------------------ 登录状态监听 ------------------
+// ------------------ 修改后的登录状态监听函数 (完整版) ------------------
 onAuthStateChanged(auth, (user) => {
     const btnLabel = document.getElementById('loginBtnLabel');
     const logoutBtn = document.getElementById('logoutBtn');
 
     if (user) {
+        // 1. 状态更新
         currentUser = user;
-        btnLabel.innerText = "✅ 已同步";
-        btnLabel.style.color = "#81c784";
-        logoutBtn.classList.remove('hidden');
+        console.log("👤 当前登录用户:", user.displayName || user.email);
 
-        // 登录后立即拉取云端数据并刷新 UI
-        get(ref(db, `users/${user.uid}/files`))
-            .then(snapshot => {
-                if (snapshot.exists()) applyData(snapshot.val());
-            });
+        // 2. UI 反馈
+        if (btnLabel) {
+            btnLabel.innerText = "✅ 已同步";
+            btnLabel.style.color = "#81c784";
+        }
+        if (logoutBtn) {
+            logoutBtn.classList.remove('hidden');
+        }
 
-        // 开启实时监听云端变化
-        startRealtimeSync(user.uid);
+        // 3. 数据拉取：登录后立即尝试从云端同步最新数据
+        const userRef = ref(db, `users/${user.uid}/files`);
+        get(userRef).then((snapshot) => {
+            if (snapshot.exists()) {
+                console.log("☁️ 检测到云端数据，正在应用...");
+                applyData(snapshot.val()); // 调用你之前的应用数据函数
+            } else {
+                console.log("☁️ 云端尚无数据，准备首次同步...");
+                // 如果云端是空的，可以考虑把当前本地的数据传上去
+                if (window.files && window.files.length > 0) {
+                    window.syncToCloud(window.files);
+                }
+            }
+        }).catch(err => console.error("读取云端失败:", err));
+
+        // 4. 开启实时监听：确保多端同时操作时数据一致
+        if (typeof startRealtimeSync === 'function') {
+            startRealtimeSync(user.uid);
+        }
 
     } else {
+        // 5. 登出处理
         currentUser = null;
-        btnLabel.innerText = "👤 登录/同步";
-        btnLabel.style.color = "#42a5f5";
-        logoutBtn.classList.add('hidden');
+        if (btnLabel) {
+            btnLabel.innerText = "👤 登录/同步";
+            btnLabel.style.color = "#42a5f5";
+        }
+        if (logoutBtn) {
+            logoutBtn.classList.add('hidden');
+        }
+        console.log("🚪 用户已退出登录");
     }
 });
 
