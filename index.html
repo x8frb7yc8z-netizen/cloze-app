@@ -576,8 +576,6 @@ function bindCustomEvents(f) {
         }, 800);
       };
 
-      const endPress = () => clearTimeout(pressTimer);
-
     // 针对 input 的逻辑：增加错字红字显示，以及长按撤销
     if (el.tagName === "INPUT") {
       // 1. 输入校验：错字红字逻辑
