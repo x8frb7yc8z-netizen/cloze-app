@@ -501,10 +501,14 @@ function enableCustomCloze() {
   const text = inputArea.value;
   if (!text) return;
 
-  // 正则说明：匹配英文单词、单个中文字符、或者非空白标点
+  // --- 【关键修复1】记录当前所有 input 的值，防止重新渲染时被清空 ---
+  const currentInputs = {};
+  clozeContent.querySelectorAll("input").forEach(el => {
+    currentInputs[el.dataset.index] = el.value;
+  });
+
   const regex = /([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g;
   const segments = text.split(regex);
-  
   const f = files.find(x => x.id === activeFileId);
   if (!f.clozePositions) f.clozePositions = [];
 
@@ -519,13 +523,26 @@ function enableCustomCloze() {
     const isChinese = /[\u4e00-\u9fa5]/.test(seg);
     const boxWidth = isChinese ? 2 : seg.length + 1;
 
+    // 如果该位置是挖空
     if (f.clozePositions.includes(currentIdx)) {
       answers.push(seg);
-      return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" style="width:${boxWidth}ch; font-family:inherit; vertical-align:middle; line-height:1; height:1.5em;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
+      // 【关键修复2】增加 oncontextmenu="return false" 彻底禁用右键菜单
+      return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" 
+              style="width:${boxWidth}ch; font-family:inherit; vertical-align:middle; line-height:1; height:1.5em;" 
+              onfocus="this.select();" oncontextmenu="return false;">`;
     }
-
-    return `<span class="word-span" data-index="${currentIdx}">${seg}</span>`;
+    // 普通单词 span
+    return `<span class="word-span" data-index="${currentIdx}" oncontextmenu="return false;">${seg}</span>`;
   }).join("");
+
+  // --- 【关键修复3】渲染完成后，把之前填的内容塞回去 ---
+  clozeContent.querySelectorAll("input").forEach(el => {
+    const val = currentInputs[el.dataset.index];
+    if (val) {
+      el.value = val;
+      el.dispatchEvent(new Event('input')); // 触发颜色更新逻辑
+    }
+  });
 
   displayArea.classList.add("active");
   ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => document.getElementById(id).classList.add("hidden"));
