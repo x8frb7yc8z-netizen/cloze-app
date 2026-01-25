@@ -553,61 +553,21 @@ function enableCustomCloze() {
 // ------------------ 修改后的事件绑定函数 (处理长按撤销) ------------------
 function bindCustomEvents(f) {
   clozeContent.querySelectorAll(".word-span, input").forEach((el) => {
-    // =========================
-    // span：点击 → 挖空
-    // =========================
-    if (el.tagName === "SPAN" && el.classList.contains("word-span")) {
-      el.style.cursor = "pointer";
-      el.onclick = () => {
-        const wordIndex = parseInt(el.dataset.index);
-        f.clozePositions.push(wordIndex);
-        save();
-        enableCustomCloze();
-      };
-    }
+    
+    // 屏蔽所有相关元素的右键菜单 (关键)
+    el.oncontextmenu = (e) => e.preventDefault();
 
-    // =========================
-    // input：输入校验 + 长按撤销
-    // =========================
     if (el.tagName === "INPUT") {
-      // ---------- 输入校验 ----------
-      el.oninput = () => {
-        const ans = answers[el.dataset.id];
-        const val = el.value.trim();
+      let pressTimer;
 
-        // 背景色
-        el.style.backgroundColor =
-          val.toLowerCase() === ans.toLowerCase()
-            ? "#c8f7c5"
-            : val
-            ? "#f7c5c5"
-            : "#fffde7";
+      const startPress = (e) => {
+        // --- 【新增关键判断】 ---
+        // e.button === 0 代表鼠标左键。e.type === 'touchstart' 代表手机触摸。
+        // 如果是右键 (button === 2)，直接返回，不启动计时器。
+        if (e.type === 'mousedown' && e.button !== 0) return;
 
-        // 错字红色
-        if (val && !ans.toLowerCase().startsWith(val.toLowerCase())) {
-          el.style.color = "var(--danger)";
-        } else {
-          el.style.color = "#000";
-        }
-      };
-
-      // ---------- 空格提示 ----------
-      el.onkeydown = (e) => {
-        if (e.code === "Space" || e.keyCode === 32) {
-          e.preventDefault();
-          const ans = answers[el.dataset.id];
-          el.value = ans.substring(0, el.value.length + 1);
-          el.oninput();
-        }
-      };
-
-      // ---------- 长按撤销 ----------
-      let longPressTimer;
-
-      // 📱 手机端：触摸长按
-      el.ontouchstart = () => {
-        longPressTimer = setTimeout(() => {
-          if (confirm(translations[currentLang].revokeConfirm)) {
+        pressTimer = setTimeout(() => {
+          if(confirm(translations[currentLang].revokeConfirm || "确定撤销吗？")) {
             const wordIndex = parseInt(el.dataset.index);
             f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
             save();
@@ -615,13 +575,50 @@ function bindCustomEvents(f) {
           }
         }, 800);
       };
+
+      const endPress = () => clearTimeout(pressTimer);
+
+    // 针对 input 的逻辑：增加错字红字显示，以及长按撤销
+    if (el.tagName === "INPUT") {
+      // 1. 输入校验：错字红字逻辑
+      el.oninput = () => {
+        const ans = answers[el.dataset.id];
+        const val = el.value.trim();
+        
+        // 基础颜色判定（背景色）
+        el.style.backgroundColor = val.toLowerCase() === ans.toLowerCase() ? "#c8f7c5" : (val ? "#f7c5c5" : "#fffde7");
+        
+        // 错误字母变红逻辑：只要当前输入的内容不是正确答案的前缀，文字就变红
+        if (val && !ans.toLowerCase().startsWith(val.toLowerCase())) {
+          el.style.color = "var(--danger)"; // 设置为红色
+        } else {
+          el.style.color = "#000"; // 正确或输入中保持黑色
+        }
+      };
+
+      el.onkeydown = (e) => {
+        if (e.code === 'Space' || e.keyCode === 32) {
+          e.preventDefault();
+          const ans = answers[el.dataset.id];
+          el.value = ans.substring(0, el.value.length + 1);
+          el.oninput();
+        }
+      };
+
+      // 2. 长按撤销逻辑 (兼容手机端)
+      let longPressTimer;
+      el.ontouchstart = () => {
+        longPressTimer = setTimeout(() => {
+          if(confirm(translations[currentLang].revokeConfirm)) {
+            const wordIndex = parseInt(el.dataset.index);
+            f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
+            save();
+            enableCustomCloze();
+          }
+        }, 800); // 长按 800 毫秒触发
+      };
       el.ontouchend = () => clearTimeout(longPressTimer);
-      el.ontouchcancel = () => clearTimeout(longPressTimer);
-
-      // 🖱 PC 端：只允许左键长按
-      el.onmousedown = (e) => {
-        if (e.button !== 0) return; // ❗忽略右键 / 中键
-
+      el.onmousedown = () => { // 兼容 PC 端长按
         longPressTimer = setTimeout(() => {
           const wordIndex = parseInt(el.dataset.index);
           f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
@@ -629,17 +626,7 @@ function bindCustomEvents(f) {
           enableCustomCloze();
         }, 800);
       };
-
-      // 所有“结束操作”都清掉定时器
       el.onmouseup = () => clearTimeout(longPressTimer);
-      el.onmouseleave = () => clearTimeout(longPressTimer);
-
-      // 右键菜单：禁止 + 防误触
-      el.oncontextmenu = (e) => {
-        e.preventDefault();
-        clearTimeout(longPressTimer);
-        return false;
-      };
     }
   });
 }
