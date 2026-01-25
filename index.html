@@ -501,14 +501,10 @@ function enableCustomCloze() {
   const text = inputArea.value;
   if (!text) return;
 
-  // --- 【关键修复1】记录当前所有 input 的值，防止重新渲染时被清空 ---
-  const currentInputs = {};
-  clozeContent.querySelectorAll("input").forEach(el => {
-    currentInputs[el.dataset.index] = el.value;
-  });
-
+  // 正则说明：匹配英文单词、单个中文字符、或者非空白标点
   const regex = /([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g;
   const segments = text.split(regex);
+  
   const f = files.find(x => x.id === activeFileId);
   if (!f.clozePositions) f.clozePositions = [];
 
@@ -523,26 +519,13 @@ function enableCustomCloze() {
     const isChinese = /[\u4e00-\u9fa5]/.test(seg);
     const boxWidth = isChinese ? 2 : seg.length + 1;
 
-    // 如果该位置是挖空
     if (f.clozePositions.includes(currentIdx)) {
       answers.push(seg);
-      // 【关键修复2】增加 oncontextmenu="return false" 彻底禁用右键菜单
-      return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" 
-              style="width:${boxWidth}ch; font-family:inherit; vertical-align:middle; line-height:1; height:1.5em;" 
-              onfocus="this.select();" oncontextmenu="return false;">`;
+      return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" style="width:${boxWidth}ch; font-family:inherit; vertical-align:middle; line-height:1; height:1.5em;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
     }
-    // 普通单词 span
-    return `<span class="word-span" data-index="${currentIdx}" oncontextmenu="return false;">${seg}</span>`;
-  }).join("");
 
-  // --- 【关键修复3】渲染完成后，把之前填的内容塞回去 ---
-  clozeContent.querySelectorAll("input").forEach(el => {
-    const val = currentInputs[el.dataset.index];
-    if (val) {
-      el.value = val;
-      el.dispatchEvent(new Event('input')); // 触发颜色更新逻辑
-    }
-  });
+    return `<span class="word-span" data-index="${currentIdx}">${seg}</span>`;
+  }).join("");
 
   displayArea.classList.add("active");
   ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => document.getElementById(id).classList.add("hidden"));
@@ -553,28 +536,16 @@ function enableCustomCloze() {
 // ------------------ 修改后的事件绑定函数 (处理长按撤销) ------------------
 function bindCustomEvents(f) {
   clozeContent.querySelectorAll(".word-span, input").forEach((el) => {
-    
-    // 屏蔽所有相关元素的右键菜单 (关键)
-    el.oncontextmenu = (e) => e.preventDefault();
-
-    if (el.tagName === "INPUT") {
-      let pressTimer;
-
-      const startPress = (e) => {
-        // --- 【新增关键判断】 ---
-        // e.button === 0 代表鼠标左键。e.type === 'touchstart' 代表手机触摸。
-        // 如果是右键 (button === 2)，直接返回，不启动计时器。
-        if (e.type === 'mousedown' && e.button !== 0) return;
-
-        pressTimer = setTimeout(() => {
-          if(confirm(translations[currentLang].revokeConfirm || "确定撤销吗？")) {
-            const wordIndex = parseInt(el.dataset.index);
-            f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
-            save();
-            enableCustomCloze();
-          }
-        }, 800);
+    // 针对 span 的点击变输入框逻辑
+    if (el.tagName === "SPAN" && el.classList.contains('word-span')) {
+      el.style.cursor = "pointer";
+      el.onclick = () => {
+        const wordIndex = parseInt(el.dataset.index);
+        f.clozePositions.push(wordIndex);
+        save();
+        enableCustomCloze(); 
       };
+    }
 
     // 针对 input 的逻辑：增加错字红字显示，以及长按撤销
     if (el.tagName === "INPUT") {
@@ -615,16 +586,20 @@ function bindCustomEvents(f) {
           }
         }, 800); // 长按 800 毫秒触发
       };
-      el.ontouchend = () => clearTimeout(longPressTimer);
-      el.onmousedown = () => { // 兼容 PC 端长按
-        longPressTimer = setTimeout(() => {
-          const wordIndex = parseInt(el.dataset.index);
-          f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
-          save();
-          enableCustomCloze();
-        }, 800);
-      };
-      el.onmouseup = () => clearTimeout(longPressTimer);
+el.onmousedown = (e) => {
+  // ❌ 右键直接忽略
+  if (e.button !== 0) return;
+
+  longPressTimer = setTimeout(() => {
+    const wordIndex = parseInt(el.dataset.index);
+    f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
+    save();
+    enableCustomCloze();
+  }, 800);
+};
+
+el.onmouseup = () => clearTimeout(longPressTimer);
+el.onmouseleave = () => clearTimeout(longPressTimer);
     }
   });
 }
