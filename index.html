@@ -127,6 +127,13 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <div id="clozeDisplay" class="cloze-display">
       <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
       <div id="clozeContent"></div>
+    <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
+	  <button id="submitBtn" 
+        data-i18n="submit" 
+        onclick="calculateScore()" 
+        style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">
+    提交并评分
+</button>
     </div>
   </div>
 
@@ -215,10 +222,53 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 </div>
   
 <script>
+
+window.calculateScore = function() {
+    const inputs = document.querySelectorAll("#clozeContent input");
+    if (inputs.length === 0) return;
+
+    let correctCount = 0;
+    const totalCount = inputs.length;
+    const dict = translations[currentLang]; // 获取当前语言包
+
+    inputs.forEach(input => {
+        const ans = answers[input.dataset.id].toLowerCase().trim();
+        const val = input.value.toLowerCase().trim();
+        
+        if (val === ans) {
+            correctCount++;
+            input.style.border = "2px solid #43a047";
+        } else {
+            input.style.border = "2px solid #ff5252";
+            input.value = ""; 
+            input.placeholder = (currentLang === 'zh' ? "答案: " : "Ans: ") + ans;
+        }
+    });
+
+    const score = Math.round((correctCount / totalCount) * 100);
+    const scoreDisplay = document.getElementById("scoreResult");
+    
+    // 根据语言包显示评价
+    let comment = "";
+    if (score === 100) comment = dict.perfect;
+    else if (score >= 80) comment = dict.great;
+    else if (score >= 60) comment = dict.keepGoing;
+    else comment = dict.practiceMore;
+
+    scoreDisplay.innerHTML = `${dict.scoreLabel}: ${score}% (${correctCount}/${totalCount}) <br> ${comment}`;
+    scoreDisplay.scrollIntoView({ behavior: 'smooth' });
+};
+	
 // ================= i18n 国际化核心整组函数 =================
 const translations = {
     zh: {
-	appTitle: "完形填空",
+		submit: "提交并评分",
+        scoreLabel: "得分",
+        perfect: "🌟 太棒了！全对！",
+        great: "👍 很好，继续保持！",
+        keepGoing: "📖 还要加油哦！",
+        practiceMore: "💪 需要多多练习！",
+	    appTitle: "完形填空",
         gotIt: "知道了",
         feedback: "如果这个工具有帮助",
         contactLink: "如在使用过程中遇到问题，请联系我 📩",
@@ -243,7 +293,13 @@ const translations = {
         renamePrompt: "重命名文件:"
     },
     en: {
-	appTitle: "Cloze Test",
+		submit: "Submit & Score",
+        scoreLabel: "Score",
+        perfect: "🌟 Perfect! Well done!",
+        great: "👍 Great job, keep it up!",
+        keepGoing: "📖 Almost there, keep going!",
+        practiceMore: "💪 Needs more practice!",	
+	    appTitle: "Cloze Test",
         gotIt: "Got it",
         feedback: "If this tool helped you",
         contactLink: "Found an issue? Contact me 📩",
