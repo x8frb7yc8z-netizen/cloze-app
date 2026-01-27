@@ -147,11 +147,12 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     </div>
 </div>
 
-  <div class="action-bar" id="bottomAction">
+<div class="action-bar" id="bottomAction">
     <button id="clearBtn" onclick="handleClear()" data-i18n="clear">清空</button>
     <button id="generate" onclick="handleGenerate()" data-i18n="generate">生成练习</button>
     <button id="customClozeBtn" onclick="enableCustomCloze()" data-i18n="custom">手动挖空</button>
-  </div>
+    <button id="typingBtn" onclick="startTypingMode()" data-i18n="typing" style="background:#3f51b5; color:white;">练习跟打</button>
+</div>
 
 <div class="footer-bar" id="footerSection">
   <div class="footer-left" style="display:flex; gap:10px;">
@@ -232,28 +233,30 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 </div>
   
 <script>
-// ---------------- 跟打模式核心函数 ----------------
+// ---------------- 跟打模式核心逻辑 ----------------
 
 function startTypingMode() {
-    const text = inputArea.value.trim();
+    const text = inputArea.value.trim(); // 使用你定义的全局变量 inputArea
     if (!text) return;
 
-    // 初始化：将文本拆解为 span
     const standardDiv = document.getElementById("typingStandard");
-    standardDiv.innerHTML = text.split('').map(char => `<span>${char}</span>`).join('');
-    
-    // 清空并聚焦输入框
     const tInput = document.getElementById("typingInput");
-    tInput.value = "";
+
+    // 渲染底层文字
+    standardDiv.innerHTML = text.split('').map(char => `<span>${char}</span>`).join('');
+    tInput.value = ""; 
     
-    // UI 切换逻辑
+    // 隐藏主界面所有元素
     ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
-        document.getElementById(id).classList.add("hidden");
+        const el = document.getElementById(id);
+        if(el) el.classList.add("hidden");
     });
+
+    // 显示跟打容器
     document.getElementById("typingDisplay").classList.add("active");
 
-    // 针对手机端延迟聚焦
-    setTimeout(() => tInput.focus(), 200);
+    // 延迟聚焦，确保软键盘弹出
+    setTimeout(() => tInput.focus(), 300);
 }
 
 function handleTyping() {
@@ -266,43 +269,41 @@ function handleTyping() {
         const typedChar = inputVal[i];
 
         if (typedChar == null) {
-            // 未输入状态
             span.style.color = "#bbb";
             span.style.backgroundColor = "transparent";
         } else if (typedChar === char) {
-            // 输入正确：绿色
-            span.style.color = "#43a047";
+            span.style.color = "#43a047"; // 正确变绿
             span.style.backgroundColor = "transparent";
         } else {
-            // 输入错误：背景变红，字变白
-            span.style.color = "white";
+            span.style.color = "white"; // 错误变红
             span.style.backgroundColor = "#ff5252";
             span.style.borderRadius = "2px";
         }
     });
 
-    // 自动跟随滚动
+    // 自动跟随光标滚动
     if (inputVal.length > 0) {
         const currentSpan = spans[inputVal.length - 1];
-        currentSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (currentSpan) currentSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 }
 
-// 统一的退出函数
+// 修改你原有的退出函数，使其兼容所有模式
 function exitExercise() {
-    // 隐藏所有练习界面
+    // 隐藏所有特殊模式界面
     document.getElementById("clozeDisplay").classList.remove("active");
     document.getElementById("typingDisplay").classList.remove("active");
     
-    // 恢复主界面显示
+    // 恢复主界面所有元素显示
     ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
-        document.getElementById(id).classList.remove("hidden");
+        const el = document.getElementById(id);
+        if(el) el.classList.remove("hidden");
     });
     
-    // 清空评分结果
+    // 清理评分显示
     document.getElementById("scoreResult").innerHTML = "";
 }
-	
+=======	
 window.calculateScore = function() {
     const inputs = document.querySelectorAll("#clozeContent input");
     if (inputs.length === 0) return;
@@ -342,6 +343,7 @@ window.calculateScore = function() {
 // ================= i18n 国际化核心整组函数 =================
 const translations = {
     zh: {
+		typing: "练习跟打", // 新增这一行
 		submit: "提交并评分",
         scoreLabel: "得分",
         perfect: "🌟 太棒了！全对！",
@@ -373,6 +375,7 @@ const translations = {
         renamePrompt: "重命名文件:"
     },
     en: {
+		typing: "Typing",   // 新增这一行
 		submit: "Submit & Score",
         scoreLabel: "Score",
         perfect: "🌟 Perfect! Well done!",
