@@ -12,6 +12,22 @@
 <meta property="og:description" content="一个好用的文本挖空练习工具，助你高效背诵单词和课文。">
 
 <style>
+/* 跟打模式专属样式 */
+.typing-container {
+    font-family: 'Consolas', 'Monaco', monospace; /* 等宽字体对齐更准 */
+    color: #ccc; /* 默认灰色 */
+    font-size: 24px;
+    line-height: 1.6;
+    user-select: none;
+}
+.char-unit { position: relative; }
+.char-correct { color: #43a047; } /* 正确变绿 */
+.char-wrong { color: #ff5252; background: #ffebee; } /* 错误红字背景 */
+.char-current { 
+    color: #333; 
+    border-bottom: 3px solid var(--primary); 
+    background: #e8f5e9; 
+} /* 当前光标 *
 /* 让 placeholder 的下划线对齐更整齐 */
 input::placeholder {
     color: #bbb;
@@ -121,26 +137,31 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     </div>
   </div>
 
-  <div class="input-wrapper">
-    <textarea id="inputText" data-i18n="placeholder"></textarea>
-    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
-    <div id="clozeDisplay" class="cloze-display">
-      <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
-      <div id="clozeContent"></div>
-    <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
-	  <button id="submitBtn" 
-        data-i18n="submit" 
-        onclick="calculateScore()" 
-        style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">
-    提交并评分
+<div class="input-wrapper">
+    <textarea id="inputText" data-i18n="placeholder"></textarea>
+    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
+    <div id="clozeDisplay" class="cloze-display">
+      
+      <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
+      
+      <input type="text" id="hiddenInput" style="position:absolute; opacity:0; pointer-events:none; z-index:-1;">
+      <div id="clozeContent"></div>
+    <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
+	  <button id="submitBtn" 
+        data-i18n="submit" 
+        onclick="calculateScore()" 
+        style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">
+    提交并评分
 </button>
-    </div>
-  </div>
+    </div>
+  </div>
+
 
   <div class="action-bar" id="bottomAction">
     <button id="clearBtn" onclick="handleClear()" data-i18n="clear">清空</button>
     <button id="generate" onclick="handleGenerate()" data-i18n="generate">生成练习</button>
     <button id="customClozeBtn" onclick="enableCustomCloze()" data-i18n="custom">手动挖空</button>
+    <button id="typeModeBtn" onclick="startTypingMode()" style="background:#42a5f5; color:white;">跟打模式</button>
   </div>
 
 <div class="footer-bar" id="footerSection">
@@ -222,6 +243,111 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 </div>
   
 <script>
+let typingIndex = 0;
+let rawTextArray = [];
+window.typingModeActive = false;
+
+// 1. 开启跟打模式
+window.startTypingMode = function() {
+    const text = inputArea.value.trim();
+    if (!text) return;
+
+    rawTextArray = text.split("");
+    typingIndex = 0;
+    window.typingModeActive = true;
+
+    // 渲染 UI
+    const clozeContent = document.getElementById("clozeContent");
+    clozeContent.innerHTML = `<div class="typing-container" id="typeBox" onclick="focusTyping()"></div>`;
+    const typeBox = document.getElementById("typeBox");
+    
+    typeBox.innerHTML = rawTextArray.map((char, i) => {
+        let displayChar = char === '\n' ? '↵<br>' : (char === ' ' ? '&nbsp;' : char);
+        return `<span class="char-unit" id="char-${i}">${displayChar}</span>`;
+    }).join("");
+
+    // 隐藏主界面
+    ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id => {
+        document.getElementById(id).classList.add("hidden");
+    });
+    document.getElementById("submitBtn").style.display = "none"; // 跟打模式不需要提交按钮
+    displayArea.classList.add("active");
+    
+    updateTypingDisplay();
+
+    // 唤起键盘
+    focusTyping();
+    
+    // 监听输入
+    const hiddenInput = document.getElementById("hiddenInput");
+    hiddenInput.oninput = (e) => {
+        const val = e.target.value;
+        if (val) {
+            handleInputChar(val.substring(val.length - 1)); // 取最后一个输入的字符
+            e.target.value = ""; // 清空
+        }
+    };
+    
+    // 专门处理回车换行
+    hiddenInput.onkeydown = (e) => {
+        if (e.key === "Enter") {
+            handleInputChar("\n");
+        }
+    };
+};
+
+// 2. 聚焦函数
+window.focusTyping = function() {
+    const input = document.getElementById("hiddenInput");
+    if (input) input.focus();
+};
+
+// 3. 处理字符匹配
+function handleInputChar(inputChar) {
+    if (typingIndex >= rawTextArray.length) return;
+
+    const targetChar = rawTextArray[typingIndex];
+    const currentEl = document.getElementById(`char-${typingIndex}`);
+
+    // 核心逻辑：只有匹配正确才前进
+    if (inputChar.toLowerCase() === targetChar.toLowerCase()) {
+        currentEl.classList.remove('char-wrong');
+        currentEl.classList.add('char-correct');
+        typingIndex++;
+        updateTypingDisplay();
+    } else {
+        currentEl.classList.add('char-wrong');
+    }
+}
+
+// 4. 更新光标位置
+function updateTypingDisplay() {
+    document.querySelectorAll('.char-current').forEach(el => el.classList.remove('char-current'));
+    const currentEl = document.getElementById(`char-${typingIndex}`);
+    if (currentEl) {
+        currentEl.classList.add('char-current');
+        // 自动平滑滚动
+        currentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else if (typingIndex >= rawTextArray.length && rawTextArray.length > 0) {
+        alert("🎉 练习完成！");
+        exitExercise();
+    }
+}
+
+// 5. 修改原有的 exitExercise
+const oldExitExercise = window.exitExercise;
+window.exitExercise = function() {
+    window.typingModeActive = false;
+    const hiddenInput = document.getElementById("hiddenInput");
+    if (hiddenInput) hiddenInput.oninput = null;
+    
+    // 调用原有逻辑恢复 UI
+    ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id => {
+        document.getElementById(id).classList.remove("hidden");
+    });
+    displayArea.classList.remove("active");
+    document.getElementById("submitBtn").style.display = "block";
+};
 
 window.calculateScore = function() {
     const inputs = document.querySelectorAll("#clozeContent input");
