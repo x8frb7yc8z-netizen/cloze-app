@@ -243,147 +243,7 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 </div>
   
 <script>
-let typingIndex = 0;
-let rawTextArray = [];
-window.typingModeActive = false;
 
-// 1. 开启跟打模式
-window.startTypingMode = function() {
-    const text = inputArea.value.trim();
-    if (!text) return;
-
-    rawTextArray = text.split("");
-    typingIndex = 0;
-    window.typingModeActive = true;
-
-    // 渲染 UI
-    const clozeContent = document.getElementById("clozeContent");
-    clozeContent.innerHTML = `<div class="typing-container" id="typeBox" onclick="focusTyping()"></div>`;
-    const typeBox = document.getElementById("typeBox");
-    
-    typeBox.innerHTML = rawTextArray.map((char, i) => {
-        let displayChar = char === '\n' ? '↵<br>' : (char === ' ' ? '&nbsp;' : char);
-        return `<span class="char-unit" id="char-${i}">${displayChar}</span>`;
-    }).join("");
-
-    // 隐藏主界面
-    ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id => {
-        document.getElementById(id).classList.add("hidden");
-    });
-    document.getElementById("submitBtn").style.display = "none"; // 跟打模式不需要提交按钮
-    displayArea.classList.add("active");
-    
-    updateTypingDisplay();
-
-    // 唤起键盘
-    focusTyping();
-    
-    // 监听输入
-    const hiddenInput = document.getElementById("hiddenInput");
-    hiddenInput.oninput = (e) => {
-        const val = e.target.value;
-        if (val) {
-            handleInputChar(val.substring(val.length - 1)); // 取最后一个输入的字符
-            e.target.value = ""; // 清空
-        }
-    };
-    
-    // 专门处理回车换行
-    hiddenInput.onkeydown = (e) => {
-        if (e.key === "Enter") {
-            handleInputChar("\n");
-        }
-    };
-};
-
-// 2. 聚焦函数
-window.focusTyping = function() {
-    const input = document.getElementById("hiddenInput");
-    if (input) input.focus();
-};
-
-// 3. 处理字符匹配
-function handleInputChar(inputChar) {
-    if (typingIndex >= rawTextArray.length) return;
-
-    const targetChar = rawTextArray[typingIndex];
-    const currentEl = document.getElementById(`char-${typingIndex}`);
-
-    // 核心逻辑：只有匹配正确才前进
-    if (inputChar.toLowerCase() === targetChar.toLowerCase()) {
-        currentEl.classList.remove('char-wrong');
-        currentEl.classList.add('char-correct');
-        typingIndex++;
-        updateTypingDisplay();
-    } else {
-        currentEl.classList.add('char-wrong');
-    }
-}
-
-// 4. 更新光标位置
-function updateTypingDisplay() {
-    document.querySelectorAll('.char-current').forEach(el => el.classList.remove('char-current'));
-    const currentEl = document.getElementById(`char-${typingIndex}`);
-    if (currentEl) {
-        currentEl.classList.add('char-current');
-        // 自动平滑滚动
-        currentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    } else if (typingIndex >= rawTextArray.length && rawTextArray.length > 0) {
-        alert("🎉 练习完成！");
-        exitExercise();
-    }
-}
-
-// 5. 修改原有的 exitExercise
-const oldExitExercise = window.exitExercise;
-window.exitExercise = function() {
-    window.typingModeActive = false;
-    const hiddenInput = document.getElementById("hiddenInput");
-    if (hiddenInput) hiddenInput.oninput = null;
-    
-    // 调用原有逻辑恢复 UI
-    ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id => {
-        document.getElementById(id).classList.remove("hidden");
-    });
-    displayArea.classList.remove("active");
-    document.getElementById("submitBtn").style.display = "block";
-};
-
-window.calculateScore = function() {
-    const inputs = document.querySelectorAll("#clozeContent input");
-    if (inputs.length === 0) return;
-
-    let correctCount = 0;
-    const totalCount = inputs.length;
-    const dict = translations[currentLang]; // 获取当前语言包
-
-    inputs.forEach(input => {
-        const ans = answers[input.dataset.id].toLowerCase().trim();
-        const val = input.value.toLowerCase().trim();
-        
-        if (val === ans) {
-            correctCount++;
-            input.style.border = "2px solid #43a047";
-        } else {
-            input.style.border = "2px solid #ff5252";
-            input.value = ""; 
-            input.placeholder = (currentLang === 'zh' ? "答案: " : "Ans: ") + ans;
-        }
-    });
-
-    const score = Math.round((correctCount / totalCount) * 100);
-    const scoreDisplay = document.getElementById("scoreResult");
-    
-    // 根据语言包显示评价
-    let comment = "";
-    if (score === 100) comment = dict.perfect;
-    else if (score >= 80) comment = dict.great;
-    else if (score >= 60) comment = dict.keepGoing;
-    else comment = dict.practiceMore;
-
-    scoreDisplay.innerHTML = `${dict.scoreLabel}: ${score}% (${correctCount}/${totalCount}) <br> ${comment}`;
-    scoreDisplay.scrollIntoView({ behavior: 'smooth' });
-};
 	
 // ================= i18n 国际化核心整组函数 =================
 const translations = {
@@ -451,6 +311,172 @@ const translations = {
     }
 };
 
+// ====================跟打练习============================
+let typingIndex = 0;
+let rawTextArray = [];
+window.typingModeActive = false;
+
+// 1. 开启跟打模式
+window.startTypingMode = function() {
+    const text = inputArea.value.trim();
+    if (!text) return;
+
+    rawTextArray = text.split("");
+    typingIndex = 0;
+    window.typingModeActive = true;
+
+    // 渲染 UI
+    const clozeContent = document.getElementById("clozeContent");
+    clozeContent.innerHTML = `<div class="typing-container" id="typeBox" onclick="focusTyping()"></div>`;
+    const typeBox = document.getElementById("typeBox");
+    
+    typeBox.innerHTML = rawTextArray.map((char, i) => {
+        let displayChar = char === '\n' ? '↵<br>' : (char === ' ' ? '&nbsp;' : char);
+        return `<span class="char-unit" id="char-${i}">${displayChar}</span>`;
+    }).join("");
+
+    // 隐藏主界面
+    ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id => {
+        document.getElementById(id).classList.add("hidden");
+    });
+    document.getElementById("submitBtn").style.display = "none"; // 跟打模式不需要提交按钮
+    displayArea.classList.add("active");
+    
+    updateTypingDisplay();
+
+    // 唤起键盘
+    focusTyping();
+    
+    // 监听输入
+    const hiddenInput = document.getElementById("hiddenInput");
+    hiddenInput.oninput = (e) => {
+        const val = e.target.value;
+        if (val) {
+            handleInputChar(val.substring(val.length - 1)); // 取最后一个输入的字符
+            e.target.value = ""; // 清空
+        }
+    };
+    
+    // 专门处理回车换行
+    hiddenInput.onkeydown = (e) => {
+        if (e.key === "Enter") {
+            handleInputChar("\n");
+        }
+    };
+};
+
+// 2. 聚焦函数
+window.focusTyping = function() {
+    const input = document.getElementById("hiddenInput");
+    const currentEl = document.getElementById(`char-${typingIndex}`);
+    
+    if (input && currentEl) {
+        // 关键：将输入框移动到当前字符的位置，防止聚焦回弹
+        const rect = currentEl.getBoundingClientRect();
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        
+        input.style.top = (rect.top + window.scrollY) + "px";
+        input.style.left = (rect.left + window.scrollX) + "px";
+        
+        input.focus();
+    } else if (input) {
+        input.focus();
+    }
+};
+
+// 3. 处理字符匹配
+function handleInputChar(inputChar) {
+    if (typingIndex >= rawTextArray.length) return;
+
+    const targetChar = rawTextArray[typingIndex];
+    const currentEl = document.getElementById(`char-${typingIndex}`);
+
+    // 核心逻辑：只有匹配正确才前进
+    if (inputChar.toLowerCase() === targetChar.toLowerCase()) {
+        currentEl.classList.remove('char-wrong');
+        currentEl.classList.add('char-correct');
+        typingIndex++;
+        updateTypingDisplay();
+    } else {
+        currentEl.classList.add('char-wrong');
+    }
+}
+
+// 4. 更新光标位置
+function updateTypingDisplay() {
+    document.querySelectorAll('.char-current').forEach(el => el.classList.remove('char-current'));
+    const currentEl = document.getElementById(`char-${typingIndex}`);
+    
+    if (currentEl) {
+        currentEl.classList.add('char-current');
+        
+        // 使用 requestAnimationFrame 确保在 DOM 更新后滚动
+        requestAnimationFrame(() => {
+            currentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
+
+        // 每次更新显示后，重新对齐隐藏输入框的位置
+        focusTyping(); 
+    } else if (typingIndex >= rawTextArray.length && rawTextArray.length > 0) {
+        alert("🎉 练习完成！");
+        exitExercise();
+    }
+}
+
+// 5. 修改原有的 exitExercise
+const oldExitExercise = window.exitExercise;
+window.exitExercise = function() {
+    window.typingModeActive = false;
+    const hiddenInput = document.getElementById("hiddenInput");
+    if (hiddenInput) hiddenInput.oninput = null;
+    
+    // 调用原有逻辑恢复 UI
+    ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id => {
+        document.getElementById(id).classList.remove("hidden");
+    });
+    displayArea.classList.remove("active");
+    document.getElementById("submitBtn").style.display = "block";
+};
+
+
+// =====================================================
+window.calculateScore = function() {
+    const inputs = document.querySelectorAll("#clozeContent input");
+    if (inputs.length === 0) return;
+
+    let correctCount = 0;
+    const totalCount = inputs.length;
+    const dict = translations[currentLang]; // 获取当前语言包
+
+    inputs.forEach(input => {
+        const ans = answers[input.dataset.id].toLowerCase().trim();
+        const val = input.value.toLowerCase().trim();
+        
+        if (val === ans) {
+            correctCount++;
+            input.style.border = "2px solid #43a047";
+        } else {
+            input.style.border = "2px solid #ff5252";
+            input.value = ""; 
+            input.placeholder = (currentLang === 'zh' ? "答案: " : "Ans: ") + ans;
+        }
+    });
+
+    const score = Math.round((correctCount / totalCount) * 100);
+    const scoreDisplay = document.getElementById("scoreResult");
+    
+    // 根据语言包显示评价
+    let comment = "";
+    if (score === 100) comment = dict.perfect;
+    else if (score >= 80) comment = dict.great;
+    else if (score >= 60) comment = dict.keepGoing;
+    else comment = dict.practiceMore;
+
+    scoreDisplay.innerHTML = `${dict.scoreLabel}: ${score}% (${correctCount}/${totalCount}) <br> ${comment}`;
+    scoreDisplay.scrollIntoView({ behavior: 'smooth' });
+};
+
+// =====================================================
 let currentLang = localStorage.getItem('app_lang') || 'zh';
 
 window.toggleLanguage = function() {
