@@ -632,65 +632,35 @@ if (f.clozePositions.includes(currentIdx)) {
 // ------------------ 修改后的事件绑定函数 (处理长按撤销) ------------------
 function bindCustomEvents(f) {
   clozeContent.querySelectorAll(".word-span, input").forEach((el) => {
-    let longPressTimer;
-    let startTime;
-
-    // --- 1. 处理未挖空的单词 (SPAN) ---
+    // 针对 span 的点击变输入框逻辑
     if (el.tagName === "SPAN" && el.classList.contains('word-span')) {
       el.style.cursor = "pointer";
       el.onclick = () => {
         const wordIndex = parseInt(el.dataset.index);
         f.clozePositions.push(wordIndex);
         save();
-        enableCustomCloze();
+        enableCustomCloze(); 
       };
     }
 
-    // --- 2. 处理已挖空的单词 (INPUT) ---
+    // 针对 input 的逻辑：增加错字红字显示，以及长按撤销
     if (el.tagName === "INPUT") {
-      // 基础输入逻辑
+      // 1. 输入校验：错字红字逻辑
       el.oninput = () => {
         const ans = answers[el.dataset.id];
         const val = el.value.trim();
+        
+        // 基础颜色判定（背景色）
         el.style.backgroundColor = val.toLowerCase() === ans.toLowerCase() ? "#c8f7c5" : (val ? "#f7c5c5" : "#fffde7");
-        el.style.color = (val && !ans.toLowerCase().startsWith(val.toLowerCase())) ? "var(--danger)" : "#000";
+        
+        // 错误字母变红逻辑：只要当前输入的内容不是正确答案的前缀，文字就变红
+        if (val && !ans.toLowerCase().startsWith(val.toLowerCase())) {
+          el.style.color = "var(--danger)"; // 设置为红色
+        } else {
+          el.style.color = "#000"; // 正确或输入中保持黑色
+        }
       };
 
-      // 核心修改：区分长按与单击
-      const handleStart = (e) => {
-        startTime = Date.now();
-        longPressTimer = setTimeout(() => {
-          // 判定为长按
-          if (confirm(translations[currentLang].revokeConfirm)) {
-            const wordIndex = parseInt(el.dataset.index);
-            f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
-            save();
-            enableCustomCloze();
-          }
-          longPressTimer = null;
-        }, 800);
-      };
-
-      const handleEnd = (e) => {
-        const duration = Date.now() - startTime;
-        clearTimeout(longPressTimer);
-
-        // 如果按下的时间太短（小于200ms），我们认为是正常的点击聚焦，不干预
-        // 如果长按已经触发（longPressTimer已被设为null），我们也无需操作
-      };
-
-      // 绑定移动端
-      el.ontouchstart = handleStart;
-      el.ontouchend = handleEnd;
-
-      // 绑定电脑端
-      el.onmousedown = (e) => {
-        if (e.button === 0) handleStart(e); // 仅限左键
-      };
-      el.onmouseup = handleEnd;
-      el.onmouseleave = handleEnd;
-
-      // 快捷键提示逻辑保持不变
       el.onkeydown = (e) => {
         if (e.code === 'Space' || e.keyCode === 32) {
           e.preventDefault();
@@ -699,12 +669,6 @@ function bindCustomEvents(f) {
           el.oninput();
         }
       };
-      
-      // 屏蔽右键菜单，防止干扰
-      el.oncontextmenu = (e) => e.preventDefault();
-    }
-  });
-}
 
       // 2. 长按撤销逻辑 (兼容手机端)
       let longPressTimer;
