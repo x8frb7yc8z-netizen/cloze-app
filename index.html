@@ -121,21 +121,31 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     </div>
   </div>
 
-  <div class="input-wrapper">
+<div class="input-wrapper">
     <textarea id="inputText" data-i18n="placeholder"></textarea>
     <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
+
     <div id="clozeDisplay" class="cloze-display">
-      <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
-      <div id="clozeContent"></div>
-    <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
-	  <button id="submitBtn" 
-        data-i18n="submit" 
-        onclick="calculateScore()" 
-        style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">
-    提交并评分
-</button>
+        <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
+        <div id="clozeContent"></div>
+        <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
+        <button id="submitBtn" data-i18n="submit" onclick="calculateScore()" style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">提交并评分</button>
     </div>
-  </div>
+
+    <div id="typingDisplay" class="cloze-display" style="background:#f4f4f4; position: relative;">
+        <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px; position: relative; z-index: 10;">← 返回</button>
+        
+        <div style="position: relative; line-height: 1.6; font-family: monospace; font-size: 19px; white-space: pre-wrap; word-break: break-all; padding: 10px; background: white; border-radius: 8px; border: 1px solid #ddd; min-height: 300px;">
+            <div id="typingStandard" style="color: #bbb; pointer-events: none; min-height: 100px;"></div>
+            <textarea id="typingInput" 
+                      spellcheck="false"
+                      autocorrect="off"
+                      autocapitalize="off"
+                      style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; color: transparent; caret-color: #000; border: none; resize: none; outline: none; padding: 10px; font-family: inherit; font-size: inherit; line-height: inherit; overflow: hidden;"
+                      oninput="handleTyping()"></textarea>
+        </div>
+    </div>
+</div>
 
   <div class="action-bar" id="bottomAction">
     <button id="clearBtn" onclick="handleClear()" data-i18n="clear">清空</button>
@@ -222,7 +232,77 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 </div>
   
 <script>
+// ---------------- 跟打模式核心函数 ----------------
 
+function startTypingMode() {
+    const text = inputArea.value.trim();
+    if (!text) return;
+
+    // 初始化：将文本拆解为 span
+    const standardDiv = document.getElementById("typingStandard");
+    standardDiv.innerHTML = text.split('').map(char => `<span>${char}</span>`).join('');
+    
+    // 清空并聚焦输入框
+    const tInput = document.getElementById("typingInput");
+    tInput.value = "";
+    
+    // UI 切换逻辑
+    ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
+        document.getElementById(id).classList.add("hidden");
+    });
+    document.getElementById("typingDisplay").classList.add("active");
+
+    // 针对手机端延迟聚焦
+    setTimeout(() => tInput.focus(), 200);
+}
+
+function handleTyping() {
+    const inputVal = document.getElementById("typingInput").value;
+    const sourceText = inputArea.value.trim();
+    const spans = document.querySelectorAll("#typingStandard span");
+    
+    spans.forEach((span, i) => {
+        const char = sourceText[i];
+        const typedChar = inputVal[i];
+
+        if (typedChar == null) {
+            // 未输入状态
+            span.style.color = "#bbb";
+            span.style.backgroundColor = "transparent";
+        } else if (typedChar === char) {
+            // 输入正确：绿色
+            span.style.color = "#43a047";
+            span.style.backgroundColor = "transparent";
+        } else {
+            // 输入错误：背景变红，字变白
+            span.style.color = "white";
+            span.style.backgroundColor = "#ff5252";
+            span.style.borderRadius = "2px";
+        }
+    });
+
+    // 自动跟随滚动
+    if (inputVal.length > 0) {
+        const currentSpan = spans[inputVal.length - 1];
+        currentSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+
+// 统一的退出函数
+function exitExercise() {
+    // 隐藏所有练习界面
+    document.getElementById("clozeDisplay").classList.remove("active");
+    document.getElementById("typingDisplay").classList.remove("active");
+    
+    // 恢复主界面显示
+    ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
+        document.getElementById(id).classList.remove("hidden");
+    });
+    
+    // 清空评分结果
+    document.getElementById("scoreResult").innerHTML = "";
+}
+	
 window.calculateScore = function() {
     const inputs = document.querySelectorAll("#clozeContent input");
     if (inputs.length === 0) return;
