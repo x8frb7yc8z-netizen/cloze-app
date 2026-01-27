@@ -632,33 +632,33 @@ if (f.clozePositions.includes(currentIdx)) {
 // ------------------ 修改后的事件绑定函数 (处理长按撤销) ------------------
 function bindCustomEvents(f) {
   clozeContent.querySelectorAll(".word-span, input").forEach((el) => {
-    // 针对 span 的点击变输入框逻辑
+    let longPressTimer;
+    let isLongPress = false;
+
+    // --- 处理 Span (未挖空的单词) ---
     if (el.tagName === "SPAN" && el.classList.contains('word-span')) {
       el.style.cursor = "pointer";
       el.onclick = () => {
+        // 如果刚刚触发了长按，则不执行单击逻辑
+        if (isLongPress) {
+          isLongPress = false;
+          return;
+        }
         const wordIndex = parseInt(el.dataset.index);
         f.clozePositions.push(wordIndex);
         save();
-        enableCustomCloze(); 
+        enableCustomCloze();
       };
     }
 
-    // 针对 input 的逻辑：增加错字红字显示，以及长按撤销
+    // --- 处理 Input (已挖空的单词) ---
     if (el.tagName === "INPUT") {
-      // 1. 输入校验：错字红字逻辑
+      // 1. 输入校验与红字逻辑 (保持不变)
       el.oninput = () => {
         const ans = answers[el.dataset.id];
         const val = el.value.trim();
-        
-        // 基础颜色判定（背景色）
         el.style.backgroundColor = val.toLowerCase() === ans.toLowerCase() ? "#c8f7c5" : (val ? "#f7c5c5" : "#fffde7");
-        
-        // 错误字母变红逻辑：只要当前输入的内容不是正确答案的前缀，文字就变红
-        if (val && !ans.toLowerCase().startsWith(val.toLowerCase())) {
-          el.style.color = "var(--danger)"; // 设置为红色
-        } else {
-          el.style.color = "#000"; // 正确或输入中保持黑色
-        }
+        el.style.color = (val && !ans.toLowerCase().startsWith(val.toLowerCase())) ? "var(--danger)" : "#000";
       };
 
       el.onkeydown = (e) => {
@@ -670,30 +670,37 @@ function bindCustomEvents(f) {
         }
       };
 
-      // 2. 长按撤销逻辑 (兼容手机端)
-      let longPressTimer;
-      el.ontouchstart = () => {
+      // 2. 长按逻辑（核心优化）：取消挖空
+      const startLongPress = (e) => {
+        isLongPress = false;
         longPressTimer = setTimeout(() => {
-          if(confirm(translations[currentLang].revokeConfirm)) {
+          isLongPress = true;
+          if (confirm(translations[currentLang].revokeConfirm)) {
             const wordIndex = parseInt(el.dataset.index);
             f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
             save();
             enableCustomCloze();
           }
-        }, 800); // 长按 800 毫秒触发
+        }, 800); // 800ms 判定为长按
       };
-el.onmousedown = (e) => {
-  if (e.button !== 0) return; // 左键才触发
-  longPressTimer = setTimeout(() => {
-    const wordIndex = parseInt(el.dataset.index);
-    f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
-    save();
-    enableCustomCloze();
-  }, 800);
-};
 
-el.onmouseup = () => clearTimeout(longPressTimer);
-el.onmouseleave = () => clearTimeout(longPressTimer);
+      const cancelLongPress = () => {
+        clearTimeout(longPressTimer);
+      };
+
+      // 手机端
+      el.ontouchstart = startLongPress;
+      el.ontouchend = cancelLongPress;
+      
+      // 电脑端 (左键长按)
+      el.onmousedown = (e) => {
+        if (e.button === 0) startLongPress();
+      };
+      el.onmouseup = cancelLongPress;
+      el.onmouseleave = cancelLongPress;
+
+      // 屏蔽右键菜单 (防止干扰长按体验)
+      el.oncontextmenu = (e) => e.preventDefault();
     }
   });
 }
