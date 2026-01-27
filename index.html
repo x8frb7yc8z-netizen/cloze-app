@@ -12,6 +12,16 @@
 <meta property="og:description" content="一个好用的文本挖空练习工具，助你高效背诵单词和课文。">
 
 <style>
+#hiddenInput {
+    position: absolute;
+    width: 20px; /* 给一点宽度，iOS 聚焦更稳 */
+    height: 20px;
+    opacity: 0;
+    pointer-events: auto; /* 必须允许点击 */
+    z-index: 999; 
+    border: none;
+    outline: none;
+}
 /* 跟打模式专属样式 */
 .typing-container {
     font-family: 'Consolas', 'Monaco', monospace; /* 等宽字体对齐更准 */
@@ -372,19 +382,39 @@ window.focusTyping = function() {
     const currentEl = document.getElementById(`char-${typingIndex}`);
     
     if (input && currentEl) {
-        // 核心修改：使用 offsetTop/offsetLeft 替代 getBoundingClientRect
-        // 这样 input 会相对于 clozeContent 进行定位，避开 iOS 视口偏移问题
+        // 同步移动位置：确保 focus 时 input 就在点击的位置下方
         input.style.top = currentEl.offsetTop + "px";
         input.style.left = currentEl.offsetLeft + "px";
         
-        // 延迟一点点 focus，给 iOS 留出滚动处理时间
-        setTimeout(() => {
-            input.focus();
-        }, 10);
-    } else if (input) {
+        // 关键：必须是同步调用，iOS 才会弹出键盘
         input.focus();
     }
 };
+
+function handleInputChar(inputChar) {
+    if (typingIndex >= rawTextArray.length) return;
+
+    const targetChar = rawTextArray[typingIndex];
+    const currentEl = document.getElementById(`char-${typingIndex}`);
+
+    if (inputChar.toLowerCase() === targetChar.toLowerCase()) {
+        currentEl.classList.remove('char-wrong');
+        currentEl.classList.add('char-correct');
+        typingIndex++;
+        
+        // 提前更新下一个光标的位置
+        const nextEl = document.getElementById(`char-${typingIndex}`);
+        const input = document.getElementById("hiddenInput");
+        if (nextEl && input) {
+            input.style.top = nextEl.offsetTop + "px";
+            input.style.left = nextEl.offsetLeft + "px";
+        }
+        
+        updateTypingDisplay();
+    } else {
+        currentEl.classList.add('char-wrong');
+    }
+}
 
 // 3. 处理字符匹配
 function handleInputChar(inputChar) {
@@ -393,11 +423,19 @@ function handleInputChar(inputChar) {
     const targetChar = rawTextArray[typingIndex];
     const currentEl = document.getElementById(`char-${typingIndex}`);
 
-    // 核心逻辑：只有匹配正确才前进
     if (inputChar.toLowerCase() === targetChar.toLowerCase()) {
         currentEl.classList.remove('char-wrong');
         currentEl.classList.add('char-correct');
         typingIndex++;
+        
+        // 先移动 input 位置，再更新 UI 滚动
+        const nextEl = document.getElementById(`char-${typingIndex}`);
+        if (nextEl) {
+            const input = document.getElementById("hiddenInput");
+            input.style.top = nextEl.offsetTop + "px";
+            input.style.left = nextEl.offsetLeft + "px";
+        }
+        
         updateTypingDisplay();
     } else {
         currentEl.classList.add('char-wrong');
