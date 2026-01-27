@@ -683,9 +683,7 @@ function bindCustomEvents(f) {
         }, 800); // 长按 800 毫秒触发
       };
 el.onmousedown = (e) => {
-  // ❌ 右键直接忽略
-  if (e.button !== 0) return;
-
+  if (e.button !== 0) return; // 左键才触发
   longPressTimer = setTimeout(() => {
     const wordIndex = parseInt(el.dataset.index);
     f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
