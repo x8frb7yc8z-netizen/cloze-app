@@ -327,7 +327,8 @@ window.startTypingMode = function() {
 
     // 渲染 UI
     const clozeContent = document.getElementById("clozeContent");
-    clozeContent.innerHTML = `<div class="typing-container" id="typeBox" onclick="focusTyping()"></div>`;
+    clozeContent.style.position = "relative";
+    clozeContent.innerHTML = `<div class="typing-container" id="typeBox" onclick="focusTyping()" style="padding-bottom: 60vh;"></div>`;
     const typeBox = document.getElementById("typeBox");
     
     typeBox.innerHTML = rawTextArray.map((char, i) => {
@@ -411,13 +412,17 @@ function updateTypingDisplay() {
     if (currentEl) {
         currentEl.classList.add('char-current');
         
-        // 使用 requestAnimationFrame 确保在 DOM 更新后滚动
+        // 针对 iOS 的平滑滚动优化
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+        
         requestAnimationFrame(() => {
-            currentEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            currentEl.scrollIntoView({ 
+                behavior: 'smooth', 
+                block: isIOS ? 'center' : 'center' // iOS 下 center 有时会导致过度滚动
+            });
+            // 滚动后再对齐输入框
+            setTimeout(focusTyping, 150); 
         });
-
-        // 每次更新显示后，重新对齐隐藏输入框的位置
-        focusTyping(); 
     } else if (typingIndex >= rawTextArray.length && rawTextArray.length > 0) {
         alert("🎉 练习完成！");
         exitExercise();
