@@ -687,7 +687,7 @@ el.ontouchstart = () => {
     }
   }, 700); // 推荐 600~800
 };
-		
+
 el.ontouchend = () => {
   clearTimeout(longPressTimer);
 };
@@ -709,6 +709,16 @@ el.onmousedown = (e) => {
   }, 700);
 };
 
+el.onmouseup = () => clearTimeout(longPressTimer);
+el.onmouseleave = () => clearTimeout(longPressTimer);
+
+// 🚫 关键：阻止“长按后又被当成点击”
+el.onclick = (e) => {
+  if (longPressTriggered) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+};
 el.onmouseup = () => clearTimeout(longPressTimer);
 el.onmouseleave = () => clearTimeout(longPressTimer);
 
