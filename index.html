@@ -371,14 +371,15 @@ window.focusTyping = function() {
     const currentEl = document.getElementById(`char-${typingIndex}`);
     
     if (input && currentEl) {
-        // 关键：将输入框移动到当前字符的位置，防止聚焦回弹
-        const rect = currentEl.getBoundingClientRect();
-        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        // 核心修改：使用 offsetTop/offsetLeft 替代 getBoundingClientRect
+        // 这样 input 会相对于 clozeContent 进行定位，避开 iOS 视口偏移问题
+        input.style.top = currentEl.offsetTop + "px";
+        input.style.left = currentEl.offsetLeft + "px";
         
-        input.style.top = (rect.top + window.scrollY) + "px";
-        input.style.left = (rect.left + window.scrollX) + "px";
-        
-        input.focus();
+        // 延迟一点点 focus，给 iOS 留出滚动处理时间
+        setTimeout(() => {
+            input.focus();
+        }, 10);
     } else if (input) {
         input.focus();
     }
