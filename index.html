@@ -121,38 +121,27 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     </div>
   </div>
 
-<div class="input-wrapper">
+  <div class="input-wrapper">
     <textarea id="inputText" data-i18n="placeholder"></textarea>
     <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
-
     <div id="clozeDisplay" class="cloze-display">
-        <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
-        <div id="clozeContent"></div>
-        <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
-        <button id="submitBtn" data-i18n="submit" onclick="calculateScore()" style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">提交并评分</button>
+      <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
+      <div id="clozeContent"></div>
+    <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
+	  <button id="submitBtn" 
+        data-i18n="submit" 
+        onclick="calculateScore()" 
+        style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">
+    提交并评分
+</button>
     </div>
+  </div>
 
-    <div id="typingDisplay" class="cloze-display" style="background:#f4f4f4; position: relative;">
-        <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px; position: relative; z-index: 10;">← 返回</button>
-        
-        <div style="position: relative; line-height: 1.6; font-family: monospace; font-size: 19px; white-space: pre-wrap; word-break: break-all; padding: 10px; background: white; border-radius: 8px; border: 1px solid #ddd; min-height: 300px;">
-            <div id="typingStandard" style="color: #bbb; pointer-events: none; min-height: 100px;"></div>
-            <textarea id="typingInput" 
-                      spellcheck="false"
-                      autocorrect="off"
-                      autocapitalize="off"
-                      style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; color: transparent; caret-color: #000; border: none; resize: none; outline: none; padding: 10px; font-family: inherit; font-size: inherit; line-height: inherit; overflow: hidden;"
-                      oninput="handleTyping()"></textarea>
-        </div>
-    </div>
-</div>
-
-<div class="action-bar" id="bottomAction">
+  <div class="action-bar" id="bottomAction">
     <button id="clearBtn" onclick="handleClear()" data-i18n="clear">清空</button>
     <button id="generate" onclick="handleGenerate()" data-i18n="generate">生成练习</button>
     <button id="customClozeBtn" onclick="enableCustomCloze()" data-i18n="custom">手动挖空</button>
-    <button id="typingBtn" onclick="startTypingMode()" data-i18n="typing" style="background:#3f51b5; color:white;">练习跟打</button>
-</div>
+  </div>
 
 <div class="footer-bar" id="footerSection">
   <div class="footer-left" style="display:flex; gap:10px;">
@@ -233,77 +222,7 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 </div>
   
 <script>
-// ---------------- 跟打模式核心逻辑 ----------------
 
-function startTypingMode() {
-    const text = inputArea.value.trim(); // 使用你定义的全局变量 inputArea
-    if (!text) return;
-
-    const standardDiv = document.getElementById("typingStandard");
-    const tInput = document.getElementById("typingInput");
-
-    // 渲染底层文字
-    standardDiv.innerHTML = text.split('').map(char => `<span>${char}</span>`).join('');
-    tInput.value = ""; 
-    
-    // 隐藏主界面所有元素
-    ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
-        const el = document.getElementById(id);
-        if(el) el.classList.add("hidden");
-    });
-
-    // 显示跟打容器
-    document.getElementById("typingDisplay").classList.add("active");
-
-    // 延迟聚焦，确保软键盘弹出
-    setTimeout(() => tInput.focus(), 300);
-}
-
-function handleTyping() {
-    const inputVal = document.getElementById("typingInput").value;
-    const sourceText = inputArea.value.trim();
-    const spans = document.querySelectorAll("#typingStandard span");
-    
-    spans.forEach((span, i) => {
-        const char = sourceText[i];
-        const typedChar = inputVal[i];
-
-        if (typedChar == null) {
-            span.style.color = "#bbb";
-            span.style.backgroundColor = "transparent";
-        } else if (typedChar === char) {
-            span.style.color = "#43a047"; // 正确变绿
-            span.style.backgroundColor = "transparent";
-        } else {
-            span.style.color = "white"; // 错误变红
-            span.style.backgroundColor = "#ff5252";
-            span.style.borderRadius = "2px";
-        }
-    });
-
-    // 自动跟随光标滚动
-    if (inputVal.length > 0) {
-        const currentSpan = spans[inputVal.length - 1];
-        if (currentSpan) currentSpan.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-}
-
-// 修改你原有的退出函数，使其兼容所有模式
-function exitExercise() {
-    // 隐藏所有特殊模式界面
-    document.getElementById("clozeDisplay").classList.remove("active");
-    document.getElementById("typingDisplay").classList.remove("active");
-    
-    // 恢复主界面所有元素显示
-    ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
-        const el = document.getElementById(id);
-        if(el) el.classList.remove("hidden");
-    });
-    
-    // 清理评分显示
-    document.getElementById("scoreResult").innerHTML = "";
-}
-=======	
 window.calculateScore = function() {
     const inputs = document.querySelectorAll("#clozeContent input");
     if (inputs.length === 0) return;
@@ -343,7 +262,6 @@ window.calculateScore = function() {
 // ================= i18n 国际化核心整组函数 =================
 const translations = {
     zh: {
-		typing: "练习跟打", // 新增这一行
 		submit: "提交并评分",
         scoreLabel: "得分",
         perfect: "🌟 太棒了！全对！",
@@ -375,7 +293,6 @@ const translations = {
         renamePrompt: "重命名文件:"
     },
     en: {
-		typing: "Typing",   // 新增这一行
 		submit: "Submit & Score",
         scoreLabel: "Score",
         perfect: "🌟 Perfect! Well done!",
