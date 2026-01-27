@@ -670,35 +670,55 @@ function bindCustomEvents(f) {
         }
       };
 
-      // 2. 长按撤销逻辑 (兼容手机端)
-      let longPressTimer;
-      el.ontouchstart = () => {
-        longPressTimer = setTimeout(() => {
-          if(confirm(translations[currentLang].revokeConfirm)) {
-            const wordIndex = parseInt(el.dataset.index);
-            f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
-            save();
-            enableCustomCloze();
-          }
-        }, 800); // 长按 800 毫秒触发
-      };
-el.onmousedown = (e) => {
-  // ❌ 右键直接忽略
-  if (e.button !== 0) return;
+// === 长按撤销（手机 + 电脑统一）===
+let longPressTimer = null;
+let longPressTriggered = false;
 
+// 📱 手机
+el.ontouchstart = () => {
+  longPressTriggered = false;
   longPressTimer = setTimeout(() => {
+    longPressTriggered = true;
+    if (confirm(translations[currentLang].revokeConfirm)) {
+      const wordIndex = parseInt(el.dataset.index);
+      f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
+      save();
+      enableCustomCloze();
+    }
+  }, 700); // 推荐 600~800
+};
+		
+el.ontouchend = () => {
+  clearTimeout(longPressTimer);
+};
+
+el.ontouchcancel = () => {
+  clearTimeout(longPressTimer);
+};
+
+// 🖥️ 电脑（仅左键）
+el.onmousedown = (e) => {
+  if (e.button !== 0) return; // 忽略右键
+  longPressTriggered = false;
+  longPressTimer = setTimeout(() => {
+    longPressTriggered = true;
     const wordIndex = parseInt(el.dataset.index);
     f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
     save();
     enableCustomCloze();
-  }, 800);
+  }, 700);
 };
 
 el.onmouseup = () => clearTimeout(longPressTimer);
 el.onmouseleave = () => clearTimeout(longPressTimer);
-    }
-  });
-}
+
+// 🚫 关键：阻止“长按后又被当成点击”
+el.onclick = (e) => {
+  if (longPressTriggered) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+};
 
 // ---------------- 输入区变化也要更新保存 ----------------
 inputArea.oninput=()=>saveActiveFile();
