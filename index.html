@@ -567,7 +567,9 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
-// ---------------- 初始化 (支持 Anki 自动传文) ----------------
+window.onerror = function(msg, url, line) {
+    alert("Error: " + msg + "\nline: " + line);
+};
 // ---------------- 初始化：针对 Anki 自动触发【手动挖空】 ----------------
 function init() { 
     const urlParams = new URLSearchParams(window.location.search);
