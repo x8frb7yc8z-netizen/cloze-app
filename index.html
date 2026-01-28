@@ -567,46 +567,11 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
-window.onerror = function(msg, url, line) {
-    alert("Error: " + msg + "\nline: " + line);
-};
-// ---------------- 初始化：针对 Anki 自动触发【手动挖空】 ----------------
+// ---------------- 初始化 ----------------
 function init() { 
-    const urlParams = new URLSearchParams(window.location.search);
-    const textFromAnki = urlParams.get('text');
-
-    if (textFromAnki) {
-        const decodedText = decodeURIComponent(textFromAnki);
-        inputArea.value = decodedText;
-        
-        saveActiveFile(decodedText); 
-        
-        renderTabs();
-        loadActiveFile();
-        applyLanguage();
-
-        // 💡 关键修正：直接调用手动挖空的专用函数
-        setTimeout(() => {
-            // 1. 确保切换到挖空所在的 Tab（如果是 cloze 标签）
-            activeTab = 'cloze'; 
-            
-            // 2. 直接运行手动模式的初始化函数
-            if (typeof enableCustomCloze === 'function') {
-                enableCustomCloze(); 
-                console.log("🎯 已成功绕过自动模式，直接进入【手动挖空】");
-            } else {
-                // 备用方案：如果 enableCustomCloze 依赖 handleGenerate 后的状态
-                if (typeof handleGenerate === 'function') handleGenerate();
-                if (typeof enableCustomCloze === 'function') enableCustomCloze();
-            }
-        }, 50);
-
-        return; 
-    }
-
     renderTabs(); 
     loadActiveFile();
-    applyLanguage();
+    applyLanguage(); // 新增：页面加载时应用语言
 }
 
 // ---------------- 粘贴 ----------------
@@ -632,8 +597,11 @@ function renderTabs() {
       const n=prompt("重命名文件:", f.title); 
       if(n){f.title=n; save(); renderTabs();}
     };
-    div.innerHTML=`<span onclick="switchFile(${f.id})">${f.title}</span>
-      <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>`;
+    div.innerHTML=`
+    <span onclick="switchFile(${f.id})">${f.title}</span>
+    <span style="cursor:pointer;margin-left:8px;opacity:0.5;" onclick="window.shareFile(${f.id})">🔗</span>
+    <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>
+`;
     tabs.appendChild(div);
   });
   const btn=document.createElement('button'); 
@@ -917,7 +885,7 @@ init();
 <script type="module">
   // 1. 导入部分：注意增加了 onValue
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-  import { getDatabase, ref, get, set, runTransaction, onValue } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+  import { getDatabase, ref, get, set, runTransaction, onValue , push} from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
   const firebaseConfig = {
@@ -940,6 +908,68 @@ init();
     prompt: 'select_account'
   });
 
+// --- 功能 A: 生成分享链接 ---
+window.shareFile = async (fileId) => {
+    if (!currentUser) {
+        alert(currentLang === 'zh' ? "请先登录再分享文件" : "Please login to share files");
+        return;
+    }
+    const fileToShare = files.find(f => f.id === fileId);
+    if (!fileToShare) return;
+
+    try {
+        const publicRef = ref(db, 'public_files');
+        const newShareRef = push(publicRef); // 生成唯一 ID
+        const shareId = newShareRef.key;
+
+        await set(newShareRef, {
+            title: fileToShare.title,
+            content: fileToShare.content,
+            clozePositions: fileToShare.clozePositions || [],
+            author: currentUser.email,
+            timestamp: Date.now()
+        });
+
+        const shareUrl = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
+        await navigator.clipboard.writeText(shareUrl);
+        alert(currentLang === 'zh' ? "分享链接已复制！" : "Share link copied!");
+    } catch (e) {
+        alert("Share failed: " + e.message);
+    }
+};
+
+// --- 功能 B: 检测 URL 参数并免登录加载 ---
+window.checkAndLoadSharedFile = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const shareId = urlParams.get('share');
+
+    if (shareId) {
+        const shareRef = ref(db, `public_files/${shareId}`);
+        try {
+            const snap = await get(shareRef);
+            if (snap.exists()) {
+                const data = snap.val();
+                if (confirm(currentLang === 'zh' ? `发现分享文件: "${data.title}"，是否导入？` : `Import "${data.title}"?`)) {
+                    const newFile = {
+                        id: Date.now(),
+                        title: data.title + " (Shared)",
+                        content: data.content,
+                        clozePositions: data.clozePositions || []
+                    };
+                    files.push(newFile);
+                    activeFileId = newFile.id;
+                    save(); // 保存到本地 localStorage
+                    renderTabs();
+                    loadActiveFile();
+                    // 清除 URL 参数
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            }
+        } catch (e) {
+            console.error("加载分享失败:", e);
+        }
+    }
+};	
   // 新增：处理 Google 登录的完整函数
 window.handleGoogleAuth = async () => {
     try {
@@ -1160,7 +1190,8 @@ window.likeApp = async () => {
   window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
   incrementVisit();
-  // window.loadStats();
+  window.loadStats();
+  window.checkAndLoadSharedFile();
 </script>
 </body>
 </html>
