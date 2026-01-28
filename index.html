@@ -12,6 +12,37 @@
 <meta property="og:description" content="一个好用的文本挖空练习工具，助你高效背诵单词和课文。">
 
 <style>
+/* 顶部返回按钮：增加下方间距 */
+.top-back-btn {
+    background: #eee; 
+    border: 1px solid #ccc; 
+    padding: 8px 15px; 
+    border-radius: 6px; 
+    margin-bottom: 30px !important; /* 💡 增加到 30px，拉开正文距离 */
+    cursor: pointer;
+}
+
+/* 底部返回按钮：增加上方间距，使其在文章末尾醒目 */
+.bottom-back-btn {
+    display: block;
+    width: 100%;       /* 移动端全宽更方便点击 */
+    background: #f5f5f5; 
+    color: #666;
+    border: 1px solid #ddd; 
+    padding: 12px; 
+    border-radius: 8px; 
+    margin-top: 40px !important; /* 💡 距离正文底部 40px */
+    margin-bottom: 20px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+/* 调整评分按钮，使其在底部返回按钮之后 */
+#submitBtn {
+    margin-top: 10px !important;
+}
+	
+/* 跟打模式专属样式 */
 #hiddenInput {
     position: fixed;
     bottom: 20px;
@@ -21,7 +52,6 @@
     opacity: 0;
     z-index: 9999;
 }
-/* 跟打模式专属样式 */
 .typing-container {
     font-family: 'Consolas', 'Monaco', monospace; /* 等宽字体对齐更准 */
     color: #ccc; /* 默认灰色 */
@@ -156,6 +186,7 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
       <input type="text" id="hiddenInput">
       <div id="clozeContent"></div>
     <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
+	  <button onclick="exitExercise()" data-i18n="back" class="bottom-back-btn">← 返回 (Back)</button>
 	  <button id="submitBtn" 
         data-i18n="submit" 
         onclick="calculateScore()" 
