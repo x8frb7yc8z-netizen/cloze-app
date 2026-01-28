@@ -580,18 +580,18 @@ function init() {
                 const file = snapshot.val();
                 window.files = [file];       // 只显示这个文件
                 activeFileId = file.id;
-                renderTabs();
-                loadActiveFile();
             } else {
                 alert("❌ 文件不存在或已被删除");
-                // fallback 显示本地第一个文件
                 activeFileId = files[0]?.id || null;
-                renderTabs();
-                loadActiveFile();
             }
+            renderTabs();
+            loadActiveFile();
         }).catch(err => {
             console.error(err);
             alert("❌ 公共文件读取失败");
+            activeFileId = files[0]?.id || null;
+            renderTabs();
+            loadActiveFile();
         });
     } else if (fileIdFromUrl) {
         const fileExists = files.find(f => f.id == fileIdFromUrl);
@@ -690,7 +690,6 @@ function renderTabs() {
   btn.onclick = addNewFile;
   tabs.appendChild(btn);
 }
-
 // ---------------- 保存 / 加载 ----------------
 function save() {
     // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
