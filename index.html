@@ -12,41 +12,6 @@
 <meta property="og:description" content="一个好用的文本挖空练习工具，助你高效背诵单词和课文。">
 
 <style>
-/* 1. 顶部返回按钮：控制与下方正文的距离 */
-#clozeDisplay .top-back-btn {
-    display: inline-block !important;
-    background: #eee !important;
-    border: 1px solid #ccc !important;
-    padding: 6px 12px !important;
-    border-radius: 6px !important;
-    /* 调整这个数值：20px 是比较紧凑的距离，10px 更近 */
-    margin-bottom: 15px !important; 
-    font-size: 14px !important;
-    cursor: pointer;
-}
-
-/* 2. 底部返回按钮：控制与上方评分按钮的距离 */
-#clozeDisplay .bottom-back-btn {
-    display: block !important;
-    width: 100% !important;
-    background: #f9f9f9 !important;
-    color: #666 !important;
-    border: 1px solid #ddd !important;
-    padding: 12px !important;
-    border-radius: 8px !important;
-    /* 调整这个数值：让它靠近评分按钮 */
-    margin-top: 15px !important; 
-    margin-bottom: 30px !important;
-    font-weight: bold !important;
-    cursor: pointer;
-}
-
-/* 3. 评分按钮：微调 */
-#submitBtn {
-    margin-top: 15px !important;
-}
-	
-/* 跟打模式专属样式 */
 #hiddenInput {
     position: fixed;
     bottom: 20px;
@@ -56,6 +21,7 @@
     opacity: 0;
     z-index: 9999;
 }
+/* 跟打模式专属样式 */
 .typing-container {
     font-family: 'Consolas', 'Monaco', monospace; /* 等宽字体对齐更准 */
     color: #ccc; /* 默认灰色 */
@@ -181,23 +147,23 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
   </div>
 
 <div class="input-wrapper">
-    <textarea id="inputText" data-i18n="placeholder"></textarea>
-    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
-
-    <div id="clozeDisplay" class="cloze-display">
-        <button onclick="exitExercise()" data-i18n="back" class="top-back-btn">← 返回</button>
-        
-        <input type="text" id="hiddenInput">
-        <div id="clozeContent"></div>
-        <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
-
-        <button id="submitBtn" data-i18n="submit" onclick="calculateScore()" 
-                style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">
-            提交并评分
-        </button>
-
-        <button onclick="exitExercise()" data-i18n="back" class="bottom-back-btn">← 返回 (Back)</button>
-    </div> </div> ```
+    <textarea id="inputText" data-i18n="placeholder"></textarea>
+    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
+    <div id="clozeDisplay" class="cloze-display">
+      
+      <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
+      
+      <input type="text" id="hiddenInput">
+      <div id="clozeContent"></div>
+    <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
+	  <button id="submitBtn" 
+        data-i18n="submit" 
+        onclick="calculateScore()" 
+        style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">
+    提交并评分
+</button>
+    </div>
+  </div>
 
 
   <div class="action-bar" id="bottomAction">
