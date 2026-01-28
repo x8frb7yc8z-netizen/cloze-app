@@ -569,9 +569,17 @@ const clozeContent = document.getElementById("clozeContent");
 
 // ---------------- 初始化 ----------------
 function init() { 
+    // 读取 URL 参数
+    const urlParams = new URLSearchParams(window.location.search);
+    const fileIdFromUrl = urlParams.get('file');
+    if (fileIdFromUrl) {
+        const fileExists = files.find(f => f.id == fileIdFromUrl);
+        if(fileExists) activeFileId = Number(fileIdFromUrl);
+    }
+
     renderTabs(); 
     loadActiveFile();
-    applyLanguage(); // 新增：页面加载时应用语言
+    applyLanguage(); // 页面加载时应用语言
 }
 
 // ---------------- 粘贴 ----------------
@@ -589,20 +597,61 @@ async function handlePaste() {
 
 // ---------------- 文件标签 ----------------
 function renderTabs() {
-  const tabs = document.getElementById('fileTabs'); tabs.innerHTML='';
-  files.forEach(f=>{
-    const div=document.createElement('div'); 
-    div.className=`file-tab ${f.id===activeFileId?'active':''}`;
-    div.ondblclick=()=>{ 
-      const n=prompt("重命名文件:", f.title); 
-      if(n){f.title=n; save(); renderTabs();}
+  const tabs = document.getElementById('fileTabs'); 
+  tabs.innerHTML = '';
+
+  files.forEach(f => {
+    const div = document.createElement('div'); 
+    div.className = `file-tab ${f.id===activeFileId?'active':''}`;
+
+    // 双击重命名
+    div.ondblclick = () => { 
+      const n = prompt("重命名文件:", f.title); 
+      if(n){f.title = n; save(); renderTabs();}
     };
-    div.innerHTML=`<span onclick="switchFile(${f.id})">${f.title}</span>
-      <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>`;
+
+    // 文件名点击切换
+    const titleSpan = document.createElement('span');
+    titleSpan.innerText = f.title;
+    titleSpan.style.cursor = "pointer";
+    titleSpan.onclick = () => switchFile(f.id);
+
+    // 删除按钮
+    const delSpan = document.createElement('span');
+    delSpan.style.color = 'var(--danger)';
+    delSpan.style.marginLeft = '8px';
+    delSpan.style.fontWeight = 'bold';
+    delSpan.style.fontSize = '16px';
+    delSpan.innerText = '×';
+    delSpan.onclick = (e) => deleteFile(f.id, e);
+
+    // 分享按钮
+    const shareBtn = document.createElement('span');
+    shareBtn.style.color = '#42a5f5';
+    shareBtn.style.marginLeft = '6px';
+    shareBtn.style.cursor = 'pointer';
+    shareBtn.style.fontWeight = 'bold';
+    shareBtn.title = "分享文件";
+    shareBtn.innerText = '🔗';
+    shareBtn.onclick = (e) => {
+        e.stopPropagation();
+        const link = `${window.location.origin}${window.location.pathname}?file=${f.id}`;
+        navigator.clipboard.writeText(link).then(() => {
+            alert(`✅ 链接已复制:\n${link}`);
+        });
+    };
+
+    div.appendChild(titleSpan);
+    div.appendChild(delSpan);
+    div.appendChild(shareBtn);
     tabs.appendChild(div);
   });
-  const btn=document.createElement('button'); 
-  btn.className="add-file-btn"; btn.innerHTML='＋'; btn.onclick=addNewFile;
+
+  // “新增文件”按钮
+  const btn = document.createElement('button'); 
+  btn.className = "add-file-btn"; 
+  btn.innerHTML = '＋'; 
+  btn.onclick = addNewFile;
   tabs.appendChild(btn);
 }
 
