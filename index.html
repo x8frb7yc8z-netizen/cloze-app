@@ -568,48 +568,45 @@ const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
 // ---------------- 初始化 (支持 Anki 自动传文) ----------------
+// ---------------- 初始化：Anki 自动进入手动挖空模式 ----------------
 function init() { 
     const urlParams = new URLSearchParams(window.location.search);
-    const publicIdFromUrl = urlParams.get('public');
-    const textFromAnki = urlParams.get('text'); // <-- 关键：获取 Anki 传来的文本
+    const textFromAnki = urlParams.get('text');
 
-    // 1. 最高优先级：如果有 Anki 直接传来的文本
     if (textFromAnki) {
+        // 1. 获取并解码文本
         const decodedText = decodeURIComponent(textFromAnki);
         inputArea.value = decodedText;
         
-        // 自动同步到当前活跃文件，这样练习时数据是连通的
+        // 2. 这里的 saveActiveFile 确保文本被写入 App 的运行逻辑中
         saveActiveFile(decodedText); 
         
+        // 3. 基础渲染（为了保持 App 逻辑完整）
         renderTabs();
-        loadActiveFile(); // 重新加载以确保 UI 同步
+        loadActiveFile();
         applyLanguage();
-        
-        // 可选：如果你想让 Anki 翻开背面就直接进入练习，可以取消下面这行的注释
-        // handleGenerate(); 
+
+        // 4. 关键：强制设为“挖空模式”并触发生成
+        setTimeout(() => {
+            // 确保你的 Tab 变量名为 activeTab，且“手动挖空”对应的 key 是 'cloze'
+            activeTab = 'cloze'; 
+            
+            // 如果你的 UI 渲染依赖 switchTab 函数，也可以直接调用它：
+            // if (typeof switchTab === 'function') switchTab('cloze');
+
+            if (typeof handleGenerate === 'function') {
+                handleGenerate(); 
+                console.log("🚀 已自动进入手动挖空模式");
+            }
+        }, 50); // 50ms 的延迟足以让 Anki 完成初始化
+
         return; 
     }
 
-    // 2. 次高优先级：原有的 Firebase 公共分享链接逻辑
-    if (publicIdFromUrl) {
-        // ... 你原来的 Firebase 读取逻辑 ...
-        // (保持你代码中 get(ref(db...)) 那一部分即可)
-        get(ref(db, `public_files/${publicIdFromUrl}`)).then(snapshot => {
-            if (snapshot.exists()) {
-                const file = snapshot.val();
-                window.files = [file];
-                activeFileId = file.id;
-            }
-            renderTabs();
-            loadActiveFile();
-            applyLanguage();
-        });
-    } else {
-        // 3. 正常打开：读取本地存储
-        renderTabs(); 
-        loadActiveFile();
-        applyLanguage();
-    }
+    // 正常网页打开逻辑（非 Anki 模式）
+    renderTabs(); 
+    loadActiveFile();
+    applyLanguage();
 }
 
 // ---------------- 粘贴 ----------------
