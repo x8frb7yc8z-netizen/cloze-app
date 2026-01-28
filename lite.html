@@ -515,32 +515,49 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
-// ---------------- 初始化：针对 Anki 自动触发【手动挖空】 ----------------
+
+// ---------------- 终极初始化：适配 Anki 自动触发 ----------------
 function init() {
     document.addEventListener("DOMContentLoaded", () => {
+        // 1. 获取 URL 中的 Anki 传过来的文本
         const urlParams = new URLSearchParams(window.location.search);
         const textFromAnki = urlParams.get('text');
 
         if (textFromAnki) {
             try {
+                // 2. 解码文本（处理特殊字符和空格）
                 const decodedText = decodeURIComponent(textFromAnki.replace(/\+/g, ' '));
+                
+                // 3. 将内容填入输入框
                 inputArea.value = decodedText;
-                saveActiveFile(decodedText);
+                
+                // 4. 保存到当前选中的文件中（确保刷新不丢失）
+                const f = files.find(x => x.id === activeFileId);
+                if (f) {
+                    f.content = decodedText;
+                    save(); // 调用你代码里的 save() 函数存入 localStorage
+                }
 
+                // 5. 渲染基础界面
                 renderTabs();
-                loadActiveFile();
                 applyLanguage();
 
-                // 延迟调用手动挖空
-                requestAnimationFrame(() => {
-                    if (typeof enableCustomCloze === 'function') enableCustomCloze();
-                });
+                // 6. 【核心】延迟 150ms 自动进入手动挖空模式
+                // 延迟是为了确保手机端 DOM 已经完全渲染
+                setTimeout(() => {
+                    if (typeof enableCustomCloze === 'function') {
+                        enableCustomCloze();
+                        console.log("Anki Mode: Auto-triggered Manual Cloze.");
+                    }
+                }, 150);
+
             } catch(e) {
-                console.error("文本解码失败:", e);
+                console.error("Anki 文本解码失败:", e);
             }
-            return;
+            return; // 如果是从 Anki 来的，执行完后续逻辑就退出 init
         }
 
+        // --- 常规模式（非 Anki 打开时） ---
         renderTabs();
         loadActiveFile();
         applyLanguage();
