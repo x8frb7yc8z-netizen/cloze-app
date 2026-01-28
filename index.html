@@ -13,14 +13,13 @@
 
 <style>
 #hiddenInput {
-    position: absolute;
-    width: 20px; /* 给一点宽度，iOS 聚焦更稳 */
-    height: 20px;
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 1px;
+    height: 1px;
     opacity: 0;
-    pointer-events: auto; /* 必须允许点击 */
-    z-index: 999; 
-    border: none;
-    outline: none;
+    z-index: 9999;
 }
 /* 跟打模式专属样式 */
 .typing-container {
@@ -377,17 +376,11 @@ window.startTypingMode = function() {
 };
 
 // 2. 聚焦函数
-window.focusTyping = function() {
+window.focusTyping = function () {
     const input = document.getElementById("hiddenInput");
-    const currentEl = document.getElementById(`char-${typingIndex}`);
-    
-    if (input && currentEl) {
-        // 同步移动位置：确保 focus 时 input 就在点击的位置下方
-        input.style.top = currentEl.offsetTop + "px";
-        input.style.left = currentEl.offsetLeft + "px";
-        
-        // 关键：必须是同步调用，iOS 才会弹出键盘
-        input.focus();
+
+    if (input) {
+        input.focus({ preventScroll: true });
     }
 };
 
@@ -397,48 +390,17 @@ function handleInputChar(inputChar) {
     const targetChar = rawTextArray[typingIndex];
     const currentEl = document.getElementById(`char-${typingIndex}`);
 
+    // 正确输入
     if (inputChar.toLowerCase() === targetChar.toLowerCase()) {
-        currentEl.classList.remove('char-wrong');
-        currentEl.classList.add('char-correct');
+        currentEl.classList.remove("char-wrong");
+        currentEl.classList.add("char-correct");
+
         typingIndex++;
-        
-        // 提前更新下一个光标的位置
-        const nextEl = document.getElementById(`char-${typingIndex}`);
-        const input = document.getElementById("hiddenInput");
-        if (nextEl && input) {
-            input.style.top = nextEl.offsetTop + "px";
-            input.style.left = nextEl.offsetLeft + "px";
-        }
-        
         updateTypingDisplay();
-    } else {
-        currentEl.classList.add('char-wrong');
     }
-}
-
-// 3. 处理字符匹配
-function handleInputChar(inputChar) {
-    if (typingIndex >= rawTextArray.length) return;
-
-    const targetChar = rawTextArray[typingIndex];
-    const currentEl = document.getElementById(`char-${typingIndex}`);
-
-    if (inputChar.toLowerCase() === targetChar.toLowerCase()) {
-        currentEl.classList.remove('char-wrong');
-        currentEl.classList.add('char-correct');
-        typingIndex++;
-        
-        // 先移动 input 位置，再更新 UI 滚动
-        const nextEl = document.getElementById(`char-${typingIndex}`);
-        if (nextEl) {
-            const input = document.getElementById("hiddenInput");
-            input.style.top = nextEl.offsetTop + "px";
-            input.style.left = nextEl.offsetLeft + "px";
-        }
-        
-        updateTypingDisplay();
-    } else {
-        currentEl.classList.add('char-wrong');
+    // 错误输入
+    else {
+        currentEl.classList.add("char-wrong");
     }
 }
 
