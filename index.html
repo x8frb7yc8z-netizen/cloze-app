@@ -567,11 +567,46 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
-// ---------------- 初始化 ----------------
+window.onerror = function(msg, url, line) {
+    alert("Error: " + msg + "\nline: " + line);
+};
+// ---------------- 初始化：针对 Anki 自动触发【手动挖空】 ----------------
 function init() { 
+    const urlParams = new URLSearchParams(window.location.search);
+    const textFromAnki = urlParams.get('text');
+
+    if (textFromAnki) {
+        const decodedText = decodeURIComponent(textFromAnki);
+        inputArea.value = decodedText;
+        
+        saveActiveFile(decodedText); 
+        
+        renderTabs();
+        loadActiveFile();
+        applyLanguage();
+
+        // 💡 关键修正：直接调用手动挖空的专用函数
+        setTimeout(() => {
+            // 1. 确保切换到挖空所在的 Tab（如果是 cloze 标签）
+            activeTab = 'cloze'; 
+            
+            // 2. 直接运行手动模式的初始化函数
+            if (typeof enableCustomCloze === 'function') {
+                enableCustomCloze(); 
+                console.log("🎯 已成功绕过自动模式，直接进入【手动挖空】");
+            } else {
+                // 备用方案：如果 enableCustomCloze 依赖 handleGenerate 后的状态
+                if (typeof handleGenerate === 'function') handleGenerate();
+                if (typeof enableCustomCloze === 'function') enableCustomCloze();
+            }
+        }, 50);
+
+        return; 
+    }
+
     renderTabs(); 
     loadActiveFile();
-    applyLanguage(); // 新增：页面加载时应用语言
+    applyLanguage();
 }
 
 // ---------------- 粘贴 ----------------
@@ -1125,7 +1160,7 @@ window.likeApp = async () => {
   window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
   incrementVisit();
-  window.loadStats();
+  // window.loadStats();
 </script>
 </body>
 </html>
