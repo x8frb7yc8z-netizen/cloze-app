@@ -911,18 +911,32 @@ init();
 // --- 功能 A: 生成分享链接 ---
 window.shareFile = async (fileId) => {
     if (!currentUser) {
-        alert(currentLang === 'zh' ? "请先登录再分享文件" : "Please login to share files");
+        alert(currentLang === 'zh' ? "请先登录再分享" : "Please login to share");
         return;
     }
-    const fileToShare = files.find(f => f.id === fileId);
+
+    const fileToShare = (window.files || files).find(f => f.id === fileId);
     if (!fileToShare) return;
 
-    try {
-        const publicRef = ref(db, 'public_files');
-        const newShareRef = push(publicRef); // 生成唯一 ID
-        const shareId = newShareRef.key;
+    // 1. 处理安全的路径名称（移除空格和非法字符）
+    const safeTitle = encodeURIComponent(fileToShare.title.trim().replace(/\s+/g, '-'));
+    
+    // 2. 生成 Hash 格式链接
+    const shareUrl = `${window.location.origin}${window.location.pathname}#/${safeTitle}`;
 
-        await set(newShareRef, {
+    try {
+        // --- 核心：以标题作为固定路径 Key 存储 ---
+        const publicRef = ref(db, `public_files/${safeTitle}`);
+        
+        // Safari 兼容性：先执行复制
+        try {
+            await navigator.clipboard.writeText(shareUrl);
+        } catch (err) {
+            prompt(currentLang === 'zh' ? "请手动复制链接：" : "Copy link:", shareUrl);
+        }
+
+        // 3. 写入云端
+        await set(publicRef, {
             title: fileToShare.title,
             content: fileToShare.content,
             clozePositions: fileToShare.clozePositions || [],
@@ -930,9 +944,7 @@ window.shareFile = async (fileId) => {
             timestamp: Date.now()
         });
 
-        const shareUrl = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
-        await navigator.clipboard.writeText(shareUrl);
-        alert(currentLang === 'zh' ? "分享链接已复制！" : "Share link copied!");
+        alert(currentLang === 'zh' ? "分享成功！已生成永久路径链接。" : "Share success! Permanent path link generated.");
     } catch (e) {
         alert("Share failed: " + e.message);
     }
@@ -940,11 +952,22 @@ window.shareFile = async (fileId) => {
 
 // --- 功能 B: 检测 URL 参数并免登录加载 ---
 window.checkAndLoadSharedFile = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const shareId = urlParams.get('share');
+    let shareId = null;
+
+    // 1. 优先尝试 Hash 模式 (#/aqa)
+    const currentHash = window.location.hash; // 获取类似 "#/aqa"
+    if (currentHash && currentHash.startsWith('#/')) {
+        shareId = currentHash.replace('#/', '');
+    }
+
+    // 2. 兜底尝试 Query 参数 (?share=ID)
+    if (!shareId) {
+        const urlParams = new URLSearchParams(window.location.search);
+        shareId = urlParams.get('share');
+    }
 
     if (shareId) {
-        console.log("📡 检测到分享ID，正在尝试获取内容...");
+        console.log("📡 正在检测路径资源:", shareId);
         const shareRef = ref(db, `public_files/${shareId}`);
         
         try {
@@ -952,41 +975,31 @@ window.checkAndLoadSharedFile = async () => {
             if (snap.exists()) {
                 const data = snap.val();
                 
-                // 确保语言环境存在
-                const msg = (typeof currentLang !== 'undefined' && currentLang === 'zh') 
-                    ? `发现分享文件: "${data.title}"，是否导入？` 
-                    : `Import shared file: "${data.title}"?`;
-
-                if (confirm(msg)) {
+                if (confirm(currentLang === 'zh' ? `发现分享资源: "${data.title}"，是否导入？` : `Import "${data.title}"?`)) {
                     const newFile = {
                         id: Date.now(),
-                        title: data.title + " (Shared)",
+                        title: data.title,
                         content: data.content,
                         clozePositions: data.clozePositions || []
                     };
-
-                    // --- 关键：使用 window 访问全局变量 ---
-                    const targetFiles = window.files || files;
-                    if (targetFiles) {
-                        targetFiles.push(newFile);
+                    
+                    // 导入到全局
+                    if (window.files) {
+                        window.files.push(newFile);
                         window.activeFileId = newFile.id;
-                        
-                        // 显式调用全局函数
-                        if (typeof window.save === 'function') window.save();
-                        if (typeof window.renderTabs === 'function') window.renderTabs();
-                        if (typeof window.loadActiveFile === 'function') window.loadActiveFile();
-                        
-                        alert(typeof currentLang !== 'undefined' && currentLang === 'zh' ? "导入成功！" : "Import successful!");
                     }
+                    
+                    if (typeof save === 'function') save();
+                    if (typeof renderTabs === 'function') renderTabs();
+                    if (typeof loadActiveFile === 'function') loadActiveFile();
 
-                    // 清除 URL 参数，防止重复触发
+                    // 清理 URL：去掉 Hash 和 Query，回归主页
                     window.history.replaceState({}, document.title, window.location.pathname);
+                    alert(currentLang === 'zh' ? "导入成功！" : "Import successful!");
                 }
-            } else {
-                console.warn("⚠️ 该分享链接已失效");
             }
         } catch (e) {
-            console.error("❌ 加载分享失败:", e.message);
+            console.error("加载失败:", e);
         }
     }
 };
