@@ -1077,6 +1077,7 @@ function startRealtimeSync(uid) {
     });
 }
 
+	
 // ------------------ 应用云端数据到本地 ------------------
 function applyData(data) {
     if (!Array.isArray(data)) {
@@ -1185,12 +1186,12 @@ window.likeApp = async () => {
         console.error("Like failed:", e);
     }
 };
+ 
 
   window.openLoginModal = () => document.getElementById("loginModal").style.display = "flex";
   window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
-  incrementVisit();
-  window.loadStats();
+  if (typeof window.loadStats === 'function') window.loadStats();
   window.checkAndLoadSharedFile();
 </script>
 </body>
