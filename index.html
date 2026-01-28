@@ -569,16 +569,40 @@ const clozeContent = document.getElementById("clozeContent");
 
 // ---------------- 初始化 ----------------
 function init() { 
-    // 读取 URL 参数
     const urlParams = new URLSearchParams(window.location.search);
+    const publicIdFromUrl = urlParams.get('public');
     const fileIdFromUrl = urlParams.get('file');
-    if (fileIdFromUrl) {
+
+    if (publicIdFromUrl) {
+        // 读取 Firebase public_files
+        get(ref(db, `public_files/${publicIdFromUrl}`)).then(snapshot => {
+            if (snapshot.exists()) {
+                const file = snapshot.val();
+                window.files = [file];       // 只显示这个文件
+                activeFileId = file.id;
+                renderTabs();
+                loadActiveFile();
+            } else {
+                alert("❌ 文件不存在或已被删除");
+                // fallback 显示本地第一个文件
+                activeFileId = files[0]?.id || null;
+                renderTabs();
+                loadActiveFile();
+            }
+        }).catch(err => {
+            console.error(err);
+            alert("❌ 公共文件读取失败");
+        });
+    } else if (fileIdFromUrl) {
         const fileExists = files.find(f => f.id == fileIdFromUrl);
         if(fileExists) activeFileId = Number(fileIdFromUrl);
+        renderTabs(); 
+        loadActiveFile();
+    } else {
+        renderTabs(); 
+        loadActiveFile();
     }
 
-    renderTabs(); 
-    loadActiveFile();
     applyLanguage(); // 页面加载时应用语言
 }
 
@@ -595,7 +619,7 @@ async function handlePaste() {
   } catch { console.log("Paste failed"); }
 }
 
-// ---------------- 文件标签 ----------------
+// ---------------- 文件标签 + 分享功能 ----------------
 function renderTabs() {
   const tabs = document.getElementById('fileTabs'); 
   tabs.innerHTML = '';
@@ -606,7 +630,7 @@ function renderTabs() {
 
     // 双击重命名
     div.ondblclick = () => { 
-      const n = prompt("重命名文件:", f.title); 
+      const n = prompt(translations[currentLang].renamePrompt, f.title); 
       if(n){f.title = n; save(); renderTabs();}
     };
 
@@ -633,12 +657,24 @@ function renderTabs() {
     shareBtn.style.fontWeight = 'bold';
     shareBtn.title = "分享文件";
     shareBtn.innerText = '🔗';
-    shareBtn.onclick = (e) => {
+    shareBtn.onclick = async (e) => {
         e.stopPropagation();
-        const link = `${window.location.origin}${window.location.pathname}?file=${f.id}`;
-        navigator.clipboard.writeText(link).then(() => {
-            alert(`✅ 链接已复制:\n${link}`);
-        });
+        try {
+            // 生成唯一 ID
+            const publicId = `${Date.now()}_${Math.floor(Math.random()*10000)}`;
+
+            // 写入 Firebase public_files
+            await set(ref(db, `public_files/${publicId}`), f);
+
+            // 生成公开链接
+            const link = `${window.location.origin}${window.location.pathname}?public=${publicId}`;
+
+            await navigator.clipboard.writeText(link);
+            alert(`✅ 公共链接已生成并复制:\n${link}`);
+        } catch (err) {
+            console.error(err);
+            alert("❌ 分享失败，请重试");
+        }
     };
 
     div.appendChild(titleSpan);
