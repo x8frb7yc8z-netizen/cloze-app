@@ -250,7 +250,6 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;" data-i18n="gotIt">知道了</button>
   </div>
 </div>
-
   
 <script>
 
@@ -570,41 +569,9 @@ const clozeContent = document.getElementById("clozeContent");
 
 // ---------------- 初始化 ----------------
 function init() { 
-    const urlParams = new URLSearchParams(window.location.search);
-    const publicIdFromUrl = urlParams.get('public');
-    const fileIdFromUrl = urlParams.get('file');
-
-    if (publicIdFromUrl) {
-        // 读取 Firebase public_files
-        get(ref(db, `public_files/${publicIdFromUrl}`)).then(snapshot => {
-            if (snapshot.exists()) {
-                const file = snapshot.val();
-                window.files = [file];       // 只显示这个文件
-                activeFileId = file.id;
-            } else {
-                alert("❌ 文件不存在或已被删除");
-                activeFileId = files[0]?.id || null;
-            }
-            renderTabs();
-            loadActiveFile();
-        }).catch(err => {
-            console.error(err);
-            alert("❌ 公共文件读取失败");
-            activeFileId = files[0]?.id || null;
-            renderTabs();
-            loadActiveFile();
-        });
-    } else if (fileIdFromUrl) {
-        const fileExists = files.find(f => f.id == fileIdFromUrl);
-        if(fileExists) activeFileId = Number(fileIdFromUrl);
-        renderTabs(); 
-        loadActiveFile();
-    } else {
-        renderTabs(); 
-        loadActiveFile();
-    }
-
-    applyLanguage(); // 页面加载时应用语言
+    renderTabs(); 
+    loadActiveFile();
+    applyLanguage(); // 新增：页面加载时应用语言
 }
 
 // ---------------- 粘贴 ----------------
@@ -620,77 +587,25 @@ async function handlePaste() {
   } catch { console.log("Paste failed"); }
 }
 
-// ---------------- 文件标签 + 分享功能 ----------------
+// ---------------- 文件标签 ----------------
 function renderTabs() {
-  const tabs = document.getElementById('fileTabs'); 
-  tabs.innerHTML = '';
-
-  files.forEach(f => {
-    const div = document.createElement('div'); 
-    div.className = `file-tab ${f.id===activeFileId?'active':''}`;
-
-    // 双击重命名
-    div.ondblclick = () => { 
-      const n = prompt(translations[currentLang].renamePrompt, f.title); 
-      if(n){f.title = n; save(); renderTabs();}
+  const tabs = document.getElementById('fileTabs'); tabs.innerHTML='';
+  files.forEach(f=>{
+    const div=document.createElement('div'); 
+    div.className=`file-tab ${f.id===activeFileId?'active':''}`;
+    div.ondblclick=()=>{ 
+      const n=prompt("重命名文件:", f.title); 
+      if(n){f.title=n; save(); renderTabs();}
     };
-
-    // 文件名点击切换
-    const titleSpan = document.createElement('span');
-    titleSpan.innerText = f.title;
-    titleSpan.style.cursor = "pointer";
-    titleSpan.onclick = () => switchFile(f.id);
-
-    // 删除按钮
-    const delSpan = document.createElement('span');
-    delSpan.style.color = 'var(--danger)';
-    delSpan.style.marginLeft = '8px';
-    delSpan.style.fontWeight = 'bold';
-    delSpan.style.fontSize = '16px';
-    delSpan.innerText = '×';
-    delSpan.onclick = (e) => deleteFile(f.id, e);
-
-    // 分享按钮
-    const shareBtn = document.createElement('span');
-    shareBtn.style.color = '#42a5f5';
-    shareBtn.style.marginLeft = '6px';
-    shareBtn.style.cursor = 'pointer';
-    shareBtn.style.fontWeight = 'bold';
-    shareBtn.title = "分享文件";
-    shareBtn.innerText = '🔗';
-    shareBtn.onclick = async (e) => {
-        e.stopPropagation();
-        try {
-            // 生成唯一 ID
-            const publicId = `${Date.now()}_${Math.floor(Math.random()*10000)}`;
-
-            // 写入 Firebase public_files
-            await set(ref(db, `public_files/${publicId}`), f);
-
-            // 生成公开链接
-            const link = `${window.location.origin}${window.location.pathname}?public=${publicId}`;
-
-            await navigator.clipboard.writeText(link);
-            alert(`✅ 公共链接已生成并复制:\n${link}`);
-        } catch (err) {
-            console.error(err);
-            alert("❌ 分享失败，请重试");
-        }
-    };
-
-    div.appendChild(titleSpan);
-    div.appendChild(delSpan);
-    div.appendChild(shareBtn);
+    div.innerHTML=`<span onclick="switchFile(${f.id})">${f.title}</span>
+      <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>`;
     tabs.appendChild(div);
   });
-
-  // “新增文件”按钮
-  const btn = document.createElement('button'); 
-  btn.className = "add-file-btn"; 
-  btn.innerHTML = '＋'; 
-  btn.onclick = addNewFile;
+  const btn=document.createElement('button'); 
+  btn.className="add-file-btn"; btn.innerHTML='＋'; btn.onclick=addNewFile;
   tabs.appendChild(btn);
 }
+
 // ---------------- 保存 / 加载 ----------------
 function save() {
     // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
@@ -982,16 +897,6 @@ init();
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
-  // --- 关键修改 1：把内部工具“递”出去 ---
-window.db = db;
-window.auth = auth;
-// 因为 ref, get, set 等是导入的函数，也需要挂载
-import { ref, get, set, runTransaction, onValue } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
-window.ref = ref;
-window.get = get;
-window.set = set;
-window.runTransaction = runTransaction;
-window.onValue = onValue;
   const auth = getAuth(app);
   const googleProvider = new GoogleAuthProvider(); // 初始化 Google 提供者
   let currentUser = null;
@@ -1221,11 +1126,6 @@ window.likeApp = async () => {
 
   incrementVisit();
   window.loadStats();
-	
-// 在 <script type="module"> 的最后一行
-if (typeof window.init === 'function') {
-    window.init(); 
-}
 </script>
 </body>
 </html>
