@@ -177,24 +177,23 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
   </div>
 
 <div class="input-wrapper">
-    <textarea id="inputText" data-i18n="placeholder"></textarea>
-    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
-<div id="clozeDisplay" class="cloze-display">
-    <button onclick="exitExercise()" data-i18n="back" class="top-back-btn">← 返回</button>
-    
-    <input type="text" id="hiddenInput">
-    <div id="clozeContent"></div>
-    <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
+    <textarea id="inputText" data-i18n="placeholder"></textarea>
+    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
 
-    <button id="submitBtn" data-i18n="submit" onclick="calculateScore()" 
-            style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">
-        提交并评分
-    </button>
+    <div id="clozeDisplay" class="cloze-display">
+        <button onclick="exitExercise()" data-i18n="back" class="top-back-btn">← 返回</button>
+        
+        <input type="text" id="hiddenInput">
+        <div id="clozeContent"></div>
+        <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
 
-    <button onclick="exitExercise()" data-i18n="back" class="bottom-back-btn">← 返回 (Back)</button>
-</div>
-    </div>
-  </div>
+        <button id="submitBtn" data-i18n="submit" onclick="calculateScore()" 
+                style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">
+            提交并评分
+        </button>
+
+        <button onclick="exitExercise()" data-i18n="back" class="bottom-back-btn">← 返回 (Back)</button>
+    </div> </div> ```
 
 
   <div class="action-bar" id="bottomAction">
