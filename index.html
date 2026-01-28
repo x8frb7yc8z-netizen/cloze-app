@@ -12,34 +12,38 @@
 <meta property="og:description" content="一个好用的文本挖空练习工具，助你高效背诵单词和课文。">
 
 <style>
-/* 顶部返回按钮：增加下方间距 */
-.top-back-btn {
-    background: #eee; 
-    border: 1px solid #ccc; 
-    padding: 8px 15px; 
-    border-radius: 6px; 
-    margin-bottom: 30px !important; /* 💡 增加到 30px，拉开正文距离 */
+/* 1. 顶部返回按钮：控制与下方正文的距离 */
+#clozeDisplay .top-back-btn {
+    display: inline-block !important;
+    background: #eee !important;
+    border: 1px solid #ccc !important;
+    padding: 6px 12px !important;
+    border-radius: 6px !important;
+    /* 调整这个数值：20px 是比较紧凑的距离，10px 更近 */
+    margin-bottom: 15px !important; 
+    font-size: 14px !important;
     cursor: pointer;
 }
 
-/* 底部返回按钮：增加上方间距，使其在文章末尾醒目 */
-.bottom-back-btn {
-    display: block;
-    width: 100%;       /* 移动端全宽更方便点击 */
-    background: #f5f5f5; 
-    color: #666;
-    border: 1px solid #ddd; 
-    padding: 12px; 
-    border-radius: 8px; 
-    margin-top: 40px !important; /* 💡 距离正文底部 40px */
-    margin-bottom: 20px;
-    font-weight: bold;
+/* 2. 底部返回按钮：控制与上方评分按钮的距离 */
+#clozeDisplay .bottom-back-btn {
+    display: block !important;
+    width: 100% !important;
+    background: #f9f9f9 !important;
+    color: #666 !important;
+    border: 1px solid #ddd !important;
+    padding: 12px !important;
+    border-radius: 8px !important;
+    /* 调整这个数值：让它靠近评分按钮 */
+    margin-top: 15px !important; 
+    margin-bottom: 30px !important;
+    font-weight: bold !important;
     cursor: pointer;
 }
 
-/* 调整评分按钮，使其在底部返回按钮之后 */
+/* 3. 评分按钮：微调 */
 #submitBtn {
-    margin-top: 10px !important;
+    margin-top: 15px !important;
 }
 	
 /* 跟打模式专属样式 */
