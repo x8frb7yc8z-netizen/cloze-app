@@ -944,32 +944,52 @@ window.checkAndLoadSharedFile = async () => {
     const shareId = urlParams.get('share');
 
     if (shareId) {
+        console.log("📡 检测到分享ID，正在尝试获取内容...");
         const shareRef = ref(db, `public_files/${shareId}`);
+        
         try {
             const snap = await get(shareRef);
             if (snap.exists()) {
                 const data = snap.val();
-                if (confirm(currentLang === 'zh' ? `发现分享文件: "${data.title}"，是否导入？` : `Import "${data.title}"?`)) {
+                
+                // 确保语言环境存在
+                const msg = (typeof currentLang !== 'undefined' && currentLang === 'zh') 
+                    ? `发现分享文件: "${data.title}"，是否导入？` 
+                    : `Import shared file: "${data.title}"?`;
+
+                if (confirm(msg)) {
                     const newFile = {
                         id: Date.now(),
                         title: data.title + " (Shared)",
                         content: data.content,
                         clozePositions: data.clozePositions || []
                     };
-                    files.push(newFile);
-                    activeFileId = newFile.id;
-                    save(); // 保存到本地 localStorage
-                    renderTabs();
-                    loadActiveFile();
-                    // 清除 URL 参数
+
+                    // --- 关键：使用 window 访问全局变量 ---
+                    const targetFiles = window.files || files;
+                    if (targetFiles) {
+                        targetFiles.push(newFile);
+                        window.activeFileId = newFile.id;
+                        
+                        // 显式调用全局函数
+                        if (typeof window.save === 'function') window.save();
+                        if (typeof window.renderTabs === 'function') window.renderTabs();
+                        if (typeof window.loadActiveFile === 'function') window.loadActiveFile();
+                        
+                        alert(typeof currentLang !== 'undefined' && currentLang === 'zh' ? "导入成功！" : "Import successful!");
+                    }
+
+                    // 清除 URL 参数，防止重复触发
                     window.history.replaceState({}, document.title, window.location.pathname);
                 }
+            } else {
+                console.warn("⚠️ 该分享链接已失效");
             }
         } catch (e) {
-            console.error("加载分享失败:", e);
+            console.error("❌ 加载分享失败:", e.message);
         }
     }
-};	
+};
   // 新增：处理 Google 登录的完整函数
 window.handleGoogleAuth = async () => {
     try {
