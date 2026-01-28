@@ -567,11 +567,49 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
-// ---------------- 初始化 ----------------
+// ---------------- 初始化 (支持 Anki 自动传文) ----------------
 function init() { 
-    renderTabs(); 
-    loadActiveFile();
-    applyLanguage(); // 新增：页面加载时应用语言
+    const urlParams = new URLSearchParams(window.location.search);
+    const publicIdFromUrl = urlParams.get('public');
+    const textFromAnki = urlParams.get('text'); // <-- 关键：获取 Anki 传来的文本
+
+    // 1. 最高优先级：如果有 Anki 直接传来的文本
+    if (textFromAnki) {
+        const decodedText = decodeURIComponent(textFromAnki);
+        inputArea.value = decodedText;
+        
+        // 自动同步到当前活跃文件，这样练习时数据是连通的
+        saveActiveFile(decodedText); 
+        
+        renderTabs();
+        loadActiveFile(); // 重新加载以确保 UI 同步
+        applyLanguage();
+        
+        // 可选：如果你想让 Anki 翻开背面就直接进入练习，可以取消下面这行的注释
+        // handleGenerate(); 
+        return; 
+    }
+
+    // 2. 次高优先级：原有的 Firebase 公共分享链接逻辑
+    if (publicIdFromUrl) {
+        // ... 你原来的 Firebase 读取逻辑 ...
+        // (保持你代码中 get(ref(db...)) 那一部分即可)
+        get(ref(db, `public_files/${publicIdFromUrl}`)).then(snapshot => {
+            if (snapshot.exists()) {
+                const file = snapshot.val();
+                window.files = [file];
+                activeFileId = file.id;
+            }
+            renderTabs();
+            loadActiveFile();
+            applyLanguage();
+        });
+    } else {
+        // 3. 正常打开：读取本地存储
+        renderTabs(); 
+        loadActiveFile();
+        applyLanguage();
+    }
 }
 
 // ---------------- 粘贴 ----------------
