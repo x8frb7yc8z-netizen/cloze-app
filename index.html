@@ -82,13 +82,37 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 
 /* 中间文本区 */
 .input-wrapper { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; }
-textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; font-size:18px; line-height:1.6; resize:none; background:#fff; }
+textarea { 
+    flex: 1; 
+    width: 100%; 
+    padding: 15px 10px; 
+    border: none; 
+    outline: none; 
+    font-size: 18px; 
+    line-height: 1.6; 
+    resize: none; 
+    background: #fff; 
+    margin: 0 !important; /* 强制 margin 为 0 */
+}
 
 .paste-fab { position:absolute; right:20px; bottom:25px; background:var(--primary); color:white; border:none; padding:12px 22px; border-radius:30px; font-size:14px; font-weight:bold; box-shadow:0 4px 12px rgba(0,0,0,0.2); z-index:100; transition:all 0.2s; cursor:pointer;}
 .paste-fab:active { transform:scale(0.9); opacity:0.8; }
 
 .cloze-display { 
-  position:absolute; top:0; left:0; right:0; bottom:0; padding:15px 10px; white-space:pre-wrap; display:none; line-height:1.8; word-break:break-word; background:#fff; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:60vh !important;
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    right: 0; 
+    bottom: 0; 
+    padding: 10px 10px 60vh 10px !important; /* 修改这里：上、左、右设为 10px，下设为 60vh */
+    white-space: pre-wrap; 
+    display: none; 
+    line-height: 1.8; 
+    word-break: break-word; 
+    background: #fff; 
+    height: 100%; 
+    overflow-y: auto; 
+    -webkit-overflow-scrolling: touch; 
 }
 .cloze-display.active { display:block; }
 .cloze-display input { min-width:3.6ch; padding:0 0.2ch; line-height:1.4; border:none; border-bottom:1.5px solid #666; background:#fffde7; text-align:center; color:#000; font-size:inherit; margin:0 2px; border-radius:0; }
