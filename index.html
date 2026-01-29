@@ -36,7 +36,7 @@
     color: #333; 
     border-bottom: 3px solid var(--primary); 
     background: #e8f5e9; 
-} /* 当前光标 */
+} /* 当前光标 *
 /* 让 placeholder 的下划线对齐更整齐 */
 input::placeholder {
     color: #bbb;
@@ -552,25 +552,14 @@ function getSmartHint(word) {
     }
 }
 
-window.files = [];
-// 登录用户才允许加载本地文件
-function loadLocalFilesIfLoggedIn() {
+window.files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{
+  id: Date.now(),
+  title: 'File 1',
+  content: DEFAULT_TEXT,
+  clozePositions: []
+}];
 
-    if (!window.currentUser) {
-        console.log("👤 游客模式：不加载任何文件");
-        return;
-    }
-
-    const saved = localStorage.getItem("cloze_files_v5");
-
-    if (saved) {
-        window.files = JSON.parse(saved);
-        activeFileId = files[0]?.id || null;
-    }
-
-    console.log("✅ 登录用户文件加载完成:", files);
-}
-let activeFileId = null;
+let activeFileId = Number(localStorage.getItem('cloze_last_active_id')) || (files[0] ? files[0].id : null);
 let currentFontSize = 18;
 let answers = [];
 
@@ -579,33 +568,10 @@ const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
 // ---------------- 初始化 ----------------
-function init() {
-
-    // 未登录：游客模式
-    if (!window.currentUser) {
-
-        console.log("👤 游客模式启动");
-
-        // 清空文件系统
-        window.files = [];
-        activeFileId = null;
-
-        // 清空输入框（关闭网页即消失）
-        inputArea.value = "";
-
-        // 隐藏顶部文件栏
-        document.getElementById("fileTabs").classList.add("hidden");
-
-        return;
-    }
-
-    // 登录用户模式
-    console.log("✅ 登录用户模式启动");
-
-    document.getElementById("fileTabs").classList.remove("hidden");
-
-    renderTabs();
+function init() { 
+    renderTabs(); 
     loadActiveFile();
+    applyLanguage(); // 新增：页面加载时应用语言
 }
 
 // ---------------- 粘贴 ----------------
@@ -623,127 +589,73 @@ async function handlePaste() {
 
 // ---------------- 文件标签 ----------------
 function renderTabs() {
-
-    const tabs = document.getElementById("fileTabs");
-    tabs.innerHTML = "";
-
-    // 游客模式：不显示文件系统
-    if (!window.currentUser) {
-        tabs.classList.add("hidden");
-        return;
-    }
-
-    tabs.classList.remove("hidden");
-
-    // 登录用户文件标签
-    files.forEach(f => {
-
-        const div = document.createElement("div");
-        div.className = `file-tab ${f.id === activeFileId ? "active" : ""}`;
-
-        div.onclick = () => switchFile(f.id);
-
-        div.innerHTML = `
-            <span>${f.title}</span>
-            <span style="color:var(--danger);margin-left:10px;font-weight:bold;"
-                onclick="deleteFile(${f.id}, event)">×</span>
-        `;
-
-        tabs.appendChild(div);
-    });
-
-    // ✅“＋”按钮只在登录后出现
-    const btn = document.createElement("button");
-    btn.className = "add-file-btn";
-    btn.innerHTML = "＋";
-    btn.onclick = saveAsNewCloudFile;
-
-    tabs.appendChild(btn);
+  const tabs = document.getElementById('fileTabs'); tabs.innerHTML='';
+  files.forEach(f=>{
+    const div=document.createElement('div'); 
+    div.className=`file-tab ${f.id===activeFileId?'active':''}`;
+    div.ondblclick=()=>{ 
+      const n=prompt("重命名文件:", f.title); 
+      if(n){f.title=n; save(); renderTabs();}
+    };
+    div.innerHTML=`<span onclick="switchFile(${f.id})">${f.title}</span>
+      <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>`;
+    tabs.appendChild(div);
+  });
+  const btn=document.createElement('button'); 
+  btn.className="add-file-btn"; btn.innerHTML='＋'; btn.onclick=addNewFile;
+  tabs.appendChild(btn);
 }
 
-
-// ✅保存逻辑：游客不保存
+// ---------------- 保存 / 加载 ----------------
 function save() {
-
-    // 游客模式：不允许保存
-    if (!window.currentUser) {
-        console.log("🚫 游客模式：不保存任何数据");
-        return;
-    }
-
-    // 登录模式：写入本地 + 云同步
-    localStorage.setItem("cloze_files_v5", JSON.stringify(files));
-
+    // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
+    localStorage.setItem('cloze_files_v5', JSON.stringify(files));
+    
+    // 2. 触发云端同步 (如果用户已登录，此函数会在 Firebase 模块中被定义)
     if (window.syncToCloud) {
         window.syncToCloud(files);
     }
 }
 
-
-function saveActiveFile() {
-
-    // 游客模式：输入内容不存储
-    if (!window.currentUser) return;
-
+function saveActiveFile(val) {
     const f = files.find(x => x.id === activeFileId);
     if (f) {
-        f.content = inputArea.value;
-        save();
+        // 如果 val 有传值（比如清空操作），则使用 val；否则读取输入框的内容
+        f.content = (val !== undefined) ? val : inputArea.value;
+        save(); // 这里会同时触发本地保存和云端同步
     }
 }
-// =======================
-// ✅“＋”按钮：保存为新文件
-// =======================
-
-async function saveAsNewCloudFile() {
-
-    if (!window.currentUser) return;
-
-    const content = inputArea.value.trim();
-    if (!content) {
-        alert("内容为空，无法保存");
-        return;
-    }
-
-    // 用户填写文件名
-    const title = prompt("请输入文件名：");
-    if (!title) return;
-
-    // 创建新文件对象
-    const newFile = {
-        id: Date.now(),
-        title: title,
-        content: content,
-        clozePositions: []
-    };
-
-    // 推入文件系统
-    files.push(newFile);
-    activeFileId = newFile.id;
-
-    // 保存到云端
-    save();
-
-    // 更新 UI
-    renderTabs();
-    loadActiveFile();
-
-    alert("✅已保存到云端！");
+function loadActiveFile(){ 
+  const f=files.find(x=>x.id===activeFileId); 
+  if(!f) return;
+  inputArea.value=f.content || ""; 
+  answers = [];
 }
 
-// =======================
-// ✅加载当前文件（登录用户）
-// =======================
-
-function loadActiveFile() {
-
-    if (!window.currentUser) return;
-
-    const f = files.find(x => x.id === activeFileId);
-    if (!f) return;
-
-    inputArea.value = f.content || "";
-    answers = [];
+// ---------------- 文件操作 ----------------
+function addNewFile() { 
+    const id = Date.now(); 
+    files.push({id, title: 'File ' + (files.length + 1), content: '', clozePositions: []}); 
+    activeFileId = id; 
+    localStorage.setItem('cloze_last_active_id', id); // 记录新文件ID
+    save(); 
+    renderTabs(); 
+    loadActiveFile(); 
+    const tabs = document.getElementById('fileTabs'); 
+    tabs.scrollLeft = tabs.scrollWidth; 
+}
+function switchFile(id) { 
+    activeFileId = id; 
+    localStorage.setItem('cloze_last_active_id', id); // 记录当前打开的文件ID
+    renderTabs(); 
+    loadActiveFile(); 
+}
+function deleteFile(id,e){ 
+  e.stopPropagation(); 
+  if(files.length<=1||!confirm(translations[currentLang].deleteConfirm)) return; 
+  files=files.filter(x=>x.id!==id); 
+  if(activeFileId===id) activeFileId=files[0].id; 
+  save(); renderTabs(); loadActiveFile(); 
 }
 
 // ---------------- 字体 ----------------
@@ -755,25 +667,12 @@ function changeFontSize(d){
 }
 
 // ---------------- 清空 ----------------
-function handleClear() {
-
-    if (!confirm(translations[currentLang].confirmClear)) return;
-
-    inputArea.value = "";
-
-    // 游客模式：清空即结束，不保存
-    if (!window.currentUser) {
-        console.log("👤 游客清空：不写入任何数据");
-        return;
-    }
-
-    // 登录用户：只有保存过文件才同步
-    const f = files.find(x => x.id === activeFileId);
-    if (f) {
-        f.content = "";
-        f.clozePositions = [];
-        save();
-    }
+function handleClear(){ 
+  if(!confirm(translations[currentLang].confirmClear)) return; 
+  inputArea.value=""; 
+  const f = files.find(x=>x.id===activeFileId); 
+  if(f) f.clozePositions = [];
+  saveActiveFile(""); 
 }
 
 // ---------------- 每 N 个词挖空 ----------------
@@ -851,7 +750,7 @@ function enableCustomCloze() {
   const segments = text.split(regex);
   
   const f = files.find(x => x.id === activeFileId);
-  if (!f) return;
+  if (!f.clozePositions) f.clozePositions = [];
 
   answers = [];
   let unitCount = 0; 
@@ -963,17 +862,8 @@ function bindCustomEvents(f) {
   });
 }
 
-// ✅输入变化：不再自动同步
-inputArea.oninput = () => {
-
-    // 游客模式：不保存
-    if (!window.currentUser) return;
-
-    // 登录模式：只有 activeFile 存在才同步
-    if (!activeFileId) return;
-
-    saveActiveFile();
-};
+// ---------------- 输入区变化也要更新保存 ----------------
+inputArea.oninput=()=>saveActiveFile();
 
 
 
@@ -985,12 +875,14 @@ function openGuide() {
 function closeGuide() {
   document.getElementById("guideModal").style.display = "none";
 }
+// ---------------- 初始化 ----------------
+init();
 </script>
 
 <script type="module">
   // 1. 导入部分：注意增加了 onValue
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-  import { getDatabase, ref, get, set, runTransaction, onValue , push} from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+  import { getDatabase, ref, get, set, runTransaction, onValue } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
   import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
 
   const firebaseConfig = {
@@ -1013,124 +905,22 @@ function closeGuide() {
     prompt: 'select_account'
   });
 
-// --- 功能 A: 生成分享链接 ---
-window.shareFile = async (fileId) => {
-
-    if (!currentUser) {
-        alert(currentLang === 'zh'
-            ? "请先登录再分享文件"
-            : "Please login to share files");
-        return;
-    }
-
-    const fileToShare = files.find(f => f.id === fileId);
-    if (!fileToShare) return;
-
+  // 新增：处理 Google 登录的完整函数
+window.handleGoogleAuth = async () => {
     try {
-        const publicRef = ref(db, 'public_files');
-        const newShareRef = push(publicRef);
-        const shareId = newShareRef.key;
-
-        await set(newShareRef, {
-            title: fileToShare.title,
-            content: fileToShare.content,
-            clozePositions: fileToShare.clozePositions || [],
-            author: currentUser.email,
-            timestamp: Date.now()
-        });
-
-        const shareUrl =
-            `${window.location.origin}${window.location.pathname}?share=${shareId}`;
-
-        await navigator.clipboard.writeText(shareUrl);
-
-        alert(currentLang === 'zh'
-            ? "分享链接已复制！"
-            : "Share link copied!");
-
-    } catch (e) {
-        alert("Share failed: " + e.message);
-    }
-};
-
-// ✅检测分享链接（游客只预览，登录可导入）
-window.checkAndLoadSharedFile = async () => {
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const shareId = urlParams.get("share");
-
-    if (!shareId) return;
-
-    console.log("📡 检测到分享文件:", shareId);
-
-    const shareRef = ref(db, `public_files/${shareId}`);
-
-    try {
-        const snap = await get(shareRef);
-
-        if (!snap.exists()) {
-            alert("⚠️ 分享链接已失效");
-            return;
+        // 这次它会强制弹窗让你选账号
+        const result = await signInWithPopup(auth, googleProvider);
+        const user = result.user;
+        console.log("Google 登录成功:", user.displayName);
+        window.closeLoginModal();
+    } catch (error) {
+        console.error("Google 登录失败:", error.message);
+        // 如果用户直接关闭了弹窗，这里会捕获到错误
+        if (error.code !== 'auth/popup-closed-by-user') {
+            alert("Google 登录失败: " + error.message);
         }
-
-        const data = snap.val();
-
-        // ==========================
-        // 👤 游客模式：只读预览
-        // ==========================
-
-        if (!currentUser) {
-
-            alert(currentLang === 'zh'
-                ? `游客模式：正在预览分享文件 "${data.title}"`
-                : `Guest preview: "${data.title}"`);
-
-            // 只展示内容，不导入，不保存
-            inputArea.value = data.content;
-
-            // 不显示文件栏
-            document.getElementById("fileTabs").classList.add("hidden");
-
-            return;
-        }
-
-        // ==========================
-        // ✅ 登录模式：允许导入
-        // ==========================
-
-        const msg = currentLang === 'zh'
-            ? `发现分享文件 "${data.title}"，是否导入到你的文件？`
-            : `Import shared file "${data.title}" into your account?`;
-
-        if (!confirm(msg)) return;
-
-        const newFile = {
-            id: Date.now(),
-            title: data.title + " (Shared)",
-            content: data.content,
-            clozePositions: data.clozePositions || []
-        };
-
-        files.push(newFile);
-        activeFileId = newFile.id;
-		
-	    init();
-        save();
-        renderTabs();
-        loadActiveFile();
-
-        alert(currentLang === 'zh'
-            ? "✅导入成功！"
-            : "Import successful!");
-
-        // 清除 URL 参数
-        window.history.replaceState({}, document.title, window.location.pathname);
-
-    } catch (e) {
-        console.error("❌加载分享失败:", e.message);
-        alert("Load failed: " + e.message);
     }
-};
+}
   
   // --- 登录/注册逻辑 ---
   window.handleEmailAuth = async (type) => {
@@ -1160,8 +950,6 @@ onAuthStateChanged(auth, (user) => {
 
     if (user) {
         currentUser = user;
-		window.currentUser = user;
-		init();
         // 更新底部按钮文字
         if (btnLabel) {
             btnLabel.innerText = "✅ 已同步";
@@ -1183,7 +971,6 @@ onAuthStateChanged(auth, (user) => {
         startRealtimeSync(user.uid);
     } else {
         currentUser = null;
-		window.currentUser = null;
         // 恢复底部按钮文字
         if (btnLabel) {
             btnLabel.innerText = "👤 登录/同步";
@@ -1225,18 +1012,25 @@ function startRealtimeSync(uid) {
     });
 }
 
-	
 // ------------------ 应用云端数据到本地 ------------------
 function applyData(data) {
+    if (!Array.isArray(data)) {
+        console.warn("❌ 云端数据不是数组，已忽略", data);
+        return;
+    }
 
-    if (!Array.isArray(data)) return;
-
+    // 1. 覆盖内存数据
     window.files = data;
-    localStorage.setItem("cloze_files_v5", JSON.stringify(data));
 
-    // 自动选第一个文件
-    activeFileId = files[0]?.id || null;
+    // 2. 写入 LocalStorage（刷新后也一致）
+    localStorage.setItem('cloze_files_v5', JSON.stringify(data));
 
+    // 3. 如果当前文件已被云端删除，自动切换
+    if (!files.find(f => f.id === activeFileId)) {
+        activeFileId = files[0]?.id;
+    }
+
+    // 4. 统一刷新 UI
     renderTabs();
     loadActiveFile();
 }
@@ -1326,13 +1120,12 @@ window.likeApp = async () => {
         console.error("Like failed:", e);
     }
 };
- 
 
   window.openLoginModal = () => document.getElementById("loginModal").style.display = "flex";
   window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
-  if (typeof window.loadStats === 'function') window.loadStats();
-  window.checkAndLoadSharedFile();
+  incrementVisit();
+  window.loadStats();
 </script>
 </body>
 </html>
