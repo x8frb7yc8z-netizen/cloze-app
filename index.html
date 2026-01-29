@@ -252,8 +252,7 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
 </div>
   
 <script>
-
-	
+let isTempMode = true; // 默认是临时模式，直到 onAuthStateChanged 确认登录
 // ================= i18n 国际化核心整组函数 =================
 const translations = {
     zh: {
@@ -589,50 +588,85 @@ async function handlePaste() {
 
 // ---------------- 文件标签 ----------------
 function renderTabs() {
-  const tabs = document.getElementById('fileTabs'); tabs.innerHTML='';
-  files.forEach(f=>{
-    const div=document.createElement('div'); 
-    div.className=`file-tab ${f.id===activeFileId?'active':''}`;
-    div.ondblclick=()=>{ 
-      const n=prompt("重命名文件:", f.title); 
-      if(n){f.title=n; save(); renderTabs();}
+  const tabs = document.getElementById('fileTabs'); 
+  tabs.innerHTML = '';
+
+  // 只有登录后才显示多标签页逻辑
+  if (currentUser) {
+    files.forEach(f => {
+      const div = document.createElement('div');
+      div.className = `file-tab ${f.id === activeFileId ? 'active' : ''}`;
+      // ... 保持双击重命名和删除逻辑 ...
+      div.innerHTML = `<span onclick="switchFile(${f.id})">${f.title}</span>...`;
+      tabs.appendChild(div);
+    });
+  }
+
+  // 修改 "+" 号按钮为 "保存" 按钮
+  const btn = document.createElement('button');
+  btn.className = "add-file-btn";
+  
+  if (currentUser) {
+    // 已登录：显示保存图标/文字
+    btn.innerHTML = '💾 保存到云端'; 
+    btn.onclick = () => {
+      saveActiveFile(); // 显式保存
+      alert("已保存到云端");
     };
-    div.innerHTML=`
-    <span onclick="switchFile(${f.id})">${f.title}</span>
-    <span style="cursor:pointer;margin-left:8px;opacity:0.5;" onclick="window.shareFile(${f.id})">🔗</span>
-    <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>
-`;
-    tabs.appendChild(div);
-  });
-  const btn=document.createElement('button'); 
-  btn.className="add-file-btn"; btn.innerHTML='＋'; btn.onclick=addNewFile;
+  } else {
+    // 未登录：隐藏或显示提示
+    btn.innerHTML = '临时编辑模式';
+    btn.disabled = true;
+    btn.style.opacity = "0.5";
+  }
   tabs.appendChild(btn);
 }
 
 // ---------------- 保存 / 加载 ----------------
 function save() {
-    // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
-    localStorage.setItem('cloze_files_v5', JSON.stringify(files));
-    
-    // 2. 触发云端同步 (如果用户已登录，此函数会在 Firebase 模块中被定义)
-    if (window.syncToCloud) {
-        window.syncToCloud(files);
+    // 只有登录用户才允许持久化到本地 LocalStorage
+    // 未登录用户的数据仅存在变量 files 中，不写入硬盘，实现“关闭即消失”
+    if (currentUser) {
+        localStorage.setItem('cloze_files_v5', JSON.stringify(files));
     }
 }
 
+// 2. 更新当前文件内容：不再自动触发云同步
 function saveActiveFile(val) {
     const f = files.find(x => x.id === activeFileId);
     if (f) {
-        // 如果 val 有传值（比如清空操作），则使用 val；否则读取输入框的内容
+        // 更新内存中的内容
         f.content = (val !== undefined) ? val : inputArea.value;
-        save(); // 这里会同时触发本地保存和云端同步
+        
+        // 调用上面的 save() 决定是否存入 LocalStorage
+        save(); 
     }
 }
+
+// 3. 手动同步函数：这是你以后绑定到 "+" 按钮上的逻辑
+window.manualCloudSave = async function() {
+    saveActiveFile(); // 确保内存数据是最新的
+    
+    if (!currentUser) {
+        alert(currentLang === 'zh' ? "请先登录以保存到云端" : "Please login to save to cloud");
+        return;
+    }
+
+    if (window.syncToCloud) {
+        await window.syncToCloud(files);
+        alert(currentLang === 'zh' ? "✅ 云端同步成功" : "✅ Cloud sync successful");
+    }
+};
+
+// 4. 加载逻辑
 function loadActiveFile(){ 
-  const f=files.find(x=>x.id===activeFileId); 
-  if(!f) return;
-  inputArea.value=f.content || ""; 
-  answers = [];
+    const f = files.find(x => x.id === activeFileId); 
+    if(!f) {
+        inputArea.value = "";
+        return;
+    }
+    inputArea.value = f.content || ""; 
+    if (typeof answers !== 'undefined') answers = [];
 }
 
 // ---------------- 文件操作 ----------------
@@ -660,6 +694,7 @@ function deleteFile(id,e){
   if(activeFileId===id) activeFileId=files[0].id; 
   save(); renderTabs(); loadActiveFile(); 
 }
+
 
 // ---------------- 字体 ----------------
 function changeFontSize(d){ 
@@ -868,7 +903,15 @@ function bindCustomEvents(f) {
 // ---------------- 输入区变化也要更新保存 ----------------
 inputArea.oninput=()=>saveActiveFile();
 
-
+// 当网页关闭或刷新时触发
+window.addEventListener('unload', () => {
+    if (!currentUser) {
+        // 游客模式：清理所有本地痕迹
+        localStorage.removeItem('cloze_files_v5');
+        localStorage.removeItem('cloze_last_active_id');
+        console.log("🧹 游客数据已清理");
+    }
+});
 
 // ---------------- 弹窗控制 ----------------
 function openGuide() {
@@ -909,92 +952,84 @@ init();
   });
 
 // --- 功能 A: 生成分享链接 ---
-// 在你的 module 脚本中定义
 window.shareFile = async (fileId) => {
-    // 1. 权限检查
-    if (!window.currentUser) {
-        alert("请先登录再分享文件，以便管理您的内容。");
+    if (!currentUser) {
+        alert(currentLang === 'zh' ? "请先登录再分享文件" : "Please login to share files");
         return;
     }
-
-    // 2. 找到当前要分享的文件
-    const file = (window.files || []).find(f => f.id === fileId);
-    if (!file) return;
-
-    // 3. 处理 URL 安全的文件名 (例如 "My File" -> "My-File")
-    const safeTitle = encodeURIComponent(file.title.trim().replace(/\s+/g, '-'));
-    
-    // 生成 Hash 格式的链接：.../#/My-File
-    const shareUrl = `${window.location.origin}${window.location.pathname}#/${safeTitle}`;
+    const fileToShare = files.find(f => f.id === fileId);
+    if (!fileToShare) return;
 
     try {
-        // --- 核心：创建静态快照 ---
-        // 我们存入 public_files/${safeTitle}，这样别人访问时可以直接用名称查找
-        const publicRef = ref(db, `public_files/${safeTitle}`);
-        
-        // A. 先尝试复制（Safari 兼容逻辑）
-        try {
-            await navigator.clipboard.writeText(shareUrl);
-        } catch (err) {
-            prompt("由于浏览器安全限制，请手动复制链接：", shareUrl);
-        }
+        const publicRef = ref(db, 'public_files');
+        const newShareRef = push(publicRef); // 生成唯一 ID
+        const shareId = newShareRef.key;
 
-        // B. 上传快照数据 (Snapshot)
-        await set(publicRef, {
-            title: file.title,
-            content: file.content,
-            clozePositions: file.clozePositions || [],
-            author: window.currentUser.email,
-            timestamp: Date.now() // 记录分享时间
+        await set(newShareRef, {
+            title: fileToShare.title,
+            content: fileToShare.content,
+            clozePositions: fileToShare.clozePositions || [],
+            author: currentUser.email,
+            timestamp: Date.now()
         });
 
-        alert(`分享快照已生成！\n链接已复制：${file.title}`);
+        const shareUrl = `${window.location.origin}${window.location.pathname}?share=${shareId}`;
+        await navigator.clipboard.writeText(shareUrl);
+        alert(currentLang === 'zh' ? "分享链接已复制！" : "Share link copied!");
     } catch (e) {
-        console.error("分享失败:", e);
-        alert("分享失败: " + e.message);
+        alert("Share failed: " + e.message);
     }
 };
 
 // --- 功能 B: 检测 URL 参数并免登录加载 ---
 window.checkAndLoadSharedFile = async () => {
-    const hash = window.location.hash;
-    if (hash && hash.startsWith('#/')) {
-        const shareId = hash.replace('#/', '');
-        console.log("📡 正在获取分享快照:", shareId);
+    const urlParams = new URLSearchParams(window.location.search);
+    const shareId = urlParams.get('share');
 
+    if (shareId) {
+        console.log("📡 检测到分享ID，正在尝试获取内容...");
         const shareRef = ref(db, `public_files/${shareId}`);
+        
         try {
             const snap = await get(shareRef);
             if (snap.exists()) {
                 const data = snap.val();
                 
-                // --- 关键：覆盖 UI 而不存入本地列表 ---
-                window.isSharedView = true; // 标记当前为“分享预览模式”
+                // 确保语言环境存在
+                const msg = (typeof currentLang !== 'undefined' && currentLang === 'zh') 
+                    ? `发现分享文件: "${data.title}"，是否导入？` 
+                    : `Import shared file: "${data.title}"?`;
 
-                // 1. 改变编辑器内容
-                const editor = document.getElementById('editor');
-                if (editor) editor.value = data.content;
+                if (confirm(msg)) {
+                    const newFile = {
+                        id: Date.now(),
+                        title: data.title + " (Shared)",
+                        content: data.content,
+                        clozePositions: data.clozePositions || []
+                    };
 
-                // 2. 改变标题显示
-                const titleEl = document.getElementById('fileTitle');
-                if (titleEl) titleEl.innerText = "[预览] " + data.title;
+                    // --- 关键：使用 window 访问全局变量 ---
+                    const targetFiles = window.files || files;
+                    if (targetFiles) {
+                        targetFiles.push(newFile);
+                        window.activeFileId = newFile.id;
+                        
+                        // 显式调用全局函数
+                        if (typeof window.save === 'function') window.save();
+                        if (typeof window.renderTabs === 'function') window.renderTabs();
+                        if (typeof window.loadActiveFile === 'function') window.loadActiveFile();
+                        
+                        alert(typeof currentLang !== 'undefined' && currentLang === 'zh' ? "导入成功！" : "Import successful!");
+                    }
 
-                // 3. 渲染挖空 (调用你现有的渲染函数)
-                if (typeof renderCloze === 'function') {
-                    // 假设你的挖空位置是存在全局变量里的
-                    window.currentClozePositions = data.clozePositions || [];
-                    renderCloze();
+                    // 清除 URL 参数，防止重复触发
+                    window.history.replaceState({}, document.title, window.location.pathname);
                 }
-
-                // 4. 可选：提示用户
-                console.log("已成功加载分享页面。在此页面的修改不会同步到您的账号。");
-
             } else {
-                alert("该分享链接已失效。");
-                window.location.hash = ""; // 清理无效 Hash
+                console.warn("⚠️ 该分享链接已失效");
             }
         } catch (e) {
-            console.error("读取分享失败:", e);
+            console.error("❌ 加载分享失败:", e.message);
         }
     }
 };
@@ -1129,25 +1164,11 @@ function applyData(data) {
     loadActiveFile();
 }
 
-// ------------------ 修改后的云端同步函数 ------------------
+// ------------------ 修改后的云端同步函数 (完整版) ------------------
 window.syncToCloud = async function (data) {
-    // 1. 核心防御：如果是通过分享链接进入的“预览模式”，绝对禁止上传
-    // 防止你在看别人的 aqa 文件时，把这个文件自动存进你自己的账号列表
-    if (window.isSharedView) {
-        console.log("🚫 当前处于分享预览模式，拦截云端同步，保护私有库。");
-        return;
-    }
-
-    // 2. 检查是否有用户登录
+    // 1. 检查是否有用户登录，没登录则不上传
     if (!currentUser) {
-        // 根据你的新逻辑：未登录不保存本地，这里直接返回
-        console.log("☁️ 用户未登录，不执行云端同步。");
-        return;
-    }
-
-    // 3. 检查数据有效性
-    if (!data || !Array.isArray(data)) {
-        console.warn("⚠️ 同步失败：数据格式不正确");
+        console.log("☁️ 用户未登录，数据仅保存在本地");
         return;
     }
 
@@ -1155,34 +1176,18 @@ window.syncToCloud = async function (data) {
         const userPath = `users/${currentUser.uid}/files`;
         const userRef = ref(db, userPath);
         
-        // 4. 执行上传
+        // 2. 执行上传
         await set(userRef, data);
         
-        // 5. 登录状态下同步成功后，更新该账号的本地缓存
-        localStorage.setItem(`cloze_cache_${currentUser.uid}`, JSON.stringify(data));
-        
-        console.log(`✅ 云端同步成功: ${new Date().toLocaleTimeString()}`);
+        console.log(`✅ 数据已安全同步至路径: ${userPath}`);
     } catch (e) {
         console.error("❌ 同步到云端失败:", e.message);
-        if (e.message.includes("permission_denied")) {
-            console.error("权限拒绝：请检查 Firebase Rules 的 uid 匹配规则。");
+        // 如果是因为权限问题（Rules设置），这里会抓到错误
+        if (e.message.includes("Permission denied")) {
+            alert("同步失败：您没有权限操作此路径。");
         }
     }
 };
-
-let debounceTimer;
-// 监听编辑器输入
-document.getElementById('editor').addEventListener('input', () => {
-    // 自动同步条件：已登录 且 不是在看别人的分享
-    if (window.currentUser && !window.isSharedView) {
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-            console.log("☁️ 自动同步中...");
-            // 调用你那个带 isSharedView 检查的 syncToCloud
-            window.syncToCloud(window.files); 
-        }, 1500); 
-    }
-});
 
 // --- 统计逻辑 ---
 const incrementVisit = async () => {
