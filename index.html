@@ -150,12 +150,11 @@ textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; fon
     <textarea id="inputText" data-i18n="placeholder"></textarea>
     <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
     <div id="clozeDisplay" class="cloze-display">
-      
-      <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
-      
+     
       <input type="text" id="hiddenInput">
       <div id="clozeContent"></div>
     <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
+	  <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
 	  <button id="submitBtn" 
         data-i18n="submit" 
         onclick="calculateScore()" 
