@@ -567,6 +567,9 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
+window.onerror = function(msg, url, line) {
+    alert("Error: " + msg + "\nline: " + line);
+};
 // ---------------- 初始化：针对 Anki 自动触发【跟打模式】 ----------------
 function init() { 
     const urlParams = new URLSearchParams(window.location.search);
@@ -604,7 +607,6 @@ function init() {
     loadActiveFile();
     applyLanguage();
 }
-
 // ---------------- 粘贴 ----------------
 async function handlePaste() {
   if (!navigator.clipboard) return;
@@ -1156,7 +1158,7 @@ window.likeApp = async () => {
   window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
   incrementVisit();
-  window.loadStats();
+  // window.loadStats();
 </script>
 </body>
 </html>
