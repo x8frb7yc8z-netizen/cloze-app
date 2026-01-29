@@ -567,11 +567,42 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
-// ---------------- 初始化 ----------------
+// ---------------- 初始化：针对 Anki 自动触发【跟打模式】 ----------------
 function init() { 
+    const urlParams = new URLSearchParams(window.location.search);
+    const textFromAnki = urlParams.get('text');
+
+    if (textFromAnki) {
+        // 修正：处理 URL 编码中的 + 号为空格
+        const decodedText = decodeURIComponent(textFromAnki.replace(/\+/g, ' '));
+        inputArea.value = decodedText;
+        
+        // 同步标签显示（可选，如果你在 init 中加了自动更新字号标签的逻辑）
+        if (document.getElementById("sizeLabel")) {
+            document.getElementById("sizeLabel").innerText = currentFontSize;
+        }
+        
+        // 💡 关键修正：直接调用跟打模式
+        setTimeout(() => {
+            // 1. 如果你的应用有 Tab 切换逻辑，确保它不会干扰显示
+            // activeTab = 'type'; // 如果有跟打专用的 Tab 变量
+
+            // 2. 直接运行跟打初始化函数
+            if (typeof startTypingMode === 'function') {
+                startTypingMode(); 
+                console.log("🎯 已成功识别 Anki 文本，直接进入【跟打模式】");
+            } else {
+                console.error("❌ 未找到 startTypingMode 函数");
+            }
+        }, 150); // 150ms 的延迟通常比 50ms 更稳，能避开 DOM 渲染冲突
+
+        return; 
+    }
+
+    // 非 Anki 环境下的默认加载
     renderTabs(); 
     loadActiveFile();
-    applyLanguage(); // 新增：页面加载时应用语言
+    applyLanguage();
 }
 
 // ---------------- 粘贴 ----------------
