@@ -36,7 +36,7 @@
     color: #333; 
     border-bottom: 3px solid var(--primary); 
     background: #e8f5e9; 
-} /* 当前光标 *
+} /* 当前光标 */
 /* 让 placeholder 的下划线对齐更整齐 */
 input::placeholder {
     color: #bbb;
@@ -553,8 +553,6 @@ function getSmartHint(word) {
 }
 
 window.files = [];
-let activeFileId = null;
-
 // 登录用户才允许加载本地文件
 function loadLocalFilesIfLoggedIn() {
 
@@ -853,7 +851,7 @@ function enableCustomCloze() {
   const segments = text.split(regex);
   
   const f = files.find(x => x.id === activeFileId);
-  if (!f.clozePositions) f.clozePositions = [];
+  if (!f) return;
 
   answers = [];
   let unitCount = 0; 
@@ -987,8 +985,6 @@ function openGuide() {
 function closeGuide() {
   document.getElementById("guideModal").style.display = "none";
 }
-// ---------------- 初始化 ----------------
-init();
 </script>
 
 <script type="module">
@@ -1117,7 +1113,8 @@ window.checkAndLoadSharedFile = async () => {
 
         files.push(newFile);
         activeFileId = newFile.id;
-
+		
+	    init();
         save();
         renderTabs();
         loadActiveFile();
@@ -1163,6 +1160,8 @@ onAuthStateChanged(auth, (user) => {
 
     if (user) {
         currentUser = user;
+		window.currentUser = user;
+		init();
         // 更新底部按钮文字
         if (btnLabel) {
             btnLabel.innerText = "✅ 已同步";
@@ -1184,6 +1183,7 @@ onAuthStateChanged(auth, (user) => {
         startRealtimeSync(user.uid);
     } else {
         currentUser = null;
+		window.currentUser = null;
         // 恢复底部按钮文字
         if (btnLabel) {
             btnLabel.innerText = "👤 登录/同步";
