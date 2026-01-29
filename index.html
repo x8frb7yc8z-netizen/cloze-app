@@ -670,29 +670,42 @@ function loadActiveFile(){
 }
 
 // ---------------- 文件操作 ----------------
-function addNewFile() { 
-    const id = Date.now(); 
-    files.push({id, title: 'File ' + (files.length + 1), content: '', clozePositions: []}); 
-    activeFileId = id; 
-    localStorage.setItem('cloze_last_active_id', id); // 记录新文件ID
-    save(); 
-    renderTabs(); 
-    loadActiveFile(); 
-    const tabs = document.getElementById('fileTabs'); 
-    tabs.scrollLeft = tabs.scrollWidth; 
+// 原 addNewFile 逻辑废弃，改为处理保存/同步按钮点击
+function handleSaveBtnClick() {
+    if (currentUser) {
+        // 已登录：执行云端同步
+        if (typeof window.manualCloudSave === 'function') {
+            window.manualCloudSave();
+        }
+    } else {
+        // 未登录：提示登录（因为未登录模式下不需要“保存”到云端，且本地不留痕）
+        alert(currentLang === 'zh' ? "请登录以开启云端保存功能" : "Please login to enable cloud sync");
+    }
 }
+
 function switchFile(id) { 
+    // 只有在登录状态（有多文件）时才有切换逻辑
     activeFileId = id; 
-    localStorage.setItem('cloze_last_active_id', id); // 记录当前打开的文件ID
+    if (currentUser) {
+        localStorage.setItem('cloze_last_active_id', id); 
+    }
     renderTabs(); 
     loadActiveFile(); 
 }
-function deleteFile(id,e){ 
-  e.stopPropagation(); 
-  if(files.length<=1||!confirm(translations[currentLang].deleteConfirm)) return; 
-  files=files.filter(x=>x.id!==id); 
-  if(activeFileId===id) activeFileId=files[0].id; 
-  save(); renderTabs(); loadActiveFile(); 
+
+function deleteFile(id, e) { 
+    e.stopPropagation(); 
+    // 限制：如果是未登录的单一文件，不允许删除
+    if (!currentUser || files.length <= 1) return;
+    
+    if (!confirm(translations[currentLang].deleteConfirm)) return; 
+    
+    files = files.filter(x => x.id !== id); 
+    if (activeFileId === id) activeFileId = files[0].id; 
+    
+    save(); // 注意：这里的 save() 只会在 currentUser 为 true 时写盘
+    renderTabs(); 
+    loadActiveFile(); 
 }
 
 
