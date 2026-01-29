@@ -81,18 +81,13 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 .small-btn { border:1px solid #ccc; background:#fff; padding:2px 8px; border-radius:4px; cursor:pointer; }
 
 /* 中间文本区 */
-.input-wrapper { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; }
-textarea { 
+.input-wrapper { 
     flex: 1; 
-    width: 100%; 
-    padding: 15px 10px; 
-    border: none; 
-    outline: none; 
-    font-size: 18px; 
-    line-height: 1.6; 
-    resize: none; 
-    background: #fff; 
-    margin: 0 !important; /* 强制 margin 为 0 */
+    display: block !important; /* 强制改为 block，防止 flex 居中干扰 */
+    overflow: hidden; 
+    position: relative; 
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 .paste-fab { position:absolute; right:20px; bottom:25px; background:var(--primary); color:white; border:none; padding:12px 22px; border-radius:30px; font-size:14px; font-weight:bold; box-shadow:0 4px 12px rgba(0,0,0,0.2); z-index:100; transition:all 0.2s; cursor:pointer;}
@@ -100,11 +95,11 @@ textarea {
 
 .cloze-display { 
     position: absolute; 
-    top: 0; 
+    top: 0 !important; /* 明确强制贴住顶部 */
     left: 0; 
     right: 0; 
     bottom: 0; 
-    padding: 10px 10px 60vh 10px !important; /* 修改这里：上、左、右设为 10px，下设为 60vh */
+    padding: 10px 10px 60vh 10px !important; 
     white-space: pre-wrap; 
     display: none; 
     line-height: 1.8; 
@@ -112,7 +107,7 @@ textarea {
     background: #fff; 
     height: 100%; 
     overflow-y: auto; 
-    -webkit-overflow-scrolling: touch; 
+    margin: 0 !important; /* 清除可能存在的 margin */
 }
 .cloze-display.active { display:block; }
 .cloze-display input { min-width:3.6ch; padding:0 0.2ch; line-height:1.4; border:none; border-bottom:1.5px solid #666; background:#fffde7; text-align:center; color:#000; font-size:inherit; margin:0 2px; border-radius:0; }
@@ -173,10 +168,8 @@ textarea {
 <div class="input-wrapper">
     <textarea id="inputText" data-i18n="placeholder"></textarea>
     <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
-    <div id="clozeDisplay" class="cloze-display">
-     
-      <input type="text" id="hiddenInput">
-      <div id="clozeContent"></div>
+    <div id="clozeDisplay" class="cloze-display"><input type="text" id="hiddenInput"><div id="clozeContent"></div>
+      
     <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
 	  <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
 	  <button id="submitBtn" 
