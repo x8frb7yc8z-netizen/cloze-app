@@ -614,25 +614,30 @@ async function handlePaste() {
 }
 
 
-// ---------------- 保存 / 加载 ----------------
-function save() {
-    // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
-    localStorage.setItem('cloze_files_v5', JSON.stringify(files));
-    
-    // 2. 触发云端同步 (如果用户已登录，此函数会在 Firebase 模块中被定义)
-    if (window.syncToCloud) {
-        window.syncToCloud(files);
+// ---------------- 适配 Anki 的全新保存逻辑 ----------------
+window.save = function() {
+    // 1. 检查是否有 ID (正面字段)
+    if (!window.currentCID) {
+        console.warn("⚠️ 缺失 CID，无法保存坐标到云端。");
+        return;
     }
-}
 
-function saveActiveFile(val) {
-    const f = files.find(x => x.id === activeFileId);
-    if (f) {
-        // 如果 val 有传值（比如清空操作），则使用 val；否则读取输入框的内容
-        f.content = (val !== undefined) ? val : inputArea.value;
-        save(); // 这里会同时触发本地保存和云端同步
+    // 2. 确保坐标数组存在 (如果没挖空，就是空数组)
+    const indicesToSave = window.customIndices || [];
+
+    // 3. 先保存到本地 LocalStorage (作为双重保险)
+    // 使用 CID 作为 Key，这样不同的卡片在本地也是分开存的
+    localStorage.setItem(`cloze_indices_${window.currentCID}`, JSON.stringify(indicesToSave));
+    
+    // 4. 触发云端同步 (调用 Firebase 模块中的函数)
+    if (window.currentUser && typeof window.syncCardToCloud === 'function') {
+        window.syncCardToCloud(indicesToSave);
+        console.log(`🚀 已尝试同步卡片 [${window.currentCID}] 到云端`);
+    } else {
+        console.log("☁️ 未登录或同步函数未就绪，仅保存至本地。");
     }
-}
+};
+
 function loadActiveFile(){ 
   const f=files.find(x=>x.id===activeFileId); 
   if(!f) return;
@@ -728,12 +733,11 @@ function enableCustomCloze() {
   const text = inputArea.value;
   if (!text) return;
 
-  // 正则说明：匹配英文单词、单个中文字符、或者非空白标点
   const regex = /([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g;
   const segments = text.split(regex);
   
-  const f = files.find(x => x.id === activeFileId);
-  if (!f.clozePositions) f.clozePositions = [];
+  // --- 关键修改：直接使用全局变量，不再从 files 找 ---
+  if (!window.customIndices) window.customIndices = [];
 
   answers = [];
   let unitCount = 0; 
@@ -746,51 +750,68 @@ function enableCustomCloze() {
     const isChinese = /[\u4e00-\u9fa5]/.test(seg);
     const boxWidth = isChinese ? 2 : seg.length + 1;
 
-if (f.clozePositions.includes(currentIdx)) {
-    answers.push(seg);
-    
-    // --- 新增：获取提示内容 ---
-    const hint = isChinese ? "?" : getSmartHint(seg);
-
-    // 在返回的字符串中添加 placeholder="${hint}"
-    return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" 
-            placeholder="${hint}"
-            style="width:${boxWidth}ch; font-family:inherit; vertical-align:middle; line-height:1; height:1.5em;" 
-            onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});"
-            oncontextmenu="return false;">`;
-}
-
+    // 使用全局 customIndices 判断
+    if (window.customIndices.includes(currentIdx)) {
+        answers.push(seg);
+        const hint = isChinese ? "?" : getSmartHint(seg);
+        return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" 
+                placeholder="${hint}"
+                style="width:${boxWidth}ch; font-family:inherit; vertical-align:middle; line-height:1; height:1.5em;" 
+                onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});"
+                oncontextmenu="return false;">`;
+    }
     return `<span class="word-span" data-index="${currentIdx}">${seg}</span>`;
   }).join("");
 
   displayArea.classList.add("active");
-  ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => document.getElementById(id).classList.add("hidden"));
+  ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
+      const el = document.getElementById(id);
+      if(el) el.classList.add("hidden");
+  });
 
-  bindCustomEvents(f);
+  bindCustomEvents(); // 注意这里不再传参数 f
 }
 
 // ------------------ 修改后的事件绑定函数 (处理长按撤销) ------------------
-function bindCustomEvents(f) {
+function bindCustomEvents() {
   clozeContent.querySelectorAll(".word-span, input").forEach((el) => {
     let longPressTimer;
     let isLongPress = false;
 
-    // --- 处理 Span (未挖空的单词) ---
-    if (el.tagName === "SPAN" && el.classList.contains('word-span')) {
-      el.style.cursor = "pointer";
+    if (el.tagName === "SPAN") {
       el.onclick = () => {
-        // 如果刚刚触发了长按，则不执行单击逻辑
-        if (isLongPress) {
-          isLongPress = false;
-          return;
-        }
+        if (isLongPress) return (isLongPress = false);
         const wordIndex = parseInt(el.dataset.index);
-        f.clozePositions.push(wordIndex);
-        save();
-        enableCustomCloze();
+        
+        // 操作全局坐标数组
+        if(!window.customIndices.includes(wordIndex)){
+            window.customIndices.push(wordIndex);
+            save(); // 这个 save 会触发云端同步
+            enableCustomCloze();
+        }
       };
     }
 
+    if (el.tagName === "INPUT") {
+      // 长按逻辑中，修改 window.customIndices
+      const startLongPress = () => {
+        isLongPress = false;
+        longPressTimer = setTimeout(() => {
+          isLongPress = true;
+          if (confirm(translations[currentLang].revokeConfirm)) {
+            const wordIndex = parseInt(el.dataset.index);
+            window.customIndices = window.customIndices.filter(i => i !== wordIndex);
+            save();
+            enableCustomCloze();
+          }
+        }, 800);
+      };
+      el.ontouchstart = startLongPress;
+      el.onmousedown = (e) => { if(e.button === 0) startLongPress(); };
+      // ... 其他取消逻辑保持不变 ...
+    }
+  });
+}
     // --- 处理 Input (已挖空的单词) ---
     if (el.tagName === "INPUT") {
       // 1. 输入校验与红字逻辑 (保持不变)
@@ -858,6 +879,8 @@ function openGuide() {
 function closeGuide() {
   document.getElementById("guideModal").style.display = "none";
 }
+window.customIndices = []; // 确保一开始就是数组
+window.currentCID = null;  // 记录当前 Anki 卡片 ID
 // ---------------- 初始化 ----------------
 init();
 </script>
@@ -947,40 +970,67 @@ window.handleGoogleAuth = async () => {
 
   window.handleLogout = () => { if(confirm(translations[currentLang].logoutConfirm)) signOut(auth); };
 
-// ------------------ 修复后的登录状态监听 ------------------
- // ------------------ 修复后的登录与云端监听 ------------------
-  onAuthStateChanged(auth, (user) => {
-    currentUser = user;
-    const btnLabel = document.getElementById('loginBtnLabel');
+// ------------------ 修复后的登录与云端实时监听 ------------------
+// ------------------ 修复后的登录与云端实时监听 ------------------
+onAuthStateChanged(auth, (user) => {
+    window.currentUser = user; // 挂载到全局供 save() 使用
 
-    if (user && currentCID) {
-        if (btnLabel) btnLabel.innerText = "✅ 云端已同步";
+    const loggedOutUI = document.getElementById('loggedOutUI');
+    const loggedInUI = document.getElementById('loggedInUI');
+    const userEmailDisplay = document.getElementById('userEmailDisplay');
+    const loginBtnLabel = document.getElementById('loginBtnLabel');
+
+    if (user) {
+        console.log("👤 登录成功:", user.email);
+        if (loggedOutUI) loggedOutUI.classList.add('hidden');
+        if (loggedInUI) loggedInUI.classList.remove('hidden');
+        if (userEmailDisplay) userEmailDisplay.innerText = user.email;
         
-        // 开启当前卡片的实时监听
-        const cardRef = ref(db, `users/${user.uid}/clozes/${currentCID}`);
-        onValue(cardRef, (snapshot) => {
-            if (snapshot.exists()) {
-                const cloudData = snapshot.val();
-                // 如果云端坐标变了，且不等于本地当前坐标，则刷新
-                if (JSON.stringify(cloudData) !== JSON.stringify(window.customIndices)) {
-                    console.log("🔥 云端检测到坐标变更，自动更新中...");
-                    window.customIndices = cloudData;
-                    window.handleGenerate(); // 重新渲染练习
-                }
-            }
-        });
-    } else {
-        if (btnLabel) btnLabel.innerText = "👤 登录同步";
-    }
-  });
+        // 底部按钮文案实时更新
+        if (loginBtnLabel) {
+            loginBtnLabel.innerText = currentLang === 'zh' ? "✅ 云端已同步" : "✅ Synced";
+            loginBtnLabel.style.color = "#43a047";
+        }
 
- // ------------------ 卡片坐标同步函数 (供外部调用) ------------------
-  // 当你在 Web App 手动点选单词后，调用此函数
-  window.syncCardToCloud = async function (indices) {
-    if (!currentUser || !currentCID) {
-        console.log("☁️ 仅保存在本地内存");
-        return;
+        // 如果是 Anki 模式，立即开启实时监听
+        if (currentCID) {
+            const cardRef = ref(db, `users/${user.uid}/clozes/${currentCID}`);
+            onValue(cardRef, (snapshot) => {
+                if (snapshot.exists()) {
+                    const cloudData = snapshot.val();
+                    // 只有当云端数据和本地内存不同时，才触发重新渲染
+                    if (JSON.stringify(cloudData) !== JSON.stringify(window.customIndices)) {
+                        console.log("🔥 云端坐标更新，刷新练习界面...");
+                        window.customIndices = cloudData;
+                        // 如果当前正处于手动挖空界面，则重绘
+                        if (displayArea.classList.contains("active")) {
+                             enableCustomCloze(); 
+                        }
+                    }
+                }
+            });
+        }
+    } else {
+        if (loggedOutUI) loggedOutUI.classList.remove('hidden');
+        if (loggedInUI) loggedInUI.classList.add('hidden');
+        if (loginBtnLabel) {
+            loginBtnLabel.innerText = currentLang === 'zh' ? "👤 登录/同步" : "👤 Login/Sync";
+            loginBtnLabel.style.color = "#42a5f5";
+        }
     }
+});
+
+// --- 必须把同步函数挂载到 window ---
+window.syncCardToCloud = async function (indices) {
+    if (!window.currentUser || !currentCID) return;
+    try {
+        const path = `users/${window.currentUser.uid}/clozes/${currentCID}`;
+        await set(ref(db, path), indices);
+        console.log("✅ 同步至云端成功");
+    } catch (e) {
+        console.error("❌ 同步失败:", e.message);
+    }
+};
 
     try {
         const path = `users/${currentUser.uid}/clozes/${currentCID}`;
