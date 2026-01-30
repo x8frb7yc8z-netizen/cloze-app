@@ -77,6 +77,7 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 .add-file-btn { background:var(--primary); color:white; border:none; width:28px; height:28px; border-radius:50%; font-size:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer; }
 
 /* 控制栏 */
+<button onclick="handleShareFile()" class="small-btn" style="background:#e8f5e9; border-color:var(--primary);">📤 分享</button>
 .header-controls { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:var(--bg-light); border-bottom:1px solid #ddd; font-size:14px; flex-shrink:0; }
 .small-btn { border:1px solid #ccc; background:#fff; padding:2px 8px; border-radius:4px; cursor:pointer; }
 
@@ -1174,6 +1175,100 @@ window.likeApp = async () => {
     }
 };
 
+window.handleShareFile = async () => {
+    const activeFile = files.find(f => f.id === activeFileId);
+    if (!activeFile || !activeFile.content) return alert("当前没有内容可分享");
+
+    try {
+        // 在 Firebase 数据库中创建一个公共分享节点
+        const shareRef = ref(db, 'shared_files');
+        const newShareRef = push(shareRef); 
+        
+        await set(newShareRef, {
+            name: activeFile.name,
+            content: activeFile.content,
+            settings: {
+                nth: document.getElementById('nthWord').value,
+                size: fontSize
+            },
+            ts: Date.now()
+        });
+
+        const shareUrl = `${window.location.origin}${window.location.pathname}?s=${newShareRef.key}`;
+        
+        // 复制到剪贴板
+        await navigator.clipboard.writeText(shareUrl);
+        alert("分享链接已生成并复制到剪贴板！\n发送给好友，他们打开即可练习。");
+    } catch (e) {
+        alert("分享失败：" + e.message);
+    }
+};
+
+// 在页面加载时执行
+async function initShareMode() {
+    const params = new URLSearchParams(window.location.search);
+    const shareId = params.get('s');
+
+    if (shareId) {
+        console.log("检测到分享内容，正在加载...");
+        try {
+            const snap = await get(ref(db, `shared_files/${shareId}`));
+            if (snap.exists()) {
+                const data = snap.val();
+                
+                // 1. 直接覆盖当前输入框的内容
+                document.getElementById('inputText').value = data.content;
+                
+                // 2. 应用分享者的设置
+                if (data.settings) {
+                    document.getElementById('nthWord').value = data.settings.nth || 4;
+                    if (data.settings.size) {
+                        fontSize = data.settings.size;
+                        updateFontSizeUI(); // 记得调用你改变字体的UI更新函数
+                    }
+                }
+
+                // 3. UI 调整：提示这是分享内容
+                const titleEl = document.querySelector('[data-i18n="appTitle"]');
+                if (titleEl) titleEl.innerText = "📖 正在预览分享内容";
+
+                // 4. (可选) 自动触发生成练习，让用户进来就能填
+                handleGenerate(); 
+
+                // 5. 增加一个“保存到本地”的浮动按钮，或者在返回时提示
+                addSaveButton(data);
+                
+                // 清除 URL 参数（美观，且防止用户刷新后丢失本地修改）
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        } catch (e) {
+            console.error("加载分享失败", e);
+        }
+    }
+}
+
+// 辅助函数：在界面上加一个“存入我的课本”的按钮
+function addSaveButton(sharedData) {
+    const btn = document.createElement('button');
+    btn.innerHTML = "📥 存入我的课本";
+    btn.style = "position:fixed; top:70px; right:10px; z-index:100; padding:8px 12px; background:#ff9800; color:white; border:none; border-radius:20px; font-size:12px; font-weight:bold; box-shadow:0 2px 8px rgba(0,0,0,0.2);";
+    btn.onclick = () => {
+        const newFile = {
+            id: Date.now(),
+            name: sharedData.name || "未命名分享",
+            content: sharedData.content
+        };
+        files.unshift(newFile);
+        saveData(); // 调用你的本地保存函数
+        renderTabs();
+        btn.remove();
+        alert("已保存到您的课本列表");
+    };
+    document.body.appendChild(btn);
+}
+
+// 在你的脚本末尾执行
+initShareMode();
   window.openLoginModal = () => document.getElementById("loginModal").style.display = "flex";
   window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
