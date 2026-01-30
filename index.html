@@ -567,48 +567,46 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
-// ---------------- 初始化 ----------------
-async function init() {
+window.onerror = function(msg, url, line) {
+    alert("Error: " + msg + "\nline: " + line);
+};
+// ---------------- 初始化：针对 Anki 自动触发【跟打模式】 ----------------
+function init() { 
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
-    const noteId = urlParams.get('noteId');
 
-    if (textFromAnki && noteId) {
-        const activeId = "anki_" + noteId;
-        const decodedText = decodeURIComponent(textFromAnki);
-
-        // 核心同步逻辑：
-        // 如果你的 Firebase 已经登录，files 数组现在应该已经有数据了
-        let targetFile = files.find(f => f.id === activeId);
-
-        if (!targetFile) {
-            // 如果云端还没这个卡片的文件，就创建一个
-            targetFile = {
-                id: activeId,
-                title: "Anki卡片_" + noteId,
-                content: decodedText,
-                clozePositions: []
-            };
-            files.push(targetFile);
-            // 立即保存到本地和云端
-            save(); 
+    if (textFromAnki) {
+        // 修正：处理 URL 编码中的 + 号为空格
+        const decodedText = decodeURIComponent(textFromAnki.replace(/\+/g, ' '));
+        inputArea.value = decodedText;
+        
+        // 同步标签显示（可选，如果你在 init 中加了自动更新字号标签的逻辑）
+        if (document.getElementById("sizeLabel")) {
+            document.getElementById("sizeLabel").innerText = currentFontSize;
         }
+        
+        // 💡 关键修正：直接调用跟打模式
+        setTimeout(() => {
+            // 1. 如果你的应用有 Tab 切换逻辑，确保它不会干扰显示
+            // activeTab = 'type'; // 如果有跟打专用的 Tab 变量
 
-        // 设为当前活跃文件
-        activeFileId = activeId;
-    } else {
-        // 普通 Web 访问逻辑
-        renderTabs();
+            // 2. 直接运行跟打初始化函数
+            if (typeof startTypingMode === 'function') {
+                startTypingMode(); 
+                console.log("🎯 已成功识别 Anki 文本，直接进入【跟打模式】");
+            } else {
+                console.error("❌ 未找到 startTypingMode 函数");
+            }
+        }, 150); // 150ms 的延迟通常比 50ms 更稳，能避开 DOM 渲染冲突
+
+        return; 
     }
 
-    loadActiveFile();
+    // 非 Anki 环境下的默认加载
     renderTabs(); 
+    loadActiveFile();
     applyLanguage();
-    
-    // 如果是从 Anki 来的，直接打开练习界面
-    if (noteId) enableCustomCloze();
 }
-
 // ---------------- 粘贴 ----------------
 async function handlePaste() {
   if (!navigator.clipboard) return;
@@ -643,19 +641,12 @@ function renderTabs() {
 
 // ---------------- 保存 / 加载 ----------------
 function save() {
-    // 1. 本地存储 (备份)
+    // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
     localStorage.setItem('cloze_files_v5', JSON.stringify(files));
-
-    // 2. 云端实时同步
-    if (currentUser) {
-        if (AnkiSyncAdapter.mode === 'ANKI') {
-            // 只同步当前卡片的挖空数组，避免全量文件同步
-            const activeFile = files.find(x => x.id === activeFileId);
-            AnkiSyncAdapter.saveToCloud(currentUser.uid, activeFile.clozePositions);
-        } else {
-            // 普通模式下的完整云端同步
-            if (window.syncToCloud) window.syncToCloud(files);
-        }
+    
+    // 2. 触发云端同步 (如果用户已登录，此函数会在 Firebase 模块中被定义)
+    if (window.syncToCloud) {
+        window.syncToCloud(files);
     }
 }
 
@@ -1167,7 +1158,7 @@ window.likeApp = async () => {
   window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
   incrementVisit();
-  window.loadStats();
+  // window.loadStats();
 </script>
 </body>
 </html>
