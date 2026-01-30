@@ -75,16 +75,27 @@ const inputArea = document.getElementById('inputText');
 const displayArea = document.getElementById('clozeDisplay');
 const clozeContent = document.getElementById('clozeContent');
 
+// ---------------- 初始化 (支持 Anki 自动传文) ----------------
 function init() { 
     const urlParams = new URLSearchParams(window.location.search);
-    const textFromAnki = urlParams.get('text');
+    const publicIdFromUrl = urlParams.get('public');
+    const textFromAnki = urlParams.get('text'); // <-- 关键：获取 Anki 传来的文本
 
+    // 1. 最高优先级：如果有 Anki 直接传来的文本
     if (textFromAnki) {
-        const decodedText = decodeURIComponent(textFromAnki.replace(/\+/g, ' '));
+        const decodedText = decodeURIComponent(textFromAnki);
         inputArea.value = decodedText;
-
-        const sizeLabel = document.getElementById("sizeLabel");
-        if (sizeLabel) sizeLabel.innerText = currentFontSize;
+        
+        // 自动同步到当前活跃文件，这样练习时数据是连通的
+        saveActiveFile(decodedText); 
+        
+        renderTabs();
+        loadActiveFile(); // 重新加载以确保 UI 同步
+        applyLanguage();
+        
+        // 可选：如果你想让 Anki 翻开背面就直接进入练习，可以取消下面这行的注释
+        // handleGenerate(); 
+        return; 
     }
 }
 
