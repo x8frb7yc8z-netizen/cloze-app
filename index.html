@@ -569,40 +569,44 @@ const clozeContent = document.getElementById("clozeContent");
 
 // ---------------- 初始化 ----------------
 async function init() {
-    // A. 检测是否在 Anki 容器中运行
-    const ankiData = AnkiSyncAdapter.detectEnvironment();
+    const urlParams = new URLSearchParams(window.location.search);
+    const textFromAnki = urlParams.get('text');
+    const noteId = urlParams.get('noteId');
 
-    if (ankiData) {
-        // --- 模式 A: ANKI 卡片模式 ---
-        activeFileId = ankiData.id;
-        window.files = [{
-            id: activeFileId,
-            title: "Anki卡片练习",
-            content: ankiData.content,
-            clozePositions: [] // 初始默认为空，等待云端加载
-        }];
+    if (textFromAnki && noteId) {
+        const activeId = "anki_" + noteId;
+        const decodedText = decodeURIComponent(textFromAnki);
 
-        // 静默适配 UI
-        AnkiSyncAdapter.applyAnkiUI();
+        // 核心同步逻辑：
+        // 如果你的 Firebase 已经登录，files 数组现在应该已经有数据了
+        let targetFile = files.find(f => f.id === activeId);
 
-        // 异步尝试从 Firebase 恢复数据
-        if (currentUser) {
-            const savedPos = await AnkiSyncAdapter.fetchClozePositions(currentUser.uid);
-            if (savedPos && savedPos.length > 0) {
-                window.files[0].clozePositions = savedPos;
-            }
+        if (!targetFile) {
+            // 如果云端还没这个卡片的文件，就创建一个
+            targetFile = {
+                id: activeId,
+                title: "Anki卡片_" + noteId,
+                content: decodedText,
+                clozePositions: []
+            };
+            files.push(targetFile);
+            // 立即保存到本地和云端
+            save(); 
         }
-        
-        // 直接渲染手动挖空视图
-        loadActiveFile();
-        enableCustomCloze();
+
+        // 设为当前活跃文件
+        activeFileId = activeId;
     } else {
-        // --- 模式 B: 普通 Web 应用模式 ---
+        // 普通 Web 访问逻辑
         renderTabs();
-        loadActiveFile();
     }
+
+    loadActiveFile();
+    renderTabs(); 
+    applyLanguage();
     
-    applyLanguage(); // 应用多语言
+    // 如果是从 Anki 来的，直接打开练习界面
+    if (noteId) enableCustomCloze();
 }
 
 // ---------------- 粘贴 ----------------
