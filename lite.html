@@ -567,49 +567,37 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
-// ---------------- 初始化 (支持 Anki 自动传文) ----------------
+// ---------------- 初始化 (Anki 专供精简版) ----------------
 function init() { 
     const urlParams = new URLSearchParams(window.location.search);
-    const publicIdFromUrl = urlParams.get('public');
-    const textFromAnki = urlParams.get('text'); // <-- 关键：获取 Anki 传来的文本
+    const textFromAnki = urlParams.get('text'); 
+    const cidFromAnki = urlParams.get('cid'); // 拿到你的 ID 编号（{{正面}}）
 
-    // 1. 最高优先级：如果有 Anki 直接传来的文本
+    // 只有当有 Anki 传参时才执行
     if (textFromAnki) {
-        const decodedText = decodeURIComponent(textFromAnki);
+        // 1. 文本填充
+        const decodedText = decodeURIComponent(textFromAnki.replace(/\+/g, ' '));
         inputArea.value = decodedText;
         
-        // 自动同步到当前活跃文件，这样练习时数据是连通的
-        saveActiveFile(decodedText); 
-        
-        renderTabs();
-        loadActiveFile(); // 重新加载以确保 UI 同步
+        // 2. 编号记录 (这是云端对暗号的关键)
+        if (cidFromAnki) {
+            // 处理特殊字符，确保 Firebase 路径合法
+            window.currentCID = decodeURIComponent(cidFromAnki).replace(/[\.\$\#\[\]\/]/g, "_");
+        }
+
+        // 3. 渲染练习
+        // 注意：因为你删了 loadActiveFile，所以这里直接调 handleGenerate
+        if (typeof handleGenerate === 'function') {
+            handleGenerate(); 
+        }
+
         applyLanguage();
-        
-        // 可选：如果你想让 Anki 翻开背面就直接进入练习，可以取消下面这行的注释
-        // handleGenerate(); 
-        return; 
+        return; // 处理完 Anki 逻辑直接返回，不跑后面的垃圾代码
     }
 
-    // 2. 次高优先级：原有的 Firebase 公共分享链接逻辑
-    if (publicIdFromUrl) {
-        // ... 你原来的 Firebase 读取逻辑 ...
-        // (保持你代码中 get(ref(db...)) 那一部分即可)
-        get(ref(db, `public_files/${publicIdFromUrl}`)).then(snapshot => {
-            if (snapshot.exists()) {
-                const file = snapshot.val();
-                window.files = [file];
-                activeFileId = file.id;
-            }
-            renderTabs();
-            loadActiveFile();
-            applyLanguage();
-        });
-    } else {
-        // 3. 正常打开：读取本地存储
-        renderTabs(); 
-        loadActiveFile();
-        applyLanguage();
-    }
+    // 如果不是从 Anki 打开的（比如调试），可以给个提示
+    console.log("等待 Anki 传入 ID 和文本...");
+    applyLanguage();
 }
 
 // ---------------- 粘贴 ----------------
@@ -625,24 +613,6 @@ async function handlePaste() {
   } catch { console.log("Paste failed"); }
 }
 
-// ---------------- 文件标签 ----------------
-function renderTabs() {
-  const tabs = document.getElementById('fileTabs'); tabs.innerHTML='';
-  files.forEach(f=>{
-    const div=document.createElement('div'); 
-    div.className=`file-tab ${f.id===activeFileId?'active':''}`;
-    div.ondblclick=()=>{ 
-      const n=prompt("重命名文件:", f.title); 
-      if(n){f.title=n; save(); renderTabs();}
-    };
-    div.innerHTML=`<span onclick="switchFile(${f.id})">${f.title}</span>
-      <span style="color:var(--danger);margin-left:10px;font-weight:bold;font-size:16px;" onclick="deleteFile(${f.id}, event)">×</span>`;
-    tabs.appendChild(div);
-  });
-  const btn=document.createElement('button'); 
-  btn.className="add-file-btn"; btn.innerHTML='＋'; btn.onclick=addNewFile;
-  tabs.appendChild(btn);
-}
 
 // ---------------- 保存 / 加载 ----------------
 function save() {
@@ -670,31 +640,6 @@ function loadActiveFile(){
   answers = [];
 }
 
-// ---------------- 文件操作 ----------------
-function addNewFile() { 
-    const id = Date.now(); 
-    files.push({id, title: 'File ' + (files.length + 1), content: '', clozePositions: []}); 
-    activeFileId = id; 
-    localStorage.setItem('cloze_last_active_id', id); // 记录新文件ID
-    save(); 
-    renderTabs(); 
-    loadActiveFile(); 
-    const tabs = document.getElementById('fileTabs'); 
-    tabs.scrollLeft = tabs.scrollWidth; 
-}
-function switchFile(id) { 
-    activeFileId = id; 
-    localStorage.setItem('cloze_last_active_id', id); // 记录当前打开的文件ID
-    renderTabs(); 
-    loadActiveFile(); 
-}
-function deleteFile(id,e){ 
-  e.stopPropagation(); 
-  if(files.length<=1||!confirm(translations[currentLang].deleteConfirm)) return; 
-  files=files.filter(x=>x.id!==id); 
-  if(activeFileId===id) activeFileId=files[0].id; 
-  save(); renderTabs(); loadActiveFile(); 
-}
 
 // ---------------- 字体 ----------------
 function changeFontSize(d){ 
@@ -916,6 +861,7 @@ function closeGuide() {
 // ---------------- 初始化 ----------------
 init();
 </script>
+// ------------------ 注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意 ------------------
 
 <script type="module">
   // 1. 导入部分：注意增加了 onValue
@@ -937,7 +883,29 @@ init();
   const db = getDatabase(app);
   const auth = getAuth(app);
   const googleProvider = new GoogleAuthProvider(); // 初始化 Google 提供者
+
   let currentUser = null;
+  let currentCID = null;
+  let currentCardCloze = [];
+
+  // ------------------ 监听 Anki 传参 ------------------
+  function loadAnkiData() {
+    const params = new URLSearchParams(window.location.search);
+    const rawCID = params.get('cid'); // 获取正面单词
+    const rawText = params.get('text');
+
+    if (rawCID) {
+        // 安全处理 CID：Firebase 不允许路径包含 . $ # [ ] /
+        currentCID = decodeURIComponent(rawCID).replace(/[\.\$\#\[\]\/]/g, "_");
+    }
+    
+    if (rawText) {
+        // 填充文本并直接开始（稍后云端数据回来会二次刷新）
+        const text = decodeURIComponent(rawText.replace(/\+/g, ' '));
+        window.inputText.value = text; 
+        window.handleGenerate(); 
+    }
+  }
 
   googleProvider.setCustomParameters({
     prompt: 'select_account'
@@ -980,123 +948,50 @@ window.handleGoogleAuth = async () => {
   window.handleLogout = () => { if(confirm(translations[currentLang].logoutConfirm)) signOut(auth); };
 
 // ------------------ 修复后的登录状态监听 ------------------
-onAuthStateChanged(auth, (user) => {
+ // ------------------ 修复后的登录与云端监听 ------------------
+  onAuthStateChanged(auth, (user) => {
+    currentUser = user;
     const btnLabel = document.getElementById('loginBtnLabel');
-    const loggedOutUI = document.getElementById('loggedOutUI');
-    const loggedInUI = document.getElementById('loggedInUI');
-    const emailDisplay = document.getElementById('userEmailDisplay');
 
-    if (user) {
-        currentUser = user;
-        // 更新底部按钮文字
-        if (btnLabel) {
-            btnLabel.innerText = "✅ 已同步";
-            btnLabel.style.color = "#81c784";
-        }
+    if (user && currentCID) {
+        if (btnLabel) btnLabel.innerText = "✅ 云端已同步";
         
-        // 切换 UI 面板：显示同步说明，隐藏登录框
-        if (loggedOutUI) loggedOutUI.classList.add('hidden');
-        if (loggedInUI) {
-            loggedInUI.classList.remove('hidden');
-            // 确保同步说明文字正确显示
-            if (emailDisplay) emailDisplay.innerText = "当前账号: " + user.email;
-        }
-
-        // 执行云端数据加载
-        get(ref(db, `users/${user.uid}/files`)).then(snapshot => {
-            if (snapshot.exists()) applyData(snapshot.val());
+        // 开启当前卡片的实时监听
+        const cardRef = ref(db, `users/${user.uid}/clozes/${currentCID}`);
+        onValue(cardRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const cloudData = snapshot.val();
+                // 如果云端坐标变了，且不等于本地当前坐标，则刷新
+                if (JSON.stringify(cloudData) !== JSON.stringify(window.customIndices)) {
+                    console.log("🔥 云端检测到坐标变更，自动更新中...");
+                    window.customIndices = cloudData;
+                    window.handleGenerate(); // 重新渲染练习
+                }
+            }
         });
-        startRealtimeSync(user.uid);
     } else {
-        currentUser = null;
-        // 恢复底部按钮文字
-        if (btnLabel) {
-            btnLabel.innerText = "👤 登录/同步";
-            btnLabel.style.color = "#42a5f5";
-        }
-        
-        // 恢复 UI 面板：显示登录框，隐藏同步说明
-        if (loggedOutUI) loggedOutUI.classList.remove('hidden');
-        if (loggedInUI) loggedInUI.classList.add('hidden');
-        
-        // 清空输入框，防止下次登录带入错误数据
-        const emailInput = document.getElementById('authEmail');
-        const passInput = document.getElementById('authPassword');
-        if (emailInput) emailInput.value = "";
-        if (passInput) passInput.value = "";
+        if (btnLabel) btnLabel.innerText = "👤 登录同步";
     }
-});
+  });
 
-// ------------------ 实时同步函数（完整可用版） ------------------
-function startRealtimeSync(uid) {
-    if (!uid) return;
-
-    const path = `users/${uid}/files`;
-    const fileRef = ref(db, path);
-
-    console.log("📡 开始监听云端路径:", path);
-
-    // 绑定实时监听
-    onValue(fileRef, (snapshot) => {
-        if (!snapshot.exists()) {
-            console.log("⚠️ 云端暂无数据");
-            return;
-        }
-
-        const cloudData = snapshot.val();
-        console.log("🔥 云端数据变更，自动同步到本地", cloudData);
-
-        applyData(cloudData);
-    });
-}
-
-// ------------------ 应用云端数据到本地 ------------------
-function applyData(data) {
-    if (!Array.isArray(data)) {
-        console.warn("❌ 云端数据不是数组，已忽略", data);
-        return;
-    }
-
-    // 1. 覆盖内存数据
-    window.files = data;
-
-    // 2. 写入 LocalStorage（刷新后也一致）
-    localStorage.setItem('cloze_files_v5', JSON.stringify(data));
-
-    // 3. 如果当前文件已被云端删除，自动切换
-    if (!files.find(f => f.id === activeFileId)) {
-        activeFileId = files[0]?.id;
-    }
-
-    // 4. 统一刷新 UI
-    renderTabs();
-    loadActiveFile();
-}
-
-// ------------------ 修改后的云端同步函数 (完整版) ------------------
-window.syncToCloud = async function (data) {
-    // 1. 检查是否有用户登录，没登录则不上传
-    if (!currentUser) {
-        console.log("☁️ 用户未登录，数据仅保存在本地");
+ // ------------------ 卡片坐标同步函数 (供外部调用) ------------------
+  // 当你在 Web App 手动点选单词后，调用此函数
+  window.syncCardToCloud = async function (indices) {
+    if (!currentUser || !currentCID) {
+        console.log("☁️ 仅保存在本地内存");
         return;
     }
 
     try {
-        const userPath = `users/${currentUser.uid}/files`;
-        const userRef = ref(db, userPath);
-        
-        // 2. 执行上传
-        await set(userRef, data);
-        
-        console.log(`✅ 数据已安全同步至路径: ${userPath}`);
+        const path = `users/${currentUser.uid}/clozes/${currentCID}`;
+        await set(ref(db, path), indices);
+        console.log(`✅ 卡片 [${currentCID}] 坐标已同步到云端`);
     } catch (e) {
-        console.error("❌ 同步到云端失败:", e.message);
-        // 如果是因为权限问题（Rules设置），这里会抓到错误
-        if (e.message.includes("Permission denied")) {
-            alert("同步失败：您没有权限操作此路径。");
-        }
+        console.error("❌ 同步失败:", e.message);
     }
-};
+  };
+
+
 
 // --- 统计逻辑 ---
 const incrementVisit = async () => {
