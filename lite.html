@@ -2,1113 +2,431 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+
 <title>Cloze Master Pro</title>
-<link rel="manifest" href="manifest.json">
-<link rel="apple-touch-icon" href="icon-192.png">
-<link rel="icon" sizes="512x512" href="icon-512.png">
-<meta property="og:title" content="Cloze Master Pro">
-<meta property="og:image" content="https://x8frb7yc8z-netizen.github.io/cloze-app/icon-512.png">
-<meta property="og:description" content="一个好用的文本挖空练习工具，助你高效背诵单词和课文。">
 
 <style>
-#hiddenInput {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
-    width: 1px;
-    height: 1px;
-    opacity: 0;
-    z-index: 9999;
-}
-/* 跟打模式专属样式 */
-.typing-container {
-    font-family: 'Consolas', 'Monaco', monospace; /* 等宽字体对齐更准 */
-    color: #ccc; /* 默认灰色 */
-    font-size: 24px;
-    line-height: 1.6;
-    user-select: none;
-}
-.char-unit { position: relative; }
-.char-correct { color: #43a047; } /* 正确变绿 */
-.char-wrong { color: #ff5252; background: #ffebee; } /* 错误红字背景 */
-.char-current { 
-    color: #333; 
-    border-bottom: 3px solid var(--primary); 
-    background: #e8f5e9; 
-} /* 当前光标 *
-/* 让 placeholder 的下划线对齐更整齐 */
-input::placeholder {
-    color: #bbb;
-    font-family: monospace; /* 使用等宽字体 */
-    letter-spacing: 1px;    /* 增加下划线间距 */
-}
-/* 1. 让 Chrome, Safari, Edge 的小箭头一直显示 (不再需要鼠标悬停) */
-input[type=number]::-webkit-inner-spin-button, 
-input[type=number]::-webkit-outer-spin-button { 
-    opacity: 1 !important; /* 强制显示 */
-    appearance: auto !important;
-    -webkit-appearance: auto !important;
+:root{
+  --primary:#43a047;
+  --danger:#ff5252;
+  --bg-light:#f8f9fa;
 }
 
-/* 2. 针对 Firefox 的修复 */
-input[type=number] {
-    -moz-appearance: textfield; /* 如果你想彻底去掉换成自己的，用这个 */
+*{box-sizing:border-box;}
+html,body{
+  margin:0;
+  padding:0;
+  height:100dvh;
+  overflow:hidden;
+  font-family:-apple-system,system-ui,"Microsoft YaHei",sans-serif;
 }
 
+.hidden{display:none!important;}
 
-@keyframes side-bounce {
-  0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
-  40% { transform: translateY(4px); }
-  60% { transform: translateY(2px); }
-}
-:root { --primary: #43a047; --bg-light: #f8f9fa; --danger: #ff5252; }
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-system, system-ui, "Microsoft YaHei", sans-serif; background:#fff; color:#333; overflow:hidden; }
-.app-container { display:flex; flex-direction:column; height:100%; width:100%; }
-.hidden { display:none !important; }
-
-/* 顶部标签 */
-.file-tabs-container {
-  background:#fff; padding:8px 6px; display:flex; align-items:center; gap:6px; border-bottom:1px solid #eee; overflow-x:auto; white-space:nowrap; flex-shrink:0;
-}
-.file-tab { padding:6px 14px; background:var(--bg-light); border:1px solid #ddd; border-radius:20px; font-size:14px; cursor:pointer; display:inline-flex; align-items:center; }
-.file-tab.active { background:var(--primary); color:white; border-color:var(--primary); }
-.add-file-btn { background:var(--primary); color:white; border:none; width:28px; height:28px; border-radius:50%; font-size:20px; display:flex; align-items:center; justify-content:center; flex-shrink:0; cursor:pointer; }
-
-/* 控制栏 */
-.header-controls { display:flex; align-items:center; justify-content:space-between; padding:8px 10px; background:var(--bg-light); border-bottom:1px solid #ddd; font-size:14px; flex-shrink:0; }
-.small-btn { border:1px solid #ccc; background:#fff; padding:2px 8px; border-radius:4px; cursor:pointer; }
-
-/* 中间文本区 */
-.input-wrapper { flex:1; display:flex; flex-direction:column; overflow:hidden; position:relative; }
-textarea { flex:1; width:100%; padding:15px 10px; border:none; outline:none; font-size:18px; line-height:1.6; resize:none; background:#fff; }
-
-.paste-fab { position:absolute; right:20px; bottom:25px; background:var(--primary); color:white; border:none; padding:12px 22px; border-radius:30px; font-size:14px; font-weight:bold; box-shadow:0 4px 12px rgba(0,0,0,0.2); z-index:100; transition:all 0.2s; cursor:pointer;}
-.paste-fab:active { transform:scale(0.9); opacity:0.8; }
-
-.cloze-display { 
-  position:absolute; top:0; left:0; right:0; bottom:0; padding:15px 10px; white-space:pre-wrap; display:none; line-height:1.8; word-break:break-word; background:#fff; height:100%; overflow-y:auto; -webkit-overflow-scrolling:touch; padding-bottom:60vh !important;
-}
-.cloze-display.active { display:block; }
-.cloze-display input { min-width:3.6ch; padding:0 0.2ch; line-height:1.4; border:none; border-bottom:1.5px solid #666; background:#fffde7; text-align:center; color:#000; font-size:inherit; margin:0 2px; border-radius:0; }
-
-/* 底部操作区 */
-.action-bar { display:flex; width:100%; border-top:1px solid #ddd; flex-shrink:0; background:#fff; }
-.action-bar button { flex:1; padding:12px 12px; border:none; font-weight:bold; font-size:14px; cursor:pointer; min-width:80px;}
-#clearBtn { background:#fff8f8; color:#d32f2f; }
-#generate { background:var(--primary); color:white; flex:1; }
-
-/* 找到你代码中的 .footer-bar 并替换如下内容 */
-.footer-bar { 
-    background: #1a1a1a; 
-    color: #bbb; 
-    /* 核心修改：在底部原有 12px 的基础上增加安全区域距离 */
-    padding: 12px 15px calc(12px + env(safe-area-inset-bottom)); 
-    display: flex; 
-    justify-content: space-between; 
-    align-items: center; 
-    flex-shrink: 0; 
-    font-size: 13px; 
+textarea{
+  flex:1;
+  width:100%;
+  border:none;
+  outline:none;
+  padding:15px;
+  font-size:18px;
+  line-height:1.6;
+  resize:none;
 }
 
-/* 针对特定的链接文字（如 Guide 手册） */
-.footer-link {
-    font-size: 12px;     /* 让手册和同步状态更清晰 */
-    font-weight: 600;
+/* Cloze Display */
+.cloze-display{
+  position:absolute;
+  inset:0;
+  padding:15px;
+  display:none;
+  overflow-y:auto;
+  white-space:pre-wrap;
+  background:#fff;
+}
+.cloze-display.active{display:block;}
+
+.cloze-display input{
+  min-width:3ch;
+  border:none;
+  border-bottom:2px solid #666;
+  background:#fffde7;
+  text-align:center;
+  font-size:inherit;
 }
 
-/* 弹窗 */
-.modal { display:none; position:fixed; z-index:2000; left:0; top:0; width:100%; height:100%; background:rgba(0,0,0,0.8); align-items:center; justify-content:center; }
-.modal-content { background:white; padding:22px; border-radius:14px; width:85%; max-width:320px; position:relative; }
-.close-x { position:absolute; right:12px; top:8px; font-size:24px; color:#bbb; cursor:pointer; }
-.mini-coffee-btn { border-radius:6px; transition:background 0.2s; cursor:pointer; }
+/* Footer */
+.footer-bar{
+  background:#111;
+  color:#bbb;
+  padding:12px 15px calc(12px + env(safe-area-inset-bottom));
+  display:flex;
+  justify-content:space-between;
+}
+
+/* Typing Mode */
+.typing-container{
+  font-family:Consolas,monospace;
+  font-size:24px;
+  line-height:1.6;
+  color:#ccc;
+  user-select:none;
+}
+.char-correct{color:#43a047;}
+.char-wrong{color:#ff5252;background:#ffebee;}
+.char-current{
+  color:#333;
+  border-bottom:3px solid var(--primary);
+  background:#e8f5e9;
+}
 </style>
 </head>
 
 <body>
 <div class="app-container">
-  <div id="topSection">
-    <div class="file-tabs-container" id="fileTabs"></div>
-    <div class="header-controls">
-      <span style="font-weight:bold; color:var(--primary); font-size:16px;" data-i18n="appTitle">完形填空</span>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <button class="small-btn" onclick="changeFontSize(-2)">A-</button>
-        <span id="sizeLabel" style="min-width:20px; text-align:center;">18</span>
-        <button class="small-btn" onclick="changeFontSize(2)">A+</button>
-      </div>
-      <div style="display: flex; align-items: center; justify-content: center;">
-  <span data-i18n="interval">间隔</span>
-  <input id="nthWord" type="number" value="4" 
-         style="width:35px; border:1px solid #ddd; text-align:center; margin: 0 2px;">
-  <span data-i18n="words" style="margin-left: -2px;">词</span>
-</div>
-    </div>
-  </div>
 
-<div class="input-wrapper">
-    <textarea id="inputText" data-i18n="placeholder"></textarea>
-    <button id="pasteBtn" class="paste-fab" onclick="handlePaste()" data-i18n="paste">📋 粘贴</button>
-    <div id="clozeDisplay" class="cloze-display">
-      
-      <button onclick="exitExercise()" data-i18n="back" style="background:#eee; border:1px solid #ccc; padding:8px 15px; border-radius:6px; margin-bottom:15px;">← 返回</button>
-      
-      <input type="text" id="hiddenInput">
-      <div id="clozeContent"></div>
-    <div id="scoreResult" style="margin-top:20px; text-align:center; font-weight:bold; font-size:1.2em; color:var(--primary);"></div>
-	  <button id="submitBtn" 
-        data-i18n="submit" 
-        onclick="calculateScore()" 
-        style="width:100%; padding:15px; background:var(--primary); color:white; border:none; border-radius:8px; font-weight:bold; margin-top:20px;">
-    提交并评分
-</button>
-    </div>
-  </div>
-
-
-  <div class="action-bar" id="bottomAction">
-    <button id="clearBtn" onclick="handleClear()" data-i18n="clear">清空</button>
-    <button id="generate" onclick="handleGenerate()" data-i18n="generate">生成练习</button>
-    <button id="customClozeBtn" onclick="enableCustomCloze()" data-i18n="custom">手动挖空</button>
-    <button id="typeModeBtn" onclick="startTypingMode()" style="background:#42a5f5; color:white;">跟打模式</button>
-  </div>
-
-<div class="footer-bar" id="footerSection">
-  <div class="footer-left" style="display:flex; gap:10px;">
-    <span class="footer-link" onclick="openGuide()" style="cursor:pointer; font-weight:bold; color:#81c784;" data-i18n="guide">📖 手册</span>
-    <span class="footer-link" onclick="toggleLanguage()" style="cursor:pointer; color:#ffb74d;">🌐 EN/中文</span>
-  </div>
-  <div class="footer-right">
-    <span id="loginBtnLabel" class="footer-link" onclick="openLoginModal()" style="cursor:pointer; font-weight:bold; color:#42a5f5;" data-i18n="login">👤 登录/同步</span>
+<!-- Top -->
+<div id="topSection">
+  <div style="padding:10px;background:var(--bg-light);border-bottom:1px solid #ddd;">
+    <b style="color:var(--primary)">完形填空 Cloze Master</b>
   </div>
 </div>
 
-<div id="loginModal" class="modal" onclick="closeLoginModal()">
-  <div class="modal-content" onclick="event.stopPropagation()" style="text-align:center;">
-    <span class="close-x" onclick="closeLoginModal()">×</span>
+<!-- Input -->
+<div class="input-wrapper" style="flex:1;position:relative;">
+  <textarea id="inputText" placeholder="在此粘贴文本..."></textarea>
 
-    <div id="loggedOutUI">
-      <h4 style="color:#42a5f5; margin-top:0;" data-i18n="loginTitle">👤 账号登录</h4>
-      <div style="display:flex; flex-direction:column; gap:12px;">
-        <button onclick="handleGoogleAuth()" style="padding:12px; background:#fff; color:#444; border:1px solid #ddd; border-radius:8px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:8px;">
-          <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="18"> <span data-i18n="googleLogin">使用 Google 登录</span>
-        </button>
-        <div style="margin: 5px 0; color: #ccc; font-size: 12px;" data-i18n="or">———— 或者 ————</div>
-        <input type="email" id="authEmail" data-i18n="emailPlace" style="padding:12px; border:1px solid #ddd; border-radius:8px;">
-        <input type="password" id="authPassword" data-i18n="passPlace" style="padding:12px; border:1px solid #ddd; border-radius:8px;">
-        <button onclick="handleEmailAuth('login')" style="padding:12px; background:#42a5f5; color:white; border:none; border-radius:8px; font-weight:bold;" data-i18n="loginBtn">登 录</button>
-        <button onclick="handleEmailAuth('signup')" style="padding:10px; background:#fff; color:#42a5f5; border:1px solid #42a5f5; border-radius:8px;" data-i18n="signupBtn">新用户注册</button>
-      </div>
-    </div>
+  <div id="clozeDisplay" class="cloze-display">
+    <button onclick="exitExercise()" style="padding:8px 14px;">← 返回</button>
 
-    <div id="loggedInUI" class="hidden">
-      <h4 style="color:#43a047; margin-top:0;" data-i18n="syncTitle">☁️ 云同步已开启</h4>
-      <div style="text-align:left; font-size:13px; color:#555; line-height:1.6; background:#f0f7f0; padding:15px; border-radius:10px; margin-bottom:15px; border:1px solid #e0eee0;">
-        <p>🚀 <b data-i18n="s1t">自动上传</b>：<span data-i18n="s1d">您在本地做的任何修改都会实时同步至云端。</span></p>
-        <p>📥 <b data-i18n="s2t">自动下载</b>：<span data-i18n="s2d">登录新设备时，您的课本和挖空记录会自动恢复。</span></p>
-      </div>
-      <p id="userEmailDisplay" style="font-size:12px; color:#999; margin-bottom:15px;"></p>
-      <button onclick="handleLogout()" style="width:100%; padding:10px; color:#ff5252; border:1px solid #ff5252; background:none; border-radius:8px; font-weight:bold; cursor:pointer;" data-i18n="logoutBtn">退出当前账号</button>
-    </div>
-    </div>
+    <input id="hiddenInput"
+           style="position:fixed;opacity:0;width:1px;height:1px;bottom:20px;left:20px;">
+
+    <div id="clozeContent" style="margin-top:15px;"></div>
+
+    <div id="scoreResult"
+         style="margin-top:20px;text-align:center;font-weight:bold;color:var(--primary);"></div>
+
+    <button id="submitBtn"
+            onclick="calculateScore()"
+            style="width:100%;padding:15px;margin-top:15px;
+                   background:var(--primary);color:white;
+                   border:none;border-radius:8px;">
+      提交并评分
+    </button>
   </div>
 </div>
 
-<div id="guideModal" class="modal" onclick="closeGuide()">
-  <div class="modal-content" onclick="event.stopPropagation()">
-    <span class="close-x" onclick="closeGuide()">×</span>
-    <h4 style="color:var(--primary); text-align:center; margin-top:0;" data-i18n="guideTitle">📖 使用说明</h4>
-    <div style="font-size:13px; line-height:1.6;">
-      <p>1. <b data-i18n="g1t">挖空间隔</b>：<span data-i18n="g1d">在 Every...th 框中设置。</span></p>
-      <p>2. <b data-i18n="g2t">手动挖空</b>：<span data-i18n="g2d">点击单词挖空，长按撤销。</span></p>
-      <p>3. <b data-i18n="g3t">单词提示</b>：<span data-i18n="g3d">按空格键提示下一个正确字母。</span></p>
-      <p>4. <b data-i18n="g4t">复习单词</b>：<span data-i18n="g4d">账号登录保存当前课本，持续跟进个人学习进度。</span></p>
-      <p>5. <b data-i18n="g5t">安装为App</b>：<span data-i18n="g5d">在浏览器菜单中选择“添加到主屏幕”</span></p>
-    </div>
-<!--  
-<div style="text-align:center; margin: 20px 0;">
-   <div style="display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; color: #888; margin-bottom: 10px;">
-     <span data-i18n="feedback">If this tool helped you</span>
-     <span style="font-size: 20px; color: var(--primary); animation: side-bounce 2s infinite;">⬇️</span>
-   </div>
-      <hr style="margin:12px 0; border:none; border-top:1px dashed #ddd;">
-      
-   <div style="display: flex; justify-content: center; align-items: center; gap: 70px; margin: 10px 0; font-size: 16px;">
-   <div style="display: flex; align-items: center; gap: 6px;"><span title="Visits">📈</span> <b id="visitCount" style="color: #666;">0</b></div>
-   <div style="display: flex; align-items: center; gap: 6px; cursor: pointer;" onclick="likeApp()"><span>❤️</span> <b id="likeCount" style="color: #666;">0</b></div>
-   </div>
+<!-- Bottom Buttons -->
+<div id="bottomAction" style="display:flex;border-top:1px solid #ddd;">
+  <button onclick="handleGenerate()" style="flex:1;padding:14px;">生成练习</button>
+  <button onclick="enableCustomCloze()" style="flex:1;padding:14px;">手动挖空</button>
+  <button onclick="startTypingMode()" style="flex:1;padding:14px;background:#42a5f5;color:white;">
+    跟打模式
+  </button>
 </div>
--->
 
-<div style="margin-top: 15px; text-align: center;">
-  <a href="mailto:fnhame@gmail.com" style="text-decoration:none; color:#43a047; font-size: 12px; font-weight: bold;" data-i18n="contactLink">
-    如在使用过程中遇到问题，请联系我 📩
-  </a>
+<!-- Footer -->
+<div id="footerSection" class="footer-bar">
+  <span onclick="toggleLanguage()" style="cursor:pointer;">🌐 EN/中文</span>
+  <span onclick="openLoginModal()" id="loginBtnLabel" style="cursor:pointer;color:#42a5f5;">
+    👤 登录/同步
+  </span>
 </div>
-    
 
-    <button onclick="closeGuide()" style="width:100%; padding:12px; margin-top:10px; background:var(--primary); color:white; border:none; border-radius:6px; font-weight:bold;" data-i18n="gotIt">知道了</button>
-  </div>
 </div>
-  
+
+<!-- ===================== Core Script ===================== -->
 <script>
-
-	
-// ================= i18n 国际化核心整组函数 =================
-const translations = {
-    zh: {
-		submit: "提交并评分",
-        scoreLabel: "得分",
-        perfect: "🌟 太棒了！全对！",
-        great: "👍 很好，继续保持！",
-        keepGoing: "📖 还要加油哦！",
-        practiceMore: "💪 需要多多练习！",
-	    appTitle: "完形填空",
-        gotIt: "知道了",
-        feedback: "如果这个工具有帮助",
-        contactLink: "如在使用过程中遇到问题，请联系我 📩",
-        interval: "间隔", words: "词", placeholder: "在此粘贴英文或中文文本...", paste: "📋 粘贴",
-        clear: "清空", generate: "生成练习", custom: "手动挖空", guide: "📖 手册", login: "👤 登录/同步",
-        synced: "✅ 已同步", back: "← 返回",
-        // Login Modal
-        loginTitle: "👤 账号登录", googleLogin: "使用 Google 登录", or: "———— 或者 ————",
-        emailPlace: "邮箱", passPlace: "密码", loginBtn: "登 录", signupBtn: "新用户注册",
-        syncTitle: "☁️ 云同步已开启", s1t: "自动上传", s1d: "您在本地做的任何修改都会实时同步至云端",
-        s2t: "自动下载", s2d: "登录新设备时，您的课本和挖空记录会自动恢复。", logoutBtn: "退出当前账号",
-        // Guide Modal
-        guideTitle: "📖 使用说明", gotIt: "知道了",
-        g1t: "挖空间隔", g1d: "在 Every...th 框中设置。",
-        g2t: "手动挖空", g2d: "点击单词挖空，长按撤销。",
-        g3t: "单词提示", g3d: "按空格键提示下一个正确字母。",
-        g4t: "保存进度", g4d: "通过账号登录保存当前课本，持续跟进个人学习进度。",
-        g5t: "安装为App", g5d: "在浏览器菜单中选择“添加到主屏幕”",
-        // Confirmations
-        confirmClear: "确定清空当前文本吗？", logoutConfirm: "确定退出登录吗？",
-        deleteConfirm: "删除此文件？", revokeConfirm: "确定撤销这个挖空吗？",
-        renamePrompt: "重命名文件:"
-    },
-    en: {
-		submit: "Submit & Score",
-        scoreLabel: "Score",
-        perfect: "🌟 Perfect! Well done!",
-        great: "👍 Great job, keep it up!",
-        keepGoing: "📖 Almost there, keep going!",
-        practiceMore: "💪 Needs more practice!",	
-	    appTitle: "Cloze Test",
-        gotIt: "Got it",
-        feedback: "If this tool helped you",
-        contactLink: "Found an issue? Contact me 📩",
-        interval: "Every", words: "th", placeholder: "Paste English or Chinese text here...", paste: "📋 Paste Text",
-        clear: "Clear", generate: "Generate", custom: "Manual", guide: "📖 Guide", login: "👤 Login/Sync",
-        synced: "✅ Synced", back: "← Back",
-        // Login Modal
-        loginTitle: "👤 Account Login", googleLogin: "Sign in with Google", or: "———— OR ————",
-        emailPlace: "Email", passPlace: "Password", loginBtn: "Login", signupBtn: "Sign Up",
-        syncTitle: "☁️ Cloud Sync Active", s1t: "Auto Upload", s1d: "Changes sync to cloud instantly.",
-        s2t: "Auto Download", s2d: "Data restores on new devices.", logoutBtn: "Log Out",
-        // Guide Modal
-        guideTitle: "📖 Instructions", gotIt: "Got it",
-        g1t: "Interval", g1d: "Set gaps in the 'Every...th' box.",
-        g2t: "Manual Mode", g2d: "Click a word to hide, long press to undo.",
-        g3t: "Hints", g3d: "Press Space for the next correct letter.",
-        g4t: "Sync Progress", g4d: "Sign in to save books and track progress.",
-        g5t: "Install App", g5d: "elect 'Add to Home Screen' in the browser menu.",
-        // Confirmations
-        confirmClear: "Are you sure you want to clear the text?", logoutConfirm: "Are you sure you want to log out?",
-        deleteConfirm: "Delete this file?", revokeConfirm: "Revoke this cloze?",
-        renamePrompt: "Rename file to:"
-    }
-};
-
-// ====================跟打练习============================
-let typingIndex = 0;
-let rawTextArray = [];
-window.typingModeActive = false;
-
-// 1. 开启跟打模式
-window.startTypingMode = function() {
-    const text = inputArea.value.trim();
-    if (!text) return;
-
-    rawTextArray = text.split("");
-    typingIndex = 0;
-    window.typingModeActive = true;
-
-    // 渲染 UI
-    const clozeContent = document.getElementById("clozeContent");
-    clozeContent.style.position = "relative";
-    clozeContent.innerHTML = `<div class="typing-container" id="typeBox" onclick="focusTyping()" style="padding-bottom: 60vh;"></div>`;
-    const typeBox = document.getElementById("typeBox");
-    
-    typeBox.innerHTML = rawTextArray.map((char, i) => {
-        let displayChar = char === '\n' ? '↵<br>' : (char === ' ' ? '&nbsp;' : char);
-        return `<span class="char-unit" id="char-${i}">${displayChar}</span>`;
-    }).join("");
-
-    // 隐藏主界面
-    ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id => {
-        document.getElementById(id).classList.add("hidden");
-    });
-    document.getElementById("submitBtn").style.display = "none"; // 跟打模式不需要提交按钮
-    displayArea.classList.add("active");
-    
-    updateTypingDisplay();
-
-    // 唤起键盘
-    focusTyping();
-    
-    // 监听输入
-    const hiddenInput = document.getElementById("hiddenInput");
-    hiddenInput.oninput = (e) => {
-        const val = e.target.value;
-        if (val) {
-            handleInputChar(val.substring(val.length - 1)); // 取最后一个输入的字符
-            e.target.value = ""; // 清空
-        }
-    };
-    
-    // 专门处理回车换行
-    hiddenInput.onkeydown = (e) => {
-        if (e.key === "Enter") {
-            handleInputChar("\n");
-        }
-    };
-};
-
-// 2. 聚焦函数
-window.focusTyping = function () {
-    const input = document.getElementById("hiddenInput");
-
-    if (input) {
-        input.focus({ preventScroll: true });
-    }
-};
-
-function handleInputChar(inputChar) {
-    if (typingIndex >= rawTextArray.length) return;
-
-    const targetChar = rawTextArray[typingIndex];
-    const currentEl = document.getElementById(`char-${typingIndex}`);
-
-    // 正确输入
-    if (inputChar.toLowerCase() === targetChar.toLowerCase()) {
-        currentEl.classList.remove("char-wrong");
-        currentEl.classList.add("char-correct");
-
-        typingIndex++;
-        updateTypingDisplay();
-    }
-    // 错误输入
-    else {
-        currentEl.classList.add("char-wrong");
-    }
-}
-
-// 4. 更新光标位置
-function updateTypingDisplay() {
-    document.querySelectorAll('.char-current').forEach(el => el.classList.remove('char-current'));
-    const currentEl = document.getElementById(`char-${typingIndex}`);
-    
-    if (currentEl) {
-        currentEl.classList.add('char-current');
-        
-        // 针对 iOS 的平滑滚动优化
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
-        
-        requestAnimationFrame(() => {
-            currentEl.scrollIntoView({ 
-                behavior: 'auto', 
-                block: isIOS ? 'nearest' : 'center' // iOS 下 center 有时会导致过度滚动
-            });
-
-        });
-    } else if (typingIndex >= rawTextArray.length && rawTextArray.length > 0) {
-        alert("🎉 练习完成！");
-        exitExercise();
-    }
-}
-
-// 5. 修改原有的 exitExercise
-const oldExitExercise = window.exitExercise;
-window.exitExercise = function() {
-    window.typingModeActive = false;
-    const hiddenInput = document.getElementById("hiddenInput");
-    if (hiddenInput) hiddenInput.oninput = null;
-    
-    // 调用原有逻辑恢复 UI
-    ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id => {
-        document.getElementById(id).classList.remove("hidden");
-    });
-    displayArea.classList.remove("active");
-    document.getElementById("submitBtn").style.display = "block";
-};
-
-
-// =====================================================
-window.calculateScore = function() {
-    const inputs = document.querySelectorAll("#clozeContent input");
-    if (inputs.length === 0) return;
-
-    let correctCount = 0;
-    const totalCount = inputs.length;
-    const dict = translations[currentLang]; // 获取当前语言包
-
-    inputs.forEach(input => {
-        const ans = answers[input.dataset.id].toLowerCase().trim();
-        const val = input.value.toLowerCase().trim();
-        
-        if (val === ans) {
-            correctCount++;
-            input.style.border = "2px solid #43a047";
-        } else {
-            input.style.border = "2px solid #ff5252";
-            input.value = ""; 
-            input.placeholder = (currentLang === 'zh' ? "答案: " : "Ans: ") + ans;
-        }
-    });
-
-    const score = Math.round((correctCount / totalCount) * 100);
-    const scoreDisplay = document.getElementById("scoreResult");
-    
-    // 根据语言包显示评价
-    let comment = "";
-    if (score === 100) comment = dict.perfect;
-    else if (score >= 80) comment = dict.great;
-    else if (score >= 60) comment = dict.keepGoing;
-    else comment = dict.practiceMore;
-
-    scoreDisplay.innerHTML = `${dict.scoreLabel}: ${score}% (${correctCount}/${totalCount}) <br> ${comment}`;
-    scoreDisplay.scrollIntoView({ behavior: 'smooth' });
-};
-
-// =====================================================
-let currentLang = localStorage.getItem('app_lang') || 'zh';
-
-window.toggleLanguage = function() {
-    currentLang = currentLang === 'zh' ? 'en' : 'zh';
-    localStorage.setItem('app_lang', currentLang);
-    applyLanguage();
-};
-
-window.applyLanguage = function() {
-    const dict = translations[currentLang];
-    document.querySelectorAll('[data-i18n]').forEach(el => {
-        const key = el.getAttribute('data-i18n');
-        if (dict[key]) {
-            if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-                el.placeholder = dict[key];
-            } else {
-                el.innerHTML = dict[key];
-            }
-        }
-    });
-    // 特殊状态更新
-    const loginLabel = document.getElementById('loginBtnLabel');
-    if (loginLabel) {
-        loginLabel.innerText = window.currentUser ? dict.synced : dict.login;
-    }
-};
-// =====================================================
-  
-const DEFAULT_TEXT = `"示例文本"。
-
-Hello?
-
-- Sara, it's Lara.
-
-- Oh, hi Lara, what's up?
-
-Just wanted to check and make sure you're still coming into work tonight.
-
-Sure, I could really use the money.
-
-Mom, finally cut off my finances.
-
-Oh, okay.
-
-Well, we've got something really important to talk about when you get here.
-
-Sure, well, I'll be there in a little bit.
-
-Yeah, don't rush though, it's so dead in here.
-
-Oh, that's too bad.
-
-Well, I'll see ya.
-
-Okay, bye.`;
-
-	// 核心函数：根据单词长度生成 A _ _ _ e 样式的提示
-function getSmartHint(word) {
-    if (!word || word.length <= 1) return "_"; 
-    
-    // 逻辑：
-    // 1. 长度 <= 4 (如 the, cat, book): 只给首字母
-    // 2. 长度 > 4 (如 apple, finances): 给首尾字母
-    if (word.length <= 4) {
-        return word[0] + "_".repeat(word.length - 1);
-    } else {
-        return word[0] + "_".repeat(word.length - 2) + word[word.length - 1];
-    }
-}
-
-window.files = JSON.parse(localStorage.getItem('cloze_files_v5')) || [{
-  id: Date.now(),
-  title: 'File 1',
-  content: DEFAULT_TEXT,
-  clozePositions: []
-}];
-
-let activeFileId = Number(localStorage.getItem('cloze_last_active_id')) || (files[0] ? files[0].id : null);
-let currentFontSize = 18;
+/* ---------------- Global State ---------------- */
 let answers = [];
+let currentLang = "zh";
 
-const inputArea = document.getElementById("inputText");
-const displayArea = document.getElementById("clozeDisplay");
-const clozeContent = document.getElementById("clozeContent");
+window.customIndices = [];
+window.currentCID = null;
+window.currentUser = null;
 
-// ---------------- 初始化 (Anki 专供精简版) ----------------
-function init() { 
-    const urlParams = new URLSearchParams(window.location.search);
-    const textFromAnki = urlParams.get('text'); 
-    const cidFromAnki = urlParams.get('cid'); // 拿到你的 ID 编号（{{正面}}）
+/* ---------------- Cloze Generate ---------------- */
+function generateCloze(text){
+  let index=0;
+  answers=[];
 
-    // 只有当有 Anki 传参时才执行
-    if (textFromAnki) {
-        // 1. 文本填充
-        const decodedText = decodeURIComponent(textFromAnki.replace(/\+/g, ' '));
-        inputArea.value = decodedText;
-        
-        // 2. 编号记录 (这是云端对暗号的关键)
-        if (cidFromAnki) {
-            // 处理特殊字符，确保 Firebase 路径合法
-            window.currentCID = decodeURIComponent(cidFromAnki).replace(/[\.\$\#\[\]\/]/g, "_");
-        }
-
-        // 3. 渲染练习
-        // 注意：因为你删了 loadActiveFile，所以这里直接调 handleGenerate
-        if (typeof handleGenerate === 'function') {
-            handleGenerate(); 
-        }
-
-        applyLanguage();
-        return; // 处理完 Anki 逻辑直接返回，不跑后面的垃圾代码
-    }
-
-    // 如果不是从 Anki 打开的（比如调试），可以给个提示
-    console.log("等待 Anki 传入 ID 和文本...");
-    applyLanguage();
-}
-
-// ---------------- 粘贴 ----------------
-async function handlePaste() {
-  if (!navigator.clipboard) return;
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) { inputArea.value=text; saveActiveFile(); 
-      const btn=document.getElementById("pasteBtn"); 
-      btn.style.background="#888"; 
-      setTimeout(()=>{btn.style.background="var(--primary)";},800); 
-    }
-  } catch { console.log("Paste failed"); }
-}
-
-
-// ---------------- 适配 Anki 的全新保存逻辑 ----------------
-window.save = function() {
-    // 1. 检查是否有 ID (正面字段)
-    if (!window.currentCID) {
-        console.warn("⚠️ 缺失 CID，无法保存坐标到云端。");
-        return;
-    }
-
-    // 2. 确保坐标数组存在 (如果没挖空，就是空数组)
-    const indicesToSave = window.customIndices || [];
-
-    // 3. 先保存到本地 LocalStorage (作为双重保险)
-    // 使用 CID 作为 Key，这样不同的卡片在本地也是分开存的
-    localStorage.setItem(`cloze_indices_${window.currentCID}`, JSON.stringify(indicesToSave));
-    
-    // 4. 触发云端同步 (调用 Firebase 模块中的函数)
-    if (window.currentUser && typeof window.syncCardToCloud === 'function') {
-        window.syncCardToCloud(indicesToSave);
-        console.log(`🚀 已尝试同步卡片 [${window.currentCID}] 到云端`);
-    } else {
-        console.log("☁️ 未登录或同步函数未就绪，仅保存至本地。");
-    }
-};
-
-function loadActiveFile(){ 
-  const f=files.find(x=>x.id===activeFileId); 
-  if(!f) return;
-  inputArea.value=f.content || ""; 
-  answers = [];
-}
-
-
-// ---------------- 字体 ----------------
-function changeFontSize(d){ 
-  currentFontSize+=d; 
-  if(currentFontSize<12) currentFontSize=12; 
-  inputArea.style.fontSize=displayArea.style.fontSize=currentFontSize+"px"; 
-  document.getElementById("sizeLabel").innerText=currentFontSize; 
-}
-
-// ---------------- 清空 ----------------
-function handleClear(){ 
-  if(!confirm(translations[currentLang].confirmClear)) return; 
-  inputArea.value=""; 
-  const f = files.find(x=>x.id===activeFileId); 
-  if(f) f.clozePositions = [];
-  saveActiveFile(""); 
-}
-
-// ---------------- 每 N 个词挖空 ----------------
-function generateCloze(text,n){
-  let index=0; answers=[];
-  const regex = /\([^)]*\)|[a-zA-Z]+|[\u4e00-\u9fa5]/g;
-  return text.replace(regex,(match)=>{
-    if (match.startsWith('(')) return `<span style="color:#999;font-style:italic;">${match}</span>`;
+  return text.replace(/[a-zA-Z]+|[\u4e00-\u9fa5]/g,(w)=>{
     index++;
-    if(index%n===1){
-      const id = answers.length;
-      answers.push(match);
-      const isChinese = /[\u4e00-\u9fa5]/.test(match);
-      const boxWidth = isChinese ? 2 : match.length + 1;
-     // 找到这一行并修改
-  return `<input data-id="${id}" autocomplete="off" style="width:${boxWidth}ch; font-family:inherit; vertical-align:middle; line-height:1; height:1.5em;" onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});">`;
- 
+    if(index%4===1){
+      let id=answers.length;
+      answers.push(w);
+      return `<input data-id="${id}" autocomplete="off">`;
     }
-    return match;
+    return w;
   });
 }
 
-// ------------------ 修改后的自动生成练习函数 (增加红字逻辑) ------------------
 function handleGenerate(){
-  if(!inputArea.value.trim()) return;
-  const n=parseInt(document.getElementById("nthWord").value)||4;
-  clozeContent.innerHTML=generateCloze(inputArea.value,n);
-  ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.add("hidden"));
-  displayArea.classList.add("active");
+  const text=inputText.value.trim();
+  if(!text) return;
 
-  clozeContent.querySelectorAll("input").forEach(input=>{
-    // --- 【新增：在此处添加单词提示】 ---
-    const targetAns = answers[input.dataset.id];
-    input.placeholder = getSmartHint(targetAns);
+  clozeContent.innerHTML=generateCloze(text);
 
-    input.oninput=()=>{
-      const ans=answers[input.dataset.id];
-      const val=input.value.trim();
-      
-      // 背景色逻辑
-      input.style.backgroundColor=val.toLowerCase()===ans.toLowerCase()?"#c8f7c5":(val?"#f7c5c5":"#fffde7");
-      
-      // 错字红字逻辑
-      if (val && !ans.toLowerCase().startsWith(val.toLowerCase())) {
-        input.style.color = "var(--danger)"; 
-      } else {
-        input.style.color = "#000";
-      }
-    };
+  hideMainUI();
+  clozeDisplay.classList.add("active");
 
-    input.onkeydown=(e)=>{
-      if(e.code==='Space'||e.keyCode===32){ 
-        e.preventDefault(); 
-        const ans=answers[input.dataset.id]; 
-        input.value=ans.substring(0,input.value.length+1); 
-        input.oninput(); 
-      }
-    };
-  });
+  submitBtn.style.display="block";
 }
 
-// ---------------- 退出 ----------------
-function exitExercise(){ 
-  ["topSection","bottomAction","footerSection","pasteBtn","inputText"].forEach(id=>document.getElementById(id).classList.remove("hidden")); 
-  displayArea.classList.remove("active"); 
-}
+/* ---------------- Score ---------------- */
+function calculateScore(){
+  const inputs=document.querySelectorAll("#clozeContent input");
+  let correct=0;
 
-// ---------------- 点击挖空 + 保存 ----------------
-function enableCustomCloze() {
-  const text = inputArea.value;
-  if (!text) return;
-
-  const regex = /([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g;
-  const segments = text.split(regex);
-  
-  // --- 关键修改：直接使用全局变量，不再从 files 找 ---
-  if (!window.customIndices) window.customIndices = [];
-
-  answers = [];
-  let unitCount = 0; 
-
-  clozeContent.innerHTML = segments.map((seg) => {
-    if (!seg || !seg.trim()) return seg; 
-    if (seg.startsWith('(')) return `<span style="color:#999;font-style:italic;">${seg}</span>`;
-
-    const currentIdx = unitCount++;
-    const isChinese = /[\u4e00-\u9fa5]/.test(seg);
-    const boxWidth = isChinese ? 2 : seg.length + 1;
-
-    // 使用全局 customIndices 判断
-    if (window.customIndices.includes(currentIdx)) {
-        answers.push(seg);
-        const hint = isChinese ? "?" : getSmartHint(seg);
-        return `<input data-id="${answers.length - 1}" data-index="${currentIdx}" autocomplete="off" 
-                placeholder="${hint}"
-                style="width:${boxWidth}ch; font-family:inherit; vertical-align:middle; line-height:1; height:1.5em;" 
-                onfocus="this.select(); this.scrollIntoView({behavior:'smooth',block:'center'});"
-                oncontextmenu="return false;">`;
+  inputs.forEach(inp=>{
+    let ans=answers[inp.dataset.id];
+    if(inp.value.trim().toLowerCase()===ans.toLowerCase()){
+      correct++;
+      inp.style.border="2px solid #43a047";
+    }else{
+      inp.style.border="2px solid var(--danger)";
     }
-    return `<span class="word-span" data-index="${currentIdx}">${seg}</span>`;
+  });
+
+  let score=Math.round(correct/inputs.length*100);
+  scoreResult.innerHTML=`得分: ${score}% (${correct}/${inputs.length})`;
+}
+
+/* ---------------- Typing Mode ---------------- */
+let typingIndex=0;
+let rawTextArray=[];
+window.typingModeActive=false;
+
+function startTypingMode(){
+  const text=inputText.value.trim();
+  if(!text) return;
+
+  rawTextArray=text.split("");
+  typingIndex=0;
+  window.typingModeActive=true;
+
+  clozeContent.innerHTML=
+    `<div class="typing-container" id="typeBox"></div>`;
+
+  const typeBox=document.getElementById("typeBox");
+  typeBox.innerHTML=rawTextArray.map((c,i)=>{
+    let d=(c===" "?"&nbsp;":c);
+    return `<span id="char-${i}">${d}</span>`;
   }).join("");
 
-  displayArea.classList.add("active");
-  ["topSection", "bottomAction", "footerSection", "pasteBtn", "inputText"].forEach(id => {
-      const el = document.getElementById(id);
-      if(el) el.classList.add("hidden");
-  });
+  hideMainUI();
+  clozeDisplay.classList.add("active");
+  submitBtn.style.display="none";
 
-  bindCustomEvents(); // 注意这里不再传参数 f
-}
+  focusTyping();
+  updateTypingCursor();
 
-// ------------------ 修改后的事件绑定函数 (处理长按撤销) ------------------
-function bindCustomEvents() {
-  clozeContent.querySelectorAll(".word-span, input").forEach((el) => {
-    let longPressTimer;
-    let isLongPress = false;
-
-    if (el.tagName === "SPAN") {
-      el.onclick = () => {
-        if (isLongPress) return (isLongPress = false);
-        const wordIndex = parseInt(el.dataset.index);
-        
-        // 操作全局坐标数组
-        if(!window.customIndices.includes(wordIndex)){
-            window.customIndices.push(wordIndex);
-            save(); // 这个 save 会触发云端同步
-            enableCustomCloze();
-        }
-      };
+  hiddenInput.oninput=(e)=>{
+    let v=e.target.value;
+    if(v){
+      handleTypingChar(v.slice(-1));
+      e.target.value="";
     }
-
-    if (el.tagName === "INPUT") {
-      // 长按逻辑中，修改 window.customIndices
-      const startLongPress = () => {
-        isLongPress = false;
-        longPressTimer = setTimeout(() => {
-          isLongPress = true;
-          if (confirm(translations[currentLang].revokeConfirm)) {
-            const wordIndex = parseInt(el.dataset.index);
-            window.customIndices = window.customIndices.filter(i => i !== wordIndex);
-            save();
-            enableCustomCloze();
-          }
-        }, 800);
-      };
-      el.ontouchstart = startLongPress;
-      el.onmousedown = (e) => { if(e.button === 0) startLongPress(); };
-      // ... 其他取消逻辑保持不变 ...
-    }
-  });
-}
-    // --- 处理 Input (已挖空的单词) ---
-    if (el.tagName === "INPUT") {
-      // 1. 输入校验与红字逻辑 (保持不变)
-      el.oninput = () => {
-        const ans = answers[el.dataset.id];
-        const val = el.value.trim();
-        el.style.backgroundColor = val.toLowerCase() === ans.toLowerCase() ? "#c8f7c5" : (val ? "#f7c5c5" : "#fffde7");
-        el.style.color = (val && !ans.toLowerCase().startsWith(val.toLowerCase())) ? "var(--danger)" : "#000";
-      };
-
-      el.onkeydown = (e) => {
-        if (e.code === 'Space' || e.keyCode === 32) {
-          e.preventDefault();
-          const ans = answers[el.dataset.id];
-          el.value = ans.substring(0, el.value.length + 1);
-          el.oninput();
-        }
-      };
-
-      // 2. 长按逻辑（核心优化）：取消挖空
-      const startLongPress = (e) => {
-        isLongPress = false;
-        longPressTimer = setTimeout(() => {
-          isLongPress = true;
-          if (confirm(translations[currentLang].revokeConfirm)) {
-            const wordIndex = parseInt(el.dataset.index);
-            f.clozePositions = f.clozePositions.filter(i => i !== wordIndex);
-            save();
-            enableCustomCloze();
-          }
-        }, 800); // 800ms 判定为长按
-      };
-
-      const cancelLongPress = () => {
-        clearTimeout(longPressTimer);
-      };
-
-      // 手机端
-      el.ontouchstart = startLongPress;
-      el.ontouchend = cancelLongPress;
-      
-      // 电脑端 (左键长按)
-      el.onmousedown = (e) => {
-        if (e.button === 0) startLongPress();
-      };
-      el.onmouseup = cancelLongPress;
-      el.onmouseleave = cancelLongPress;
-
-      // 屏蔽右键菜单 (防止干扰长按体验)
-      el.oncontextmenu = (e) => e.preventDefault();
-    }
-  });
-}
-
-// ---------------- 输入区变化也要更新保存 ----------------
-inputArea.oninput=()=>saveActiveFile();
-
-
-
-// ---------------- 弹窗控制 ----------------
-function openGuide() {
-  document.getElementById("guideModal").style.display = "flex";
-}
-
-function closeGuide() {
-  document.getElementById("guideModal").style.display = "none";
-}
-window.customIndices = []; // 确保一开始就是数组
-window.currentCID = null;  // 记录当前 Anki 卡片 ID
-// ---------------- 初始化 ----------------
-init();
-</script>
-<!-- 注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意注意-->
-
-<script type="module">
-  // 1. 导入部分：注意增加了 onValue
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
-  import { getDatabase, ref, get, set, runTransaction, onValue } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
-  import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, onAuthStateChanged, signOut, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
-    authDomain: "cloze-master-pro.firebaseapp.com",
-    projectId: "cloze-master-pro",
-    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-    storageBucket: "cloze-master-pro.firebasestorage.app",
-    messagingSenderId: "697808901954",
-    appId: "1:697808901954:web:32455d94bf67e522e01adb"
   };
 
-  const app = initializeApp(firebaseConfig);
-  const db = getDatabase(app);
-  const auth = getAuth(app);
-  const googleProvider = new GoogleAuthProvider(); // 初始化 Google 提供者
+  hiddenInput.onkeydown=(e)=>{
+    if(e.key==="Enter") handleTypingChar("\n");
+  };
+}
 
-  let currentUser = null;
-  let currentCID = null;
-  let currentCardCloze = [];
+function focusTyping(){
+  hiddenInput.focus({preventScroll:true});
+}
 
-  // ------------------ 监听 Anki 传参 ------------------
-  function loadAnkiData() {
-    const params = new URLSearchParams(window.location.search);
-    const rawCID = params.get('cid'); // 获取正面单词
-    const rawText = params.get('text');
+function handleTypingChar(ch){
+  if(typingIndex>=rawTextArray.length) return;
 
-    if (rawCID) {
-        // 安全处理 CID：Firebase 不允许路径包含 . $ # [ ] /
-        currentCID = decodeURIComponent(rawCID).replace(/[\.\$\#\[\]\/]/g, "_");
-    }
-    
-    if (rawText) {
-        // 填充文本并直接开始（稍后云端数据回来会二次刷新）
-        const text = decodeURIComponent(rawText.replace(/\+/g, ' '));
-        window.inputText.value = text; 
-        window.handleGenerate(); 
-    }
+  let target=rawTextArray[typingIndex];
+  let el=document.getElementById(`char-${typingIndex}`);
+
+  if(ch.toLowerCase()===target.toLowerCase()){
+    el.className="char-correct";
+    typingIndex++;
+    updateTypingCursor();
+  }else{
+    el.className="char-wrong";
   }
 
-  googleProvider.setCustomParameters({
-    prompt: 'select_account'
+  if(typingIndex>=rawTextArray.length){
+    alert("🎉 跟打完成！");
+    exitExercise();
+  }
+}
+
+function updateTypingCursor(){
+  document.querySelectorAll(".char-current")
+    .forEach(e=>e.classList.remove("char-current"));
+
+  let el=document.getElementById(`char-${typingIndex}`);
+  if(el){
+    el.classList.add("char-current");
+    el.scrollIntoView({block:"center"});
+  }
+}
+
+/* ---------------- Manual Cloze ---------------- */
+function enableCustomCloze(){
+  const text=inputText.value.trim();
+  if(!text) return;
+
+  let words=text.split(/\s+/);
+  answers=[];
+
+  clozeContent.innerHTML=words.map((w,i)=>{
+    if(customIndices.includes(i)){
+      answers.push(w);
+      return `<input data-id="${answers.length-1}" data-index="${i}">`;
+    }
+    return `<span class="word-span" data-index="${i}"
+            style="cursor:pointer;padding:2px;">${w}</span>`;
+  }).join(" ");
+
+  hideMainUI();
+  clozeDisplay.classList.add("active");
+
+  bindCustomEvents();
+}
+
+function bindCustomEvents(){
+  document.querySelectorAll(".word-span").forEach(span=>{
+    span.onclick=()=>{
+      let idx=parseInt(span.dataset.index);
+      if(!customIndices.includes(idx)){
+        customIndices.push(idx);
+        save();
+        enableCustomCloze();
+      }
+    };
   });
 
-  // 新增：处理 Google 登录的完整函数
-window.handleGoogleAuth = async () => {
-    try {
-        // 这次它会强制弹窗让你选账号
-        const result = await signInWithPopup(auth, googleProvider);
-        const user = result.user;
-        console.log("Google 登录成功:", user.displayName);
-        window.closeLoginModal();
-    } catch (error) {
-        console.error("Google 登录失败:", error.message);
-        // 如果用户直接关闭了弹窗，这里会捕获到错误
-        if (error.code !== 'auth/popup-closed-by-user') {
-            alert("Google 登录失败: " + error.message);
-        }
-    }
+  document.querySelectorAll("#clozeContent input").forEach(inp=>{
+    let timer=null;
+
+    inp.ontouchstart=()=>{
+      timer=setTimeout(()=>{
+        let idx=parseInt(inp.dataset.index);
+        customIndices=customIndices.filter(x=>x!==idx);
+        save();
+        enableCustomCloze();
+      },800);
+    };
+
+    inp.ontouchend=()=>clearTimeout(timer);
+  });
 }
-  
-  // --- 登录/注册逻辑 ---
-  window.handleEmailAuth = async (type) => {
-    const email = document.getElementById('authEmail').value;
-    const password = document.getElementById('authPassword').value;
-    if (!email || !password) return alert("请输入邮箱和密码");
-    try {
-      if (type === 'signup') {
-        await createUserWithEmailAndPassword(auth, email, password);
-        alert("注册成功！数据将同步至此账号。");
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-        alert("登录成功！");
-      }
-      window.closeLoginModal();
-    } catch (e) { alert("操作失败: " + e.message); }
-  };
 
-  window.handleLogout = () => { if(confirm(translations[currentLang].logoutConfirm)) signOut(auth); };
+/* ---------------- Save + Sync ---------------- */
+function save(){
+  if(!currentCID) return;
+  localStorage.setItem("cloze_"+currentCID,JSON.stringify(customIndices));
 
-// ------------------ 修复后的登录与云端实时监听 ------------------
-// ------------------ 修复后的登录与云端实时监听 ------------------
-onAuthStateChanged(auth, (user) => {
-    window.currentUser = user; // 挂载到全局供 save() 使用
+  if(currentUser && window.syncCardToCloud){
+    syncCardToCloud(customIndices);
+  }
+}
 
-    const loggedOutUI = document.getElementById('loggedOutUI');
-    const loggedInUI = document.getElementById('loggedInUI');
-    const userEmailDisplay = document.getElementById('userEmailDisplay');
-    const loginBtnLabel = document.getElementById('loginBtnLabel');
+/* ---------------- Exit Exercise (唯一) ---------------- */
+function exitExercise(){
+  window.typingModeActive=false;
 
-    if (user) {
-        console.log("👤 登录成功:", user.email);
-        if (loggedOutUI) loggedOutUI.classList.add('hidden');
-        if (loggedInUI) loggedInUI.classList.remove('hidden');
-        if (userEmailDisplay) userEmailDisplay.innerText = user.email;
-        
-        // 底部按钮文案实时更新
-        if (loginBtnLabel) {
-            loginBtnLabel.innerText = currentLang === 'zh' ? "✅ 云端已同步" : "✅ Synced";
-            loginBtnLabel.style.color = "#43a047";
+  hiddenInput.oninput=null;
+  hiddenInput.onkeydown=null;
+
+  showMainUI();
+  clozeDisplay.classList.remove("active");
+}
+
+/* ---------------- UI Helpers ---------------- */
+function hideMainUI(){
+  topSection.classList.add("hidden");
+  bottomAction.classList.add("hidden");
+  footerSection.classList.add("hidden");
+  inputText.classList.add("hidden");
+}
+
+function showMainUI(){
+  topSection.classList.remove("hidden");
+  bottomAction.classList.remove("hidden");
+  footerSection.classList.remove("hidden");
+  inputText.classList.remove("hidden");
+}
+
+/* ---------------- Language ---------------- */
+function toggleLanguage(){
+  currentLang=(currentLang==="zh"?"en":"zh");
+  alert("切换语言: "+currentLang);
+}
+
+/* ---------------- Init Anki ---------------- */
+(function init(){
+  const params=new URLSearchParams(location.search);
+  if(params.get("cid")){
+    currentCID=params.get("cid");
+    customIndices=JSON.parse(localStorage.getItem("cloze_"+currentCID)||"[]");
+  }
+})();
+</script>
+
+<!-- ================= Firebase Sync ================= -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-app.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-database.js";
+import { getAuth, onAuthStateChanged, GoogleAuthProvider, signInWithPopup } from "https://www.gstatic.com/firebasejs/12.8.0/firebase-auth.js";
+
+const firebaseConfig={
+  apiKey:"AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+  authDomain:"cloze-master-pro.firebaseapp.com",
+  databaseURL:"https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"cloze-master-pro"
+};
+
+const app=initializeApp(firebaseConfig);
+const db=getDatabase(app);
+const auth=getAuth(app);
+const provider=new GoogleAuthProvider();
+
+/* Google Login */
+window.openLoginModal=async()=>{
+  const result=await signInWithPopup(auth,provider);
+  console.log("登录成功:",result.user.email);
+};
+
+onAuthStateChanged(auth,user=>{
+  window.currentUser=user;
+  if(user){
+    loginBtnLabel.innerText="✅ 已同步";
+    loginBtnLabel.style.color="#43a047";
+
+    if(window.currentCID){
+      const cardRef=ref(db,`users/${user.uid}/clozes/${window.currentCID}`);
+      onValue(cardRef,snap=>{
+        if(snap.exists()){
+          window.customIndices=snap.val();
+          if(clozeDisplay.classList.contains("active")){
+            enableCustomCloze();
+          }
         }
-
-        // 如果是 Anki 模式，立即开启实时监听
-        if (currentCID) {
-            const cardRef = ref(db, `users/${user.uid}/clozes/${currentCID}`);
-            onValue(cardRef, (snapshot) => {
-                if (snapshot.exists()) {
-                    const cloudData = snapshot.val();
-                    // 只有当云端数据和本地内存不同时，才触发重新渲染
-                    if (JSON.stringify(cloudData) !== JSON.stringify(window.customIndices)) {
-                        console.log("🔥 云端坐标更新，刷新练习界面...");
-                        window.customIndices = cloudData;
-                        // 如果当前正处于手动挖空界面，则重绘
-                        if (displayArea.classList.contains("active")) {
-                             enableCustomCloze(); 
-                        }
-                    }
-                }
-            });
-        }
-    } else {
-        if (loggedOutUI) loggedOutUI.classList.remove('hidden');
-        if (loggedInUI) loggedInUI.classList.add('hidden');
-        if (loginBtnLabel) {
-            loginBtnLabel.innerText = currentLang === 'zh' ? "👤 登录/同步" : "👤 Login/Sync";
-            loginBtnLabel.style.color = "#42a5f5";
-        }
+      });
     }
+  }
 });
 
-// --- 必须把同步函数挂载到 window ---
-window.syncCardToCloud = async function (indices) {
-    if (!window.currentUser || !currentCID) return;
-    try {
-        const path = `users/${window.currentUser.uid}/clozes/${currentCID}`;
-        await set(ref(db, path), indices);
-        console.log("✅ 同步至云端成功");
-    } catch (e) {
-        console.error("❌ 同步失败:", e.message);
-    }
+/* Sync Function (唯一) */
+window.syncCardToCloud=async(indices)=>{
+  if(!window.currentUser||!window.currentCID) return;
+  const path=`users/${window.currentUser.uid}/clozes/${window.currentCID}`;
+  await set(ref(db,path),indices);
+  console.log("☁️ 已同步云端");
 };
-
-    try {
-        const path = `users/${currentUser.uid}/clozes/${currentCID}`;
-        await set(ref(db, path), indices);
-        console.log(`✅ 卡片 [${currentCID}] 坐标已同步到云端`);
-    } catch (e) {
-        console.error("❌ 同步失败:", e.message);
-    }
-  };
-
-
-
-// --- 统计逻辑 ---
-const incrementVisit = async () => {
-  const now = new Date();
-  // 获取今天的日期字符串，例如 "2026-01-25"
-  const todayStr = now.toISOString().split('T')[0]; 
-  const lastVisitDay = localStorage.getItem('last_visit_day');
-
-  // 检查：如果本地存的日期不是今天，说明是新的一天
-  if (lastVisitDay !== todayStr) {
-    try {
-      // 1. 增加云端访问次数
-      await runTransaction(ref(db, "stats/visits"), v => (v || 0) + 1);
-      
-      // 2. 更新本地记录为今天
-      localStorage.setItem('last_visit_day', todayStr);
-      console.log("🚀 今天的第一次访问，访问量已更新");
-    } catch (e) {
-      console.error("更新访问量失败:", e);
-    }
-  } else {
-    console.log("⏳ 今天已经计入过访问，跳过统计");
-  }
-  
-  // 无论是否增加，最后都刷新一下 UI 显示
-  window.loadStats();
-};
-
-window.likeApp = async () => {
-    // 1. 获取标识符 (优先登录 UID，其次本地随机 ID)
-    const uid = currentUser ? currentUser.uid : localStorage.getItem("cloze_uid");
-    if (!uid) {
-        // 如果连本地 ID 都没有（极少见），可以临时生成一个
-        const tempId = 'guest_' + Math.random().toString(36).substr(2, 9);
-        localStorage.setItem("cloze_uid", tempId);
-    }
-
-    const userLikeRef = ref(db, `likedUsers/${uid}`);
-    
-    try {
-        const snap = await get(userLikeRef);
-        if (snap.exists()) {
-            alert(currentLang === 'zh' ? "你已经点过赞啦 ❤️" : "You've already liked this ❤️");
-            return;
-        }
-
-        // 2. 乐观 UI 更新 (可选)：点击瞬间让数字先 +1，显得很快
-        const likeLabel = document.getElementById("likeCount");
-        const currentLikes = parseInt(likeLabel.innerText);
-        likeLabel.innerText = currentLikes + 1;
-
-        // 3. 写入云端
-        await set(userLikeRef, true);
-        await runTransaction(ref(db, "stats/likes"), v => (v || 0) + 1);
-        
-        // 4. 刷新显示 (确保数据准确)
-        window.loadStats();
-    } catch (e) {
-        console.error("Like failed:", e);
-    }
-};
-
-  window.openLoginModal = () => document.getElementById("loginModal").style.display = "flex";
-  window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
-
-  incrementVisit();
-  window.loadStats();
 </script>
+
 </body>
 </html>
