@@ -22,60 +22,30 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
     position: absolute; top:0; left:0;
 }
 #inputText { resize:none; z-index: 1; }
-/* 3. 调整整体行间距（在 #clozeContent 中设置） */
-#clozeContent {
-    z-index: 0; 
-    display: none; 
-    background: #fff;
-    /* --- 核心调整区 --- */
-    line-height: 2.0;      /* 增加行高，建议 1.8 到 2.2 之间 */
-}
+#clozeContent { z-index: 0; display: none; background: #fff; }
 
 .exercise-mode #inputText { display: none; }
 .exercise-mode #clozeContent { display: block; z-index: 2; }
 .exercise-mode .edit-only { display: none; }
 .exercise-mode .exercise-only { display: flex !important; }
 
-/* 2. 调整点击后生成的输入框间距 */
+/* 像素级对齐的输入框样式 */
 .cloze-display-input { 
-    font-size: inherit; 
-    font-family: inherit; 
-    color: inherit;
-    min-width: 1ch; 
-    height: 1.2em;        /* 稍微加高一点，避免压线 */
-    line-height: normal;
-    
-    /* --- 核心调整区 --- */
-    padding: 0 2px;        /* 输入框内部文字距离边框的距离 */
-    margin: 0 4px;         /* 输入框与前后单词的距离 */
-    border-bottom: 2px solid #666; /* 加粗底线，更清晰 */
-    /* ---------------- */
-    
-    background: var(--input-bg); 
-    border-radius: 0; 
-    outline: none;
-    display: inline-block; 
-    vertical-align: baseline; 
-    text-align: center;
+    font-size: inherit; font-family: inherit; color: inherit;
+    min-width: 1ch; height: 1em; line-height: normal;
+    padding: 0; margin: 0 1px;
+    border: none; border-bottom: 1.5px solid #666;
+    background: var(--input-bg); border-radius: 0; outline: none;
+    display: inline-block; vertical-align: baseline; text-align: center;
     -webkit-appearance: none;
 }
-
 
 .footer-actions { display:flex; border-top:1px solid #ddd; background:#fff; }
 .footer-actions button { flex:1; padding:15px; border:none; font-weight:bold; cursor:pointer; font-size:15px; }
 .btn-primary { background:var(--primary); color:white; }
 .btn-danger { color:var(--danger); background:#fff8f8; }
 
-/* 1. 调整普通单词（待点选单词）的间距 */
-.word-span {
-    cursor: pointer;
-    border-radius: 3px;
-    /* --- 核心调整区 --- */
-    padding: 2px 4px;      /* 增加上下 2px，左右 4px 的点击热区 */
-    margin: 0 1px;         /* 单词之间的左右距离 */
-    letter-spacing: 0.5px; /* 字母之间的微小间距 */
-    /* ---------------- */
-}
+.word-span { cursor:pointer; border-radius:3px; padding: 0 2px; }
 .word-span:hover { background:#e8f5e9; }
 .exercise-only { display: none; }
 </style>
@@ -254,12 +224,7 @@ function handleSpaceKey(e, el) {
 
 function changeFontSize(delta) {
     currentFontSize += delta;
-    // 同时调整字体大小
     inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
-    
-    // 动态调整行高（可选：让行高随字体增大而略微变化）
-    clozeContent.style.lineHeight = "2.0"; 
-    
     document.getElementById('fontSizeLabel').innerText = currentFontSize;
 }
 
