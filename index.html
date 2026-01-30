@@ -567,42 +567,11 @@ const inputArea = document.getElementById("inputText");
 const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
-window.onerror = function(msg, url, line) {
-    alert("Error: " + msg + "\nline: " + line);
-};
-// ---------------- 初始化：默认进入【手动挖空模式】 ----------------
+// ---------------- 初始化 ----------------
 function init() { 
-    const urlParams = new URLSearchParams(window.location.search);
-    const textFromAnki = urlParams.get('text');
-    const savedData = urlParams.get('data'); // 获取本地字段存的挖空索引
-
-    if (textFromAnki) {
-        // 1. 解码文本
-        const decodedText = decodeURIComponent(textFromAnki.replace(/\+/g, ' '));
-        inputArea.value = decodedText;
-        
-        if (document.getElementById("sizeLabel")) {
-            document.getElementById("sizeLabel").innerText = currentFontSize;
-        }
-        
-        // 2. 延迟进入手动挖空逻辑
-        setTimeout(() => {
-            // 如果 data 参数里有以前保存的索引（例如 [1,3,5]）
-            if (savedData && savedData !== "" && savedData !== "{{text_export:ClozeData}}") {
-                console.log("📦 发现本地保存的挖空，正在还原...");
-                renderSavedCloze(savedData);
-            } else {
-                // 如果没有保存过，直接进入手动选词模式
-                enableCustomCloze(); 
-                console.log("🎯 进入【手动挖空模式】，请点击单词进行挖空");
-            }
-        }, 150);
-
-        return; 
-    }
-
-    // 非 Anki 环境下的逻辑保持不变
-    if(typeof renderTabs === 'function') renderTabs(); 
+    renderTabs(); 
+    loadActiveFile();
+    applyLanguage(); // 新增：页面加载时应用语言
 }
 
 // ---------------- 粘贴 ----------------
@@ -1156,7 +1125,7 @@ window.likeApp = async () => {
   window.closeLoginModal = () => document.getElementById("loginModal").style.display = "none";
 
   incrementVisit();
-  // window.loadStats();
+  window.loadStats();
 </script>
 </body>
 </html>
