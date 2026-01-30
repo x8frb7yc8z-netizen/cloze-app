@@ -10,7 +10,6 @@
 html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-system, sans-serif; background:#fff; overflow:hidden; }
 
 .app-container { display:flex; flex-direction:column; height:100%; }
-.header { display:flex; align-items:center; justify-content:space-between; padding:10px 15px; background:var(--bg); border-bottom:1px solid #ddd; }
 .btn-group { display:flex; align-items:center; gap:8px; }
 
 .main-area { flex:1; position:relative; overflow-y:auto; }
@@ -66,15 +65,6 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 
 <body>
 <div class="app-container" id="app">
-    <header class="header">
-        <span style="font-weight:bold; color:var(--primary);">Cloze Master Lite</span>
-        <div class="btn-group">
-            <button class="small-btn" onclick="changeFontSize(-2)">A-</button>
-            <span id="fontSizeLabel">20</span>
-            <button class="small-btn" onclick="changeFontSize(2)">A+</button>
-        </div>
-    </header>
-
     <main class="main-area">
         <textarea id="inputText" placeholder="在此粘贴文章内容..."></textarea>
         <div id="clozeContent"></div>
@@ -82,7 +72,11 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 
     <nav class="footer-actions">
         <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
-        <button class="edit-only" onclick="handlePaste()" style="background:#f0f0f0;">📋 粘贴</button>
+        <div class="font-ctrl edit-only">
+             <button class="font-btn" onclick="changeFontSize(-2)">A-</button>
+             <span id="fontSizeLabel">20</span>
+             <button class="font-btn" onclick="changeFontSize(2)">A+</button>
+        </div>
         <button class="btn-primary edit-only" onclick="toggleMode(true)">开始练习</button>
         <button class="btn-primary exercise-only" onclick="toggleMode(false)" style="width: 100%;">← 返回修改</button>
     </nav>
@@ -237,15 +231,13 @@ function handleSpaceKey(e, el) {
 
 function changeFontSize(delta) {
     currentFontSize += delta;
+    // 更新输入框和显示框的字体
     inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
-    document.getElementById('fontSizeLabel').innerText = currentFontSize;
+    // 更新底部新位置的字号数字
+    const label = document.getElementById('fontSizeLabel');
+    if(label) label.innerText = currentFontSize;
 }
 
-function handleClear() { if (confirm("确定要清空吗？")) { inputArea.value = ""; manualPositions = []; savePositions(); } }
-async function handlePaste() { 
-    try { const text = await navigator.clipboard.readText(); if (text) { inputArea.value = text; savePositions(); } } 
-    catch (e) {} 
-}
 
 function getHint(w) { return w.length <= 2 ? w[0] + "_" : w[0] + "_".repeat(w.length - 2) + w[w.length-1]; }
 function savePositions() { 
