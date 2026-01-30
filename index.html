@@ -569,9 +569,22 @@ const clozeContent = document.getElementById("clozeContent");
 
 // ---------------- 初始化 ----------------
 function init() { 
-    renderTabs(); 
-    loadActiveFile();
-    applyLanguage(); // 新增：页面加载时应用语言
+    const urlParams = new URLSearchParams(window.location.search);
+    const textFromAnki = urlParams.get('text');
+
+    if (textFromAnki) {
+        // 仅保留 URL 解码和填充
+        inputArea.value = decodeURIComponent(textFromAnki.replace(/\+/g, ' '));
+        
+        // 触发跟打
+        setTimeout(() => {
+            if (typeof startTypingMode === 'function') {
+                startTypingMode(); 
+                console.log("🎯 已成功识别 Anki 文本");
+            }
+        }, 150);
+        return; 
+    }
 }
 
 // ---------------- 粘贴 ----------------
