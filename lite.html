@@ -75,10 +75,18 @@ const inputArea = document.getElementById('inputText');
 const displayArea = document.getElementById('clozeDisplay');
 const clozeContent = document.getElementById('clozeContent');
 
-window.onload = () => {
-    const savedText = localStorage.getItem('cloze_single_content');
-    if (savedText) inputArea.value = savedText;
-};
+function init() { 
+    const urlParams = new URLSearchParams(window.location.search);
+    const textFromAnki = urlParams.get('text');
+
+    if (textFromAnki) {
+        const decodedText = decodeURIComponent(textFromAnki.replace(/\+/g, ' '));
+        inputArea.value = decodedText;
+
+        const sizeLabel = document.getElementById("sizeLabel");
+        if (sizeLabel) sizeLabel.innerText = currentFontSize;
+    }
+}
 
 function changeFontSize(delta) {
     currentFontSize += delta;
