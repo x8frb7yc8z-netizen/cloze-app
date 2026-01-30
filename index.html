@@ -569,42 +569,63 @@ const clozeContent = document.getElementById("clozeContent");
 window.onerror = function(msg, url, line) {
     alert("Error: " + msg + "\nline: " + line);
 };
-// ---------------- 初始化：针对 Anki 自动触发【跟打模式】 ----------------
+// ---------------- 初始化：默认进入【手动挖空模式】 ----------------
 function init() { 
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
+    const savedData = urlParams.get('data'); // 获取本地字段存的挖空索引
 
     if (textFromAnki) {
-        // 修正：处理 URL 编码中的 + 号为空格
+        // 1. 解码文本
         const decodedText = decodeURIComponent(textFromAnki.replace(/\+/g, ' '));
         inputArea.value = decodedText;
         
-        // 同步标签显示（可选，如果你在 init 中加了自动更新字号标签的逻辑）
         if (document.getElementById("sizeLabel")) {
             document.getElementById("sizeLabel").innerText = currentFontSize;
         }
         
-        // 💡 关键修正：直接调用跟打模式
+        // 2. 延迟进入手动挖空逻辑
         setTimeout(() => {
-            // 1. 如果你的应用有 Tab 切换逻辑，确保它不会干扰显示
-            // activeTab = 'type'; // 如果有跟打专用的 Tab 变量
-
-            // 2. 直接运行跟打初始化函数
-            if (typeof startTypingMode === 'function') {
-                startTypingMode(); 
-                console.log("🎯 已成功识别 Anki 文本，直接进入【跟打模式】");
+            // 如果 data 参数里有以前保存的索引（例如 [1,3,5]）
+            if (savedData && savedData !== "" && savedData !== "{{text_export:ClozeData}}") {
+                console.log("📦 发现本地保存的挖空，正在还原...");
+                renderSavedCloze(savedData);
             } else {
-                console.error("❌ 未找到 startTypingMode 函数");
+                // 如果没有保存过，直接进入手动选词模式
+                enableCustomCloze(); 
+                console.log("🎯 进入【手动挖空模式】，请点击单词进行挖空");
             }
-        }, 150); // 150ms 的延迟通常比 50ms 更稳，能避开 DOM 渲染冲突
+        }, 150);
 
         return; 
     }
 
-    // 非 Anki 环境下的默认加载
-    renderTabs(); 
-    loadActiveFile();
-    applyLanguage();
+    // 非 Anki 环境下的逻辑保持不变
+    if(typeof renderTabs === 'function') renderTabs(); 
+}
+
+function renderSavedCloze(jsonData) {
+    try {
+        const indices = JSON.parse(decodeURIComponent(jsonData));
+        const text = inputArea.value;
+        const regex = /([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g;
+        const segments = text.split(regex).filter(s => s !== "");
+        
+        answers = [];
+        clozeContent.innerHTML = segments.map((seg, idx) => {
+            if (indices.includes(idx)) {
+                const id = answers.length;
+                answers.push(seg);
+                return `<input data-id="${id}" style="width:${seg.length+1}ch" placeholder="${getSmartHint(seg)}" oninput="checkInput(this)" onkeydown="handleHint(event, this)">`;
+            }
+            // 这里为了保持还能继续手动挖空，可以把非挖空部分依然渲染为 span
+            return `<span class="word-span" onclick="toggleCloze(this, '${seg}')">${seg}</span>`;
+        }).join("");
+
+        showExerciseUI();
+    } catch (e) {
+        enableCustomCloze(); // 解析失败则回退到普通手动模式
+    }
 }
 // ---------------- 粘贴 ----------------
 async function handlePaste() {
