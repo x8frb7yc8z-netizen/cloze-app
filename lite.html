@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>极简完形填空 Pro</title>
 <style>
-:root { --primary: #43a047; --bg: #f8f9fa; --danger: #ff5252; }
+:root { --primary: #43a047; --bg: #f8f9fa; --danger: #ff5252; --input-bg: #fffde7; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-system, sans-serif; background:#fff; overflow:hidden; }
 
@@ -14,18 +14,49 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 .btn-group { display:flex; align-items:center; gap:8px; }
 .small-btn { border:1px solid #ccc; background:#fff; padding:5px 10px; border-radius:6px; cursor:pointer; font-weight:bold; }
 
-.main-area { flex:1; position:relative; overflow:hidden; }
-textarea { width:100%; height:100%; padding:20px; border:none; outline:none; font-size:18px; line-height:1.6; resize:none; }
-
-.cloze-display { 
-    position:absolute; top:0; left:0; width:100%; height:100%; 
-    background:#fff; display:none; overflow-y:auto; padding:20px; 
-    line-height:2; z-index:10; padding-bottom:100px;
+.main-area { flex:1; position:relative; overflow-y:auto; }
+/* 统一输入框和展示框的样式 */
+#inputText, #clozeContent {
+    width:100%; height:100%; padding:20px; border:none; outline:none;
+    font-size:20px; line-height:1.6; font-family: inherit;
+    white-space: pre-wrap; word-break: break-word;
+    position: absolute; top:0; left:0;
 }
-.cloze-display.active { display:block; }
+#inputText { resize:none; z-index: 1; }
+#clozeContent { z-index: 0; display: none; background: #fff; }
+
+/* 练习模式下的状态切换 */
+.exercise-mode #inputText { display: none; }
+.exercise-mode #clozeContent { display: block; z-index: 2; }
+.exercise-mode .edit-only { display: none; }
+.exercise-mode .exercise-only { display: flex !important; }
+
+/* 优化后的输入框样式 */
 .cloze-display input { 
-    min-width:4ch; border:none; border-bottom:1.5px solid #666; 
-    background:#fffde7; text-align:center; font-size:inherit; border-radius:0; outline:none;
+    /* 核心：确保字号和字体与父级完全一致 */
+    font-size: inherit;
+    font-family: inherit;
+    color: inherit;
+    
+    /* 布局：消除默认间距，确保不撑开行高 */
+    min-width: 1ch;
+    height: 1.2em;
+    line-height: 1;
+    padding: 0;
+    margin: 0;
+    border: none;
+    border-bottom: 1.5px solid #666;
+    background: var(--input-bg);
+    border-radius: 0;
+    outline: none;
+    
+    /* 对齐：确保字母重心一致 */
+    display: inline-block;
+    vertical-align: baseline;
+    text-align: center;
+    
+    /* 视觉修复：防止 iOS 等设备缩放 */
+    -webkit-appearance: none;
 }
 
 .footer-actions { display:flex; border-top:1px solid #ddd; background:#fff; }
@@ -35,13 +66,13 @@ textarea { width:100%; height:100%; padding:20px; border:none; outline:none; fon
 
 .word-span { cursor:pointer; border-radius:3px; padding: 0 2px; }
 .word-span:hover { background:#e8f5e9; }
-.hidden { display:none !important; }
+.exercise-only { display: none; }
 </style>
 </head>
 
 <body>
-<div class="app-container">
-    <header class="header" id="headerSection">
+<div class="app-container" id="app">
+    <header class="header">
         <span style="font-weight:bold; color:var(--primary);">Cloze Master Lite</span>
         <div class="btn-group">
             <button class="small-btn" onclick="changeFontSize(-2)">A-</button>
@@ -52,16 +83,15 @@ textarea { width:100%; height:100%; padding:20px; border:none; outline:none; fon
 
     <main class="main-area">
         <textarea id="inputText" placeholder="在此粘贴文章内容..."></textarea>
-        <div id="clozeDisplay" class="cloze-display">
-            <button onclick="exitExercise()" style="margin-bottom:20px; padding:8px 15px; border-radius:5px; border:1px solid #ccc; cursor:pointer;">← 返回修改</button>
-            <div id="clozeContent"></div>
-        </div>
+        <div id="clozeContent"></div>
     </main>
 
-    <nav class="footer-actions" id="footerActions">
-        <button class="btn-danger" onclick="handleClear()">清空</button>
-        <button onclick="handlePaste()" style="background:#f0f0f0;">📋 粘贴</button>
-        <button class="btn-primary" onclick="startManualCloze()">开始练习</button>
+    <nav class="footer-actions">
+        <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
+        <button class="edit-only" onclick="handlePaste()" style="background:#f0f0f0;">📋 粘贴</button>
+        <button class="btn-primary edit-only" onclick="toggleMode(true)">开始练习</button>
+        
+        <button class="btn-primary exercise-only" onclick="toggleMode(false)" style="width: 100%;">← 返回修改</button>
     </nav>
 </div>
 
@@ -70,30 +100,80 @@ let currentFontSize = 20;
 let manualPositions = JSON.parse(localStorage.getItem('cloze_single_positions')) || [];
 let answers = [];
 
+const app = document.getElementById('app');
 const inputArea = document.getElementById('inputText');
-const displayArea = document.getElementById('clozeDisplay');
 const clozeContent = document.getElementById('clozeContent');
 
-// --- 修改后的初始化逻辑：支持 Anki 传参 ---
 window.onload = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
-
     if (textFromAnki) {
-        // 如果是从 Anki 传来的，优先显示
         inputArea.value = decodeURIComponent(textFromAnki);
-        saveContent(); // 自动保存到本地
     } else {
-        // 否则加载本地缓存
         const savedText = localStorage.getItem('cloze_single_content');
         if (savedText) inputArea.value = savedText;
     }
+    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
 };
 
+function toggleMode(isExercise) {
+    if (isExercise) {
+        const text = inputArea.value.trim();
+        if (!text) return alert("请先输入内容");
+        renderCloze();
+        app.classList.add('exercise-mode');
+    } else {
+        app.classList.remove('exercise-mode');
+    }
+}
+
+function renderCloze() {
+    const text = inputArea.value;
+    const regex = /([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g;
+    const segments = text.split(regex);
+    
+    answers = [];
+    let unitCount = 0;
+
+    clozeContent.innerHTML = segments.map(seg => {
+        if (!seg || !seg.trim()) return seg;
+        const idx = unitCount++;
+        const isChinese = /[\u4e00-\u9fa5]/.test(seg);
+
+        if (manualPositions.includes(idx)) {
+            answers.push(seg);
+            // 解决宽度问题：对于非等宽字体，ch单位有时不够精准，增加0.2的缓冲
+            const boxWidth = isChinese ? 2 : (seg.length + 0.2); 
+            return `<input data-id="${answers.length - 1}" data-index="${idx}" 
+                    style="width:${boxWidth}ch; 
+                           height: 1em; 
+                           padding: 0; 
+                           margin: 0 1px; 
+                           font-size: inherit; 
+                           font-family: inherit; 
+                           line-height: normal; 
+                           vertical-align: baseline; 
+                           border: none; 
+                           border-bottom: 1.5px solid #666; 
+                           background: var(--input-bg); 
+                           text-align: center; 
+                           outline: none; 
+                           -webkit-appearance: none;" 
+                    oninput="validateInput(this)" 
+                    onkeydown="handleSpaceKey(event, this)"
+                    placeholder="${isChinese ? '?' : getHint(seg)}">`;
+        }
+        return `<span class="word-span" data-index="${idx}">${seg}</span>`;
+    }).join("");
+    
+    bindEvents();
+}
+
+// 保持原来的逻辑函数...
 function changeFontSize(delta) {
     currentFontSize += delta;
     if (currentFontSize < 12) currentFontSize = 12;
-    inputArea.style.fontSize = displayArea.style.fontSize = currentFontSize + "px";
+    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
     document.getElementById('fontSizeLabel').innerText = currentFontSize;
 }
 
@@ -113,38 +193,6 @@ async function handlePaste() {
     } catch (err) { alert("粘贴失败，请手动长按输入框粘贴"); }
 }
 
-function startManualCloze() {
-    const text = inputArea.value.trim();
-    if (!text) return alert("请先输入内容");
-    saveContent();
-
-    const regex = /([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g;
-    const segments = text.split(regex);
-    
-    answers = [];
-    let unitCount = 0;
-
-    clozeContent.innerHTML = segments.map(seg => {
-        if (!seg || !seg.trim()) return seg;
-        const idx = unitCount++;
-        const isChinese = /[\u4e00-\u9fa5]/.test(seg);
-
-        if (manualPositions.includes(idx)) {
-            answers.push(seg);
-            return `<input data-id="${answers.length - 1}" data-index="${idx}" 
-                    style="width:${isChinese ? 2 : seg.length + 1}ch;" 
-                    oninput="validateInput(this)" onkeydown="handleSpaceKey(event, this)"
-                    placeholder="${isChinese ? '?' : getHint(seg)}">`;
-        }
-        return `<span class="word-span" data-index="${idx}">${seg}</span>`;
-    }).join("");
-
-    displayArea.classList.add('active');
-    document.getElementById('headerSection').classList.add('hidden');
-    document.getElementById('footerActions').classList.add('hidden');
-    bindEvents();
-}
-
 function handleSpaceKey(e, el) {
     if (e.code === 'Space' || e.keyCode === 32) {
         e.preventDefault();
@@ -160,15 +208,13 @@ function handleSpaceKey(e, el) {
 function validateInput(el) {
     const ans = answers[el.dataset.id];
     const val = el.value.trim();
+    const isMatch = ans.toLowerCase().startsWith(val.toLowerCase());
     if (val.toLowerCase() === ans.toLowerCase()) {
         el.style.backgroundColor = "#c8f7c5";
         el.style.color = "#000";
-    } else if (val === "") {
-        el.style.backgroundColor = "#fffde7";
     } else {
-        const isMatch = ans.toLowerCase().startsWith(val.toLowerCase());
         el.style.color = isMatch ? "#000" : "var(--danger)";
-        el.style.backgroundColor = isMatch ? "#fffde7" : "#f7c5c5";
+        el.style.backgroundColor = isMatch ? "var(--input-bg)" : "#f7c5c5";
     }
 }
 
@@ -177,7 +223,7 @@ function bindEvents() {
         el.onclick = () => {
             manualPositions.push(parseInt(el.dataset.index));
             savePositions();
-            startManualCloze();
+            renderCloze();
         };
     });
 
@@ -187,7 +233,7 @@ function bindEvents() {
             if(confirm("恢复显示？")) {
                 manualPositions = manualPositions.filter(i => i !== parseInt(el.dataset.index));
                 savePositions();
-                startManualCloze();
+                renderCloze();
             }
         }, 800);
         el.ontouchstart = start; el.ontouchend = () => clearTimeout(timer);
@@ -203,13 +249,6 @@ function getHint(w) {
 
 function saveContent() { localStorage.setItem('cloze_single_content', inputArea.value); }
 function savePositions() { localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions)); }
-
-function exitExercise() {
-    displayArea.classList.remove('active');
-    document.getElementById('headerSection').classList.remove('hidden');
-    document.getElementById('footerActions').classList.remove('hidden');
-}
-
 inputArea.oninput = saveContent;
 </script>
 </body>
