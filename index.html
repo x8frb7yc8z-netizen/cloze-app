@@ -568,10 +568,41 @@ const displayArea = document.getElementById("clozeDisplay");
 const clozeContent = document.getElementById("clozeContent");
 
 // ---------------- 初始化 ----------------
-function init() { 
-    renderTabs(); 
-    loadActiveFile();
-    applyLanguage(); // 新增：页面加载时应用语言
+async function init() {
+    // A. 检测是否在 Anki 容器中运行
+    const ankiData = AnkiSyncAdapter.detectEnvironment();
+
+    if (ankiData) {
+        // --- 模式 A: ANKI 卡片模式 ---
+        activeFileId = ankiData.id;
+        window.files = [{
+            id: activeFileId,
+            title: "Anki卡片练习",
+            content: ankiData.content,
+            clozePositions: [] // 初始默认为空，等待云端加载
+        }];
+
+        // 静默适配 UI
+        AnkiSyncAdapter.applyAnkiUI();
+
+        // 异步尝试从 Firebase 恢复数据
+        if (currentUser) {
+            const savedPos = await AnkiSyncAdapter.fetchClozePositions(currentUser.uid);
+            if (savedPos && savedPos.length > 0) {
+                window.files[0].clozePositions = savedPos;
+            }
+        }
+        
+        // 直接渲染手动挖空视图
+        loadActiveFile();
+        enableCustomCloze();
+    } else {
+        // --- 模式 B: 普通 Web 应用模式 ---
+        renderTabs();
+        loadActiveFile();
+    }
+    
+    applyLanguage(); // 应用多语言
 }
 
 // ---------------- 粘贴 ----------------
@@ -608,12 +639,19 @@ function renderTabs() {
 
 // ---------------- 保存 / 加载 ----------------
 function save() {
-    // 1. 先保存到本地 (LocalStorage)，确保即使没网也不会丢
+    // 1. 本地存储 (备份)
     localStorage.setItem('cloze_files_v5', JSON.stringify(files));
-    
-    // 2. 触发云端同步 (如果用户已登录，此函数会在 Firebase 模块中被定义)
-    if (window.syncToCloud) {
-        window.syncToCloud(files);
+
+    // 2. 云端实时同步
+    if (currentUser) {
+        if (AnkiSyncAdapter.mode === 'ANKI') {
+            // 只同步当前卡片的挖空数组，避免全量文件同步
+            const activeFile = files.find(x => x.id === activeFileId);
+            AnkiSyncAdapter.saveToCloud(currentUser.uid, activeFile.clozePositions);
+        } else {
+            // 普通模式下的完整云端同步
+            if (window.syncToCloud) window.syncToCloud(files);
+        }
     }
 }
 
