@@ -194,28 +194,62 @@ function validateInput(el) {
     el.style.color = isMatch ? "#000" : "var(--danger)";
 }
 
+// 状态维护
+let isCPressed = false;
+
+// 监听键盘 C 键状态
+window.addEventListener('keydown', (e) => {
+    if (e.key.toLowerCase() === 'c') isCPressed = true;
+});
+window.addEventListener('keyup', (e) => {
+    if (e.key.toLowerCase() === 'c') isCPressed = false;
+});
+
 function bindEvents() {
+    // 处理普通文字：改为双击挖空
     clozeContent.querySelectorAll('.word-span').forEach(el => {
-        el.onclick = () => {
-            manualPositions.push(parseInt(el.dataset.index));
-            savePositions();
-            renderCloze();
+        el.ondblclick = () => {
+            const idx = parseInt(el.dataset.index);
+            if (!manualPositions.includes(idx)) {
+                manualPositions.push(idx);
+                savePositions();
+                renderCloze();
+            }
         };
     });
+
+    // 处理已挖空的输入框：
     clozeContent.querySelectorAll('input').forEach(el => {
+        // 点击逻辑：如果按下 C 键，点击即恢复
+        el.onclick = () => {
+            if (isCPressed) {
+                recover(el, false); // false 表示不弹出 confirm
+            }
+        };
+
+        // 保留原有的长按恢复（可选，方便手机端操作）
         let timer;
-        el.ontouchstart = () => timer = setTimeout(() => recover(el), 800);
+        el.ontouchstart = () => timer = setTimeout(() => recover(el, true), 800);
         el.ontouchend = () => clearTimeout(timer);
-        el.onmousedown = (e) => { if(e.button===0) timer = setTimeout(() => recover(el), 800); };
+        el.onmousedown = (e) => { 
+            if(e.button === 0 && !isCPressed) timer = setTimeout(() => recover(el, true), 800); 
+        };
         el.onmouseup = () => clearTimeout(timer);
     });
 }
 
-function recover(el) {
-    if(confirm("恢复显示？")) {
+// 优化后的恢复函数
+function recover(el, showConfirm = true) {
+    const doRecover = () => {
         manualPositions = manualPositions.filter(i => i !== parseInt(el.dataset.index));
         savePositions();
         renderCloze();
+    };
+
+    if (showConfirm) {
+        if (confirm("恢复显示？")) doRecover();
+    } else {
+        doRecover();
     }
 }
 
