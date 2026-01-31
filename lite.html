@@ -7,7 +7,18 @@
 <style>
 :root { --primary: #43a047; --bg: #f8f9fa; --danger: #ff5252; --input-bg: #fffde7; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-system, sans-serif; background:#fff; overflow:hidden; }
+html, body { 
+    margin: 0; 
+    padding: 0; 
+    width: 100%; 
+    /* 修改这里：去掉 100dvh，改为 min-height */
+    min-height: 100%; 
+    height: auto; 
+    font-family: -apple-system, sans-serif; 
+    background: #fff; 
+    /* 修改这里：允许溢出，以便父级计算高度 */
+    overflow-y: visible; 
+}
 
 /* 1. 修正容器和导航条 */
 .app-container { 
@@ -209,6 +220,18 @@ const app = document.getElementById('app');
 const inputArea = document.getElementById('inputText');
 const clozeContent = document.getElementById('clozeContent');
 
+// 1. 定义发送高度的函数
+function sendHeight() {
+    // 确保在渲染完成后获取高度
+    // 使用 scrollHeight 获取内容实际撑开的高度
+    const height = document.documentElement.scrollHeight || document.body.scrollHeight;
+    
+    // 向 Anki 父窗口发送高度，添加一个独特的 key 避免冲突
+    window.parent.postMessage({ 
+        'clozeAppHeight': height,
+        'source': 'cloze-app' 
+    }, "*");
+}
 window.onload = async () => { // 加上 async
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
@@ -240,12 +263,19 @@ window.onload = async () => { // 加上 async
 
     // 此时逻辑已跑完，显示界面
     document.body.classList.add('app-ready');
+    // --- 新增：渲染完成后立即发送一次高度 ---
+    setTimeout(sendHeight, 100);
     
     // 异步同步放在最后，不阻塞渲染
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
     }, 1000);
 };
+// 3. 监听窗口缩放或内容变化
+window.addEventListener('resize', sendHeight);
+
+// 4. 定时轮询（可选，应对一些动态展开的内容）
+setInterval(sendHeight, 500);
 
 // 确保有这个统一应用函数
 function applyFontSize(size) {
