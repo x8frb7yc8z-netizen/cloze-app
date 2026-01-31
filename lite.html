@@ -385,6 +385,10 @@ function savePositions() {
     if (window.syncUpload) window.syncUpload();
 }
 inputArea.oninput = savePositions;
-</script>
-</body>
-</html>
+    document.addEventListener('contextmenu', function(e) {
+        // 强制系统允许在任何地方弹出菜单
+        return true;
+    }, true)
+    </script>
+    </body>
+    </html>
