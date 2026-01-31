@@ -311,30 +311,45 @@ window.toggleDeleteMode = function() {
 };
 
 // 4. 核心事件绑定修改
-function bindEvents() {
-    // 1. 处理普通文字
-    clozeContent.querySelectorAll('.word-span').forEach(el => {
-        // 保留双击挖空
-        el.ondblclick = () => {
-            const idx = parseInt(el.dataset.index);
-            if (!manualPositions.includes(idx)) {
-                manualPositions.push(idx);
-                savePositions();
-                renderCloze();
-            }
-        };
-        // 不要在这里写任何 ontouchstart，让浏览器处理长按
-    });
+let eventsBound = false;
 
-    // 2. 处理已挖空的输入框
-    clozeContent.querySelectorAll('input').forEach(el => {
-        el.onclick = () => {
-            // 只保留 C 键或删除模式的逻辑
+function bindEvents() {
+
+    if (eventsBound) return; // ✅防止重复绑定
+    eventsBound = true;
+
+    let lastTap = 0;
+
+    clozeContent.addEventListener("click", (e) => {
+        const el = e.target;
+
+        // 输入框恢复
+        if (el.tagName === "INPUT") {
             if (isCPressed || isDeleteMode) {
                 recover(el, false);
             }
-        };
-        // 确保没有 e.preventDefault()，否则菜单弹不出来
+            return;
+        }
+
+        // 双击挖空
+        if (el.classList.contains("word-span")) {
+            const now = Date.now();
+
+            if (now - lastTap < 300) {
+                const idx = parseInt(el.dataset.index);
+
+                if (!manualPositions.includes(idx)) {
+                    manualPositions.push(idx);
+                    savePositions();
+                    renderCloze();
+                }
+
+                lastTap = 0;
+                return;
+            }
+
+            lastTap = now;
+        }
     });
 }
 
