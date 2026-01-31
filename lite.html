@@ -199,65 +199,67 @@ html, body { margin:0; padding:0; width:100%; height:100vh; font-family:-apple-s
 </script>
 
 <script>
-// 常规业务逻辑
+const mainArea = document.querySelector('.main-area');
+const inputArea = document.getElementById('inputText');
+const clozeContent = document.getElementById('clozeContent');
+const app = document.getElementById('app');
+
+// iOS Safari 长按菜单修复
+let isTouchMoving = false;
+mainArea.addEventListener('touchstart', () => isTouchMoving = false);
+mainArea.addEventListener('touchmove', () => isTouchMoving = true);
+mainArea.addEventListener('touchend', (e) => {
+    if(!isTouchMoving){
+        // 长按允许弹出菜单
+    }
+});
+
+// ------------------ 初始化 ------------------
 let currentFontSize = 26;
 let manualPositions = JSON.parse(localStorage.getItem('cloze_single_positions')) || [];
 let answers = [];
 
-const app = document.getElementById('app');
-const inputArea = document.getElementById('inputText');
-const clozeContent = document.getElementById('clozeContent');
-
 window.onload = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
-    
+
     if (textFromAnki) {
         inputArea.value = decodeURIComponent(textFromAnki);
     } else {
         const savedText = localStorage.getItem('cloze_single_content');
         if (savedText) inputArea.value = savedText;
     }
-    
+
     const savedSize = localStorage.getItem('cloze_user_font_size');
-    
-    if (savedSize) {
-        currentFontSize = parseInt(savedSize);
-    } else {
-        // 精准判定：是不是手机？
-        // 1. 检查 UA 字符串
+    if (savedSize) currentFontSize = parseInt(savedSize);
+    else {
         const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        // 2. 检查屏幕宽度（手机通常在 500px 以下）
         const isNarrowScreen = window.innerWidth < 500;
-        
-        // 只有真的是手机 UA 且 屏幕窄，才给 26，否则一律 20
         currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
     }
 
     applyFontSize(currentFontSize);
-    
-    // 异步同步数据
-    setTimeout(() => { 
-        if(window.syncDownload) window.syncDownload(); 
-    }, 1500);
 
-    // --- 新增代码：如果输入框有内容，自动进入练习模式 ---
-    if (inputArea.value.trim()) {
-        toggleMode(true);
-    }
+    // 异步同步数据
+    setTimeout(() => { if(window.syncDownload) window.syncDownload(); }, 1500);
+
+    // 如果输入框有内容，自动进入练习模式
+    if(inputArea.value.trim()) toggleMode(true);
 };
 
-// 确保有这个统一应用函数
-function applyFontSize(size) {
+// ------------------ 核心函数 ------------------
+function applyFontSize(size){
     inputArea.style.fontSize = clozeContent.style.fontSize = size + "px";
     const label = document.getElementById('fontSizeLabel');
     if(label) label.innerText = size;
 }
 
-async function toggleMode(isExercise) {
-    if (isExercise) {
-        if (!inputArea.value.trim()) return alert("请先输入内容");
-        if (window.syncDownload) await window.syncDownload();
+function handleClear(){ inputArea.value = ''; savePositions(); }
+
+async function toggleMode(isExercise){
+    if(isExercise){
+        if(!inputArea.value.trim()) return alert("请先输入内容");
+        if(window.syncDownload) await window.syncDownload();
         renderCloze();
         app.classList.add('exercise-mode');
     } else {
@@ -265,30 +267,30 @@ async function toggleMode(isExercise) {
     }
 }
 
-function renderCloze() {
+function renderCloze(){
     const segments = inputArea.value.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
     answers = [];
     let unitCount = 0;
 
     clozeContent.innerHTML = segments.map(seg => {
-        if (!seg || !seg.trim()) return seg;
+        if(!seg || !seg.trim()) return seg;
         const idx = unitCount++;
         const isChinese = /[\u4e00-\u9fa5]/.test(seg);
 
-        if (manualPositions.includes(idx)) {
+        if(manualPositions.includes(idx)){
             answers.push(seg);
-            const boxWidth = isChinese ? 2 : (seg.length + 0.1); 
-            return `<input class="cloze-display-input" data-id="${answers.length - 1}" data-index="${idx}" 
-                    style="width:${boxWidth}ch;" 
-                    oninput="validateInput(this)" onkeydown="handleSpaceKey(event, this)"
-                    placeholder="${isChinese ? '?' : getHint(seg)}">`;
+            const boxWidth = isChinese ? 2 : (seg.length + 0.1);
+            return `<input class="cloze-display-input" data-id="${answers.length-1}" data-index="${idx}"
+                     style="width:${boxWidth}ch;"
+                     oninput="validateInput(this)" onkeydown="handleSpaceKey(event,this)"
+                     placeholder="${isChinese?'?':getHint(seg)}">`;
         }
         return `<span class="word-span" data-index="${idx}">${seg}</span>`;
     }).join("");
     bindEvents();
 }
 
-function validateInput(el) {
+function validateInput(el){
     const ans = answers[el.dataset.id];
     const val = el.value.trim();
     const isMatch = ans.toLowerCase().startsWith(val.toLowerCase());
@@ -296,97 +298,70 @@ function validateInput(el) {
     el.style.color = isMatch ? "#000" : "var(--danger)";
 }
 
-// 1. 状态变量
+// ------------------ 状态 ------------------
 let isCPressed = false;
-let isDeleteMode = false; // 手机端删除模式开关
+let isDeleteMode = false;
 
-// 2. 键盘监听 (保留 PC 端的极速体验)
-window.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'c') isCPressed = true; });
-window.addEventListener('keyup', (e) => { if (e.key.toLowerCase() === 'c') isCPressed = false; });
+window.addEventListener('keydown', e => { if(e.key.toLowerCase()==='c') isCPressed=true; });
+window.addEventListener('keyup', e => { if(e.key.toLowerCase()==='c') isCPressed=false; });
 
-// 3. 模式切换函数
-window.toggleDeleteMode = function() {
+window.toggleDeleteMode = function(){
     isDeleteMode = !isDeleteMode;
     const btn = document.getElementById('delModeBtn');
-    if (isDeleteMode) {
-        btn.innerText = "重置: 开";
-        btn.style.backgroundColor = "#ffe0b2";
-    } else {
-        btn.innerText = "重置: 关";
-        btn.style.backgroundColor = "#fff3e0";
-    }
+    btn.innerText = isDeleteMode ? "重置: 开" : "重置: 关";
+    btn.style.backgroundColor = isDeleteMode ? "#ffe0b2" : "#fff3e0";
 };
 
-// 4. 核心事件绑定修改
-function bindEvents() {
-    // 1. 处理普通文字
+// ------------------ 事件绑定 ------------------
+function bindEvents(){
     clozeContent.querySelectorAll('.word-span').forEach(el => {
-        // 保留双击挖空
         el.ondblclick = () => {
             const idx = parseInt(el.dataset.index);
-            if (!manualPositions.includes(idx)) {
+            if(!manualPositions.includes(idx)){
                 manualPositions.push(idx);
                 savePositions();
                 renderCloze();
             }
         };
-        // 不要在这里写任何 ontouchstart，让浏览器处理长按
     });
-
-    // 2. 处理已挖空的输入框
     clozeContent.querySelectorAll('input').forEach(el => {
-        el.onclick = () => {
-            // 只保留 C 键或删除模式的逻辑
-            if (isCPressed || isDeleteMode) {
-                recover(el, false);
-            }
-        };
-        // 确保没有 e.preventDefault()，否则菜单弹不出来
+        el.onclick = () => { if(isCPressed || isDeleteMode) recover(el,false); };
     });
 }
 
-// 5. 恢复函数
-function recover(el, showConfirm = true) {
+// ------------------ 辅助 ------------------
+function recover(el, showConfirm=true){
     const doRecover = () => {
-        manualPositions = manualPositions.filter(i => i !== parseInt(el.dataset.index));
+        manualPositions = manualPositions.filter(i => i!==parseInt(el.dataset.index));
         savePositions();
         renderCloze();
     };
-    if (showConfirm) {
-        if (confirm("恢复显示？")) doRecover();
-    } else {
-        doRecover();
-    }
+    if(showConfirm){ if(confirm("恢复显示？")) doRecover(); }
+    else doRecover();
 }
 
-function handleSpaceKey(e, el) {
-    if (e.code === 'Space' || e.keyCode === 32) {
+function handleSpaceKey(e,el){
+    if(e.code==='Space'||e.keyCode===32){
         e.preventDefault();
         const targetAns = answers[el.dataset.id];
-        if (el.value.length < targetAns.length) {
-            el.value = targetAns.substring(0, el.value.length + 1);
+        if(el.value.length < targetAns.length){
+            el.value = targetAns.substring(0,el.value.length+1);
             validateInput(el);
         }
     }
 }
 
-function changeFontSize(delta) {
+function changeFontSize(delta){
     currentFontSize += delta;
-    // 更新输入框和显示框的字体
-    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
-    // 更新底部新位置的字号数字
-    const label = document.getElementById('fontSizeLabel');
-    if(label) label.innerText = currentFontSize;
+    applyFontSize(currentFontSize);
+    localStorage.setItem('cloze_user_font_size', currentFontSize);
 }
 
-
-function getHint(w) { return w.length <= 2 ? w[0] + "_" : w[0] + "_".repeat(w.length - 2) + w[w.length-1]; }
-function savePositions() { 
-    localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions)); 
-    localStorage.setItem('cloze_single_content', inputArea.value);
-    if (window.syncUpload) window.syncUpload();
+function getHint(w){ return w.length<=2 ? w[0]+"_" : w[0]+"_".repeat(w.length-2)+w[w.length-1]; }
+function savePositions(){
+    localStorage.setItem('cloze_single_positions',JSON.stringify(manualPositions));
+    localStorage.setItem('cloze_single_content',inputArea.value);
+    if(window.syncUpload) window.syncUpload();
 }
 inputArea.oninput = savePositions;
 </script>
-</body>
-</html>
