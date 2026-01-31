@@ -141,30 +141,34 @@ const inputArea = document.getElementById('inputText');
 const clozeContent = document.getElementById('clozeContent');
 
 window.onload = async () => {
-    // 1. 立即清空本地变量，确保当前环境是干净的
+    // 1. 彻底清空所有状态
     manualPositions = []; 
+    answers = [];
     inputArea.value = "";
+    clozeContent.innerHTML = ""; // 清空渲染层
     
-    // 2. 从 URL 获取 Anki 传来的文本
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
     
     if (textFromAnki) {
-        inputArea.value = decodeURIComponent(textFromAnki);
-        
-        // 3. 设置好字体后，立即尝试从云端获取该文本对应的挖空数据
+        const decodedText = decodeURIComponent(textFromAnki);
+        inputArea.value = decodedText;
         inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
         
-        // 4. 关键：等待下载完成
+        // 2. 只有在有文本的情况下才去下载
         if (window.syncDownload) {
-            await window.syncDownload(); // 必须是 async/await 确保数据到位
+            // 在下载前再次确认 manualPositions 是空的
+            manualPositions = []; 
+            await window.syncDownload(); 
         }
-    }
-    
-    // 5. 初始显示：如果已经有数据了，直接进入练习模式（可选）
-    // 或者保持在编辑模式，但显示下载好的挖空
-    if (manualPositions.length > 0) {
-        renderCloze();
+
+        // 3. 下载完成后再决定是否渲染
+        if (manualPositions.length > 0) {
+            renderCloze();
+            app.classList.add('exercise-mode'); // 有数据自动进入练习模式
+        } else {
+            app.classList.remove('exercise-mode'); // 没数据回退到编辑模式
+        }
     }
 };
 
