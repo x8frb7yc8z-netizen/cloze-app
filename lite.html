@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>极简完形填空 Pro Sync</title>
+<title>极简完形填空 Pro</title>
 <style>
 :root { --primary: #43a047; --bg: #f8f9fa; --danger: #ff5252; --input-bg: #fffde7; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -11,7 +11,7 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 
 .app-container { display: flex; flex-direction: column; height: 100dvh; padding-top: 35px; }
 
-/* 1. 顶部导航条：高度固定，防止遮挡 */
+/* 顶部导航条 */
 .footer-actions { 
     display: flex; background: #fff; position: fixed; top: 0; left: 0; 
     width: 100%; z-index: 2000; height: 35px; border-bottom: 1px solid #ddd;
@@ -21,41 +21,40 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 .btn-danger { color: var(--danger); background: #fff8f8; }
 .btn-warn { background: #ff9800; color: white; }
 
-/* 2. 主区域：物理隔离 */
+/* 主区域容器 */
 .main-area { flex: 1; position: relative; overflow: hidden; }
 .view-panel { width: 100%; height: 100%; overflow-y: auto; -webkit-overflow-scrolling: touch; display: none; padding: 20px 15px 150px; }
 
-/* 编辑模式下的文本框 */
-#inputText { width: 100%; height: 100%; border: none; outline: none; resize: none; font-family: inherit; line-height: 1.5; text-align: center; font-size: 20px; }
+/* 编辑视图 */
+#inputText { width: 100%; height: 100%; border: none; outline: none; resize: none; font-family: inherit; line-height: 1.5; text-align: center; }
 
-/* 展示区域：挖空与练习共用，但逻辑由 class 控制 */
-#clozeContent { text-align: center; line-height: 1.8; word-break: break-word; font-size: 20px; }
-.word-span { 
-    -webkit-user-select: text !important; user-select: text !important; 
-    -webkit-touch-callout: default !important; position: relative; z-index: 10;
-}
+/* 练习/挖空视图 */
+#clozeContent { text-align: center; line-height: 1.8; word-break: break-word; }
 
-/* 挖空模式下的高亮样式 */
+/* 选词模式下的高亮样式 */
 .mode-select .word-span.selected { background: #c8e6c9; border-bottom: 2px solid green; border-radius: 4px; }
 
-/* 练习模式下的输入框 */
+/* 填空模式下的输入框 */
 .cloze-display-input { 
     font-size: inherit; border: none; border-bottom: 1.5px solid #666;
     background: var(--input-bg); outline: none; text-align: center;
     border-radius: 0; -webkit-appearance: none; margin: 0 1px;
 }
 
-/* 3. 模式控制逻辑 (CSS 控制显示) */
+/* 单词 Span */
+.word-span { 
+    -webkit-user-select: text !important; user-select: text !important; 
+    -webkit-touch-callout: default !important; position: relative; z-index: 10;
+}
+
+/* 显隐逻辑 */
 .mode-edit #panel-edit { display: block; }
 .mode-select #panel-cloze, .mode-exercise #panel-cloze { display: block; }
 
-/* 按钮显示显隐 */
 .edit-only, .select-only, .exercise-only { display: none !important; }
 .mode-edit .edit-only { display: flex !important; }
 .mode-select .select-only { display: flex !important; }
 .mode-exercise .exercise-only { display: flex !important; }
-
-@media screen and (max-width: 500px) { #inputText, #clozeContent { font-size: 26px; } }
 </style>
 </head>
 
@@ -65,13 +64,12 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
         <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
         <button class="btn-primary edit-only" onclick="smartStart()">开始练习</button>
         
-        <button class="select-only" onclick="enterMode('edit')">← 返回编辑</button>
-        <div class="select-only" style="flex:1.5; font-size:12px; display:flex; align-items:center; justify-content:center; color:orange;">点击单词挖空</div>
-        <button class="btn-primary select-only" onclick="enterMode('exercise')">开始填空 →</button>
+        <button class="select-only" onclick="enterMode('edit')">← 修改原文</button>
+        <div class="select-only" style="flex:1; font-size:11px; display:flex; align-items:center; justify-content:center; color:orange;">[选择挖空词]</div>
+        <button class="btn-primary select-only" onclick="enterMode('exercise')">完成并练习 →</button>
 
-        <button class="exercise-only" onclick="enterMode('edit')">← 修改原文</button>
-        <button class="btn-warn exercise-only" onclick="enterMode('select')">调整挖空</button>
-        <div class="exercise-only" style="flex:1; font-size:12px; display:flex; align-items:center; justify-content:center; color:green;">练习中</div>
+        <button class="exercise-only" onclick="enterMode('edit')">返回修改原文</button>
+        <button class="btn-warn exercise-only" onclick="enterMode('select')">编辑挖空词</button>
     </nav>
 
     <main class="main-area">
@@ -93,10 +91,10 @@ let eventsBound = false;
 const inputArea = document.getElementById('inputText');
 const clozeContent = document.getElementById('clozeContent');
 
-// 1. 智能启动
+// 【智能跳转】逻辑
 function smartStart() {
     if (!inputArea.value.trim()) return alert("请先输入内容");
-    // 判断是否有空位
+    // 如果有历史位置，直接去练习；否则去选词
     if (manualPositions.length > 0) {
         enterMode('exercise');
     } else {
@@ -104,14 +102,14 @@ function smartStart() {
     }
 }
 
-// 2. 模式切换
+// 【模式切换】
 function enterMode(mode) {
     currentMode = mode;
     document.body.className = 'mode-' + mode;
     if (mode !== 'edit') renderContent();
 }
 
-// 3. 渲染逻辑
+// 【渲染函数】分离 Input 和 Span
 function renderContent() {
     const text = inputArea.value.trim();
     const segments = text.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
@@ -123,7 +121,7 @@ function renderContent() {
         const idx = unitCount++;
         const isSelected = manualPositions.includes(idx);
 
-        // 填空模式：只有选中的变 Input
+        // 填空模式：选中词显示为 Input
         if (currentMode === 'exercise' && isSelected) {
             answers.push(seg);
             const isChinese = /[\u4e00-\u9fa5]/.test(seg);
@@ -133,7 +131,7 @@ function renderContent() {
                     placeholder="${isChinese ? '?' : getHint(seg)}">`;
         }
         
-        // 挖空模式：渲染为普通 Span，如果是选中的则带高亮 Class
+        // 挖空模式/普通词：显示为 Span
         const selectedClass = (currentMode === 'select' && isSelected) ? 'selected' : '';
         return `<span class="word-span ${selectedClass}" data-index="${idx}">${seg}</span>`;
     }).join("");
@@ -141,7 +139,7 @@ function renderContent() {
     bindEvents();
 }
 
-// 4. 事件绑定：利用事件委托 + Passive Listener 优化 iOS
+// 【事件处理】优化 iOS 长按
 function bindEvents() {
     if (eventsBound) return;
     eventsBound = true;
@@ -149,13 +147,12 @@ function bindEvents() {
     let lastTap = 0;
     clozeContent.addEventListener('click', (e) => {
         const el = e.target;
-
-        // 只有挖空模式处理点击
+        // 仅在“挖空模式”下响应点击
         if (currentMode === 'select' && el.classList.contains('word-span')) {
             const now = Date.now();
             const idx = parseInt(el.dataset.index);
 
-            // 双击判定
+            // 双击逻辑：加入或移除挖空
             if (now - lastTap < 300) {
                 if (manualPositions.includes(idx)) {
                     manualPositions = manualPositions.filter(i => i !== idx);
