@@ -39,6 +39,13 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
     word-break: break-word;
     position: relative; /* 改为 relative */
     display: block;
+    font-size: 20px;
+}
+/* 针对手机端（屏幕宽度小于 768px）进行微调 */
+@media screen and (max-width: 768px) {
+    #inputText, #clozeContent {
+        font-size: 26px; /* 移动端保持稍大字号方便点击 */
+    }
 }
 #inputText { resize: none; }
 #clozeContent { display: none; } /* 默认隐藏 */
@@ -195,7 +202,7 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 
 <script>
 // 常规业务逻辑
-let currentFontSize = 26;
+let currentFontSize;
 let manualPositions = JSON.parse(localStorage.getItem('cloze_single_positions')) || [];
 let answers = [];
 
@@ -215,6 +222,11 @@ window.onload = () => {
     }
     
     inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
+
+    const computedStyle = window.getComputedStyle(clozeContent);
+    currentFontSize = parseInt(computedStyle.fontSize);
+    const label = document.getElementById('fontSizeLabel');
+    if(label) label.innerText = currentFontSize;
     
     // 异步同步数据
     setTimeout(() => { 
@@ -225,7 +237,6 @@ window.onload = () => {
     if (inputArea.value.trim()) {
         toggleMode(true);
     }
-    // ----------------------------------------------
 };
 
 async function toggleMode(isExercise) {
