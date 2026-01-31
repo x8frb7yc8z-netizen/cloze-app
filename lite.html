@@ -134,17 +134,20 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 
 <body>
 <div class="app-container" id="app">
-    <nav class="footer-actions">
-        <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
-        <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">重置: 关</button>
-        <div class="font-ctrl edit-only">
-             <button class="font-btn" onclick="changeFontSize(-2)">A-</button>
-             <span id="fontSizeLabel">26</span>
-             <button class="font-btn" onclick="changeFontSize(2)">A+</button>
-        </div>
-        <button class="btn-primary edit-only" onclick="toggleMode(true)">开始练习</button>
-        <button class="btn-primary exercise-only" onclick="toggleMode(false)">← 返回修改</button>
-    </nav>
+<nav class="footer-actions">
+    <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
+    <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">重置: 关</button>
+    
+    <div class="edit-only" style="display:flex; align-items:center; gap:3px; font-size:12px; background:#f0f0f0; padding:0 8px; border-right:1px solid #ddd; border-left:1px solid #ddd;">
+        <span>每</span>
+        <input id="nthInput" type="number" value="5" min="2" style="width:35px; height:20px; border:1px solid #ccc; text-align:center; border-radius:3px;">
+        <span>词</span>
+        <button onclick="autoGenerateCloze()" style="background:var(--primary); color:white; padding:2px 8px; border-radius:3px; margin-left:4px; height:22px; line-height:1;">挖空</button>
+    </div>
+
+    <button class="btn-primary edit-only" onclick="toggleMode(true)">开始练习</button>
+    <button class="btn-primary exercise-only" onclick="toggleMode(false)">← 返回修改</button>
+</nav>
 
     <main class="main-area">
         <textarea id="inputText" placeholder="在此粘贴文章内容..."></textarea>
@@ -232,12 +235,12 @@ window.onload = async () => { // 加上 async
     applyFontSize(currentFontSize);
 
     // --- 核心修正：立即判断并渲染，不等待异步 ---
-    if (inputArea.value.trim()) {
+  /*  if (inputArea.value.trim()) {
         // 先手动执行渲染，不依赖带延迟的 toggleMode
         renderCloze(); 
         app.classList.add('exercise-mode');
     }
-
+  */
     // 此时逻辑已跑完，显示界面
     document.body.classList.add('app-ready');
     
@@ -386,6 +389,42 @@ function savePositions() {
     localStorage.setItem('cloze_single_content', inputArea.value);
     if (window.syncUpload) window.syncUpload();
 }
+window.autoGenerateCloze = function() {
+    // 1. 获取用户设置的间隔 N
+    const n = parseInt(document.getElementById('nthInput').value) || 5;
+    const text = inputArea.value.trim();
+    if (!text) return alert("请先输入内容");
+
+    // 2. 使用正则表达式进行模拟分词（与 renderCloze 逻辑一致）
+    const segments = text.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
+    
+    let wordCounter = 0;
+    const newPositions = [];
+    let unitCount = 0;
+
+    // 3. 核心算法：循环判断
+    segments.forEach(seg => {
+        if (!seg || !seg.trim()) return; // 忽略空白
+        
+        const idx = unitCount++;
+        // 仅当片段包含字母或中文时才计为“单词”
+        if (/[a-zA-Z\u4e00-\u9fa5]/.test(seg)) {
+            wordCounter++;
+            // 满足 N 间隔逻辑时，记录该索引
+            if (wordCounter % n === 1) {
+                newPositions.push(idx);
+            }
+        }
+    });
+
+    // 4. 更新数据状态并触发渲染
+    manualPositions = newPositions;
+    savePositions(); // 保存到本地和云端
+    renderCloze();   // 渲染预览
+    
+    // 可选：自动切换到练习模式
+    app.classList.add('exercise-mode');
+};
 inputArea.oninput = savePositions;
 </script>
 </body>
