@@ -2,393 +2,447 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+
 <title>极简完形填空 Pro Sync</title>
+
 <style>
-:root { --primary: #43a047; --bg: #f8f9fa; --danger: #ff5252; --input-bg: #fffde7; }
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-system, sans-serif; background:#fff; overflow:hidden; }
-
-/* 1. 修正容器和导航条 */
-.app-container { 
-    display: flex; 
-    flex-direction: column; 
-    height: 100dvh; /* 使用动态视口高度 */
-    padding-top: 35px; /* 略大于导航条高度 */
-}
-.btn-group { display:flex; align-items:center; gap:8px; }
-
-.main-area { 
-    flex: 1; 
-    position: relative; 
-    overflow-y: auto; 
-    -webkit-overflow-scrolling: touch;
-}
-/* 2. 核心修正：取消绝对定位，改用相对定位 */
-#inputText, #clozeContent {
-    width: 100%; 
-    min-height: calc(100vh - 35px);
-    text-align: center;
-    padding: 20px 0px; /* 增加顶部间距防止被挡 */
-    border: none; 
-    outline: none;
-    font-size: 20px !important; 
-    line-height: 1; 
-    font-family: inherit;
-    white-space: pre-wrap; 
-    word-break: break-word;
-    position: relative; /* 改为 relative */
-    display: block;
-}
-/* 2. 只有当屏幕真的很窄（手机竖屏）时才切换 */
-@media screen and (max-width: 500px) {
-    #inputText, #clozeContent {
-        font-size: 26px !important;
-    }
-}
-#inputText { resize: none; }
-#clozeContent { display: none; } /* 默认隐藏 */
-
-.exercise-mode #inputText { display: none !important; }
-.exercise-mode #clozeContent { display: block !important; }
-.exercise-mode .edit-only { display: none; }
-.exercise-mode .exercise-only { display: flex !important; flex: 1; }
-
-/* 像素级对齐的输入框样式 */
-.cloze-display-input { 
-    font-size: inherit; font-family: inherit; color: inherit;
-    min-width: 1ch; height: 1em; line-height: normal;
-    padding: 0; margin: 0 1px;
-    border: none; border-bottom: 1.5px solid #666;
-    background: var(--input-bg); border-radius: 0; outline: none;
-    display: inline-block; vertical-align: baseline; text-align: center;
-    -webkit-appearance: none;
+:root{
+  --primary:#43a047;
+  --danger:#ff5252;
+  --input-bg:#fffde7;
 }
 
-/* 1. 导航条改为顶部固定 */
-.footer-actions { 
-    display: flex; 
-    background: #fff; 
-    position: fixed; 
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    z-index: 1000; /* 确保在最顶层 */
-    height: 30px; 
-    border-bottom: 1px solid #ddd;
-}
-/* 2. 按钮文字和间距调整 */
-.footer-actions button { 
-    flex: 1; 
-    padding: 0; /* 移除内边距，让文字垂直居中 */
-    border: none; 
-    font-weight: bold; 
-    cursor: pointer; 
-    /* 核心修改：字号稍微缩小一点以配合矮窄的导航条 */
-    font-size: 14px; 
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-/* 3. 字体调节区域的高度同步 */
-.font-ctrl {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 0 10px;
-    font-size: 14px;
-}
-.btn-primary { background:var(--primary); color:white; }
-.btn-danger { color:var(--danger); background:#fff8f8; }
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 
-#clozeContent {
-    /* 允许容器内的文本正常响应系统手势 */
-    -webkit-user-select: text;
-    user-select: text;
-    
-    /* 解决部分浏览器在滚动中长按失效的问题 */
-    pointer-events: auto; 
-    
-    /* 增加行高，减少手指点击时的误差 */
-    line-height: 1.6;
+html,body{
+  margin:0;padding:0;
+  width:100%;
+  height:100dvh;
+  font-family:-apple-system,sans-serif;
+  background:#fff;
+  overflow:hidden;
 }
 
-.word-span {
-    -webkit-user-select: text !important;
-    user-select: text !important;
-    -webkit-touch-callout: default !important;
-    
-    /* 关键：去掉 padding 防止坐标偏移 */
-    padding: 0 !important;
-    margin: 0 !important;
-    display: inline; /* 确保它像普通文字一样排列 */
+/* 顶部固定导航 */
+.footer-actions{
+  display:flex;
+  position:fixed;
+  top:0;left:0;
+  width:100%;
+  height:30px;
+  background:#fff;
+  border-bottom:1px solid #ddd;
+  z-index:9999;
 }
 
-.cloze-display-input {
-    /* 输入框通常长按会弹出全选/粘贴，保持默认即可 */
-    -webkit-user-select: auto;
+.footer-actions button{
+  flex:1;
+  border:none;
+  font-weight:bold;
+  font-size:14px;
+  cursor:pointer;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:0;
 }
-.exercise-only { display: none !important; }
+
+.btn-primary{background:var(--primary);color:#fff;}
+.btn-danger{background:#fff8f8;color:var(--danger);}
+
+.font-ctrl{
+  display:flex;
+  align-items:center;
+  gap:5px;
+  padding:0 10px;
+  font-size:14px;
+}
+
+/* 页面布局 */
+.app-container{
+  display:flex;
+  flex-direction:column;
+  height:100dvh;
+  padding-top:35px;
+}
+
+.main-area{
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+}
+
+/* 输入区 */
+#inputText,#clozeContent{
+  width:100%;
+  min-height:calc(100vh - 35px);
+  text-align:center;
+  padding:20px 0;
+  border:none;
+  outline:none;
+  font-size:20px !important;
+  font-family:inherit;
+  white-space:pre-wrap;
+  word-break:break-word;
+  position:relative;
+  display:block;
+}
+
+@media screen and (max-width:500px){
+  #inputText,#clozeContent{
+    font-size:26px !important;
+  }
+}
+
+#inputText{resize:none;}
+#clozeContent{display:none;}
+
+/* 模式切换显示 */
+.exercise-mode #inputText{display:none!important;}
+.exercise-mode #clozeContent{display:block!important;}
+.exercise-mode .edit-only{display:none!important;}
+.exercise-mode .exercise-only{display:flex!important;}
+
+/* 挖空输入框 */
+.cloze-display-input{
+  font-size:inherit;
+  font-family:inherit;
+  min-width:1ch;
+  height:1em;
+  padding:0;
+  margin:0 1px;
+  border:none;
+  border-bottom:1.5px solid #666;
+  background:var(--input-bg);
+  outline:none;
+  display:inline-block;
+  vertical-align:baseline;
+  text-align:center;
+}
+
+/* 长按复制稳定 */
+#clozeContent{
+  user-select:text;
+  -webkit-user-select:text;
+  -webkit-touch-callout:default;
+  line-height:1.6;
+}
+
+.word-span{
+  user-select:text!important;
+  -webkit-user-select:text!important;
+  -webkit-touch-callout:default!important;
+  padding:0!important;
+  margin:0!important;
+  display:inline;
+}
+
+.exercise-only{display:none!important;}
 </style>
 </head>
 
 <body>
 <div class="app-container" id="app">
-    <nav class="footer-actions">
-        <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
-        <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">重置: 关</button>
-        <div class="font-ctrl edit-only">
-             <button class="font-btn" onclick="changeFontSize(-2)">A-</button>
-             <span id="fontSizeLabel">26</span>
-             <button class="font-btn" onclick="changeFontSize(2)">A+</button>
-        </div>
-        <button class="btn-primary edit-only" onclick="toggleMode(true)">开始练习</button>
-        <button class="btn-primary exercise-only" onclick="toggleMode(false)">← 返回修改</button>
-    </nav>
 
-    <main class="main-area">
-        <textarea id="inputText" placeholder="在此粘贴文章内容..."></textarea>
-        <div id="clozeContent"></div>
-    </main>
+  <!-- 顶部导航 -->
+  <nav class="footer-actions">
+
+    <!-- 编辑模式 -->
+    <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
+
+    <div class="font-ctrl edit-only">
+      <button onclick="changeFontSize(-2)">A-</button>
+      <span id="fontSizeLabel">26</span>
+      <button onclick="changeFontSize(2)">A+</button>
+    </div>
+
+    <button class="btn-primary edit-only" onclick="toggleMode(true)">开始练习</button>
+
+    <!-- 练习模式：只保留两个 -->
+    <button class="btn-primary exercise-only" onclick="toggleMode(false)">← 返回修改</button>
+
+    <button id="editClozeBtn"
+            class="btn-danger exercise-only"
+            onclick="toggleEditClozeMode()">
+      编辑挖空: 关
+    </button>
+
+  </nav>
+
+  <main class="main-area">
+    <textarea id="inputText" placeholder="在此粘贴文章内容..."></textarea>
+    <div id="clozeContent"></div>
+  </main>
+
 </div>
 
+<!-- Firebase 同步模块：完整保留 -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
-    authDomain: "cloze-master-pro.firebaseapp.com",
-    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "cloze-master-pro",
-    storageBucket: "cloze-master-pro.firebasestorage.app",
-    messagingSenderId: "697808901954",
-    appId: "1:697808901954:web:32455d94bf67e522e01adb"
-  };
+const firebaseConfig = {
+  apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+  authDomain: "cloze-master-pro.firebaseapp.com",
+  databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "cloze-master-pro",
+  storageBucket: "cloze-master-pro.firebasestorage.app",
+  messagingSenderId: "697808901954",
+  appId: "1:697808901954:web:32455d94bf67e522e01adb"
+};
 
-  const fbApp = initializeApp(firebaseConfig);
-  const db = getDatabase(fbApp);
+const fbApp = initializeApp(firebaseConfig);
+const db = getDatabase(fbApp);
 
-  function getDocId() {
-    const text = inputArea.value.trim();
-    if (!text) return null;
-    // 使用文本前25位生成Base64 ID
-    try {
-        return btoa(unescape(encodeURIComponent(text.substring(0, 25)))).replace(/[/+=]/g, "");
-    } catch(e) { return "default_doc"; }
-  }
+function getDocId(){
+  const text = inputArea.value.trim();
+  if(!text) return null;
+  try{
+    return btoa(unescape(encodeURIComponent(text.substring(0,25))))
+      .replace(/[/+=]/g,"");
+  }catch(e){return "default_doc";}
+}
 
-  window.syncUpload = async function() {
-    const id = getDocId();
-    if (!id) return;
-    set(ref(db, 'clozes/' + id), { positions: manualPositions, ts: Date.now() });
-  };
+window.syncUpload = async function(){
+  const id=getDocId();
+  if(!id) return;
+  set(ref(db,"clozes/"+id),{
+    positions:manualPositions,
+    ts:Date.now()
+  });
+};
 
-  window.syncDownload = async function() {
-    const id = getDocId();
-    if (!id) return;
-    const snapshot = await get(child(ref(db), 'clozes/' + id));
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      if (data.positions) {
-        manualPositions = data.positions;
-        localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
-        if (app.classList.contains('exercise-mode')) renderCloze();
-      }
+window.syncDownload = async function(){
+  const id=getDocId();
+  if(!id) return;
+  const snapshot=await get(child(ref(db),"clozes/"+id));
+  if(snapshot.exists()){
+    const data=snapshot.val();
+    if(data.positions){
+      manualPositions=data.positions;
+      localStorage.setItem("cloze_single_positions",JSON.stringify(manualPositions));
+      if(app.classList.contains("exercise-mode")) renderCloze();
     }
-  };
+  }
+};
 </script>
 
 <script>
-// 常规业务逻辑
-let currentFontSize = 26;
-let manualPositions = JSON.parse(localStorage.getItem('cloze_single_positions')) || [];
-let answers = [];
+/* ================= 核心业务逻辑：完整保留 ================= */
 
-const app = document.getElementById('app');
-const inputArea = document.getElementById('inputText');
-const clozeContent = document.getElementById('clozeContent');
+let currentFontSize=26;
+let manualPositions=JSON.parse(localStorage.getItem("cloze_single_positions"))||[];
+let answers=[];
 
-window.onload = () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const textFromAnki = urlParams.get('text');
-    
-    if (textFromAnki) {
-        inputArea.value = decodeURIComponent(textFromAnki);
-    } else {
-        const savedText = localStorage.getItem('cloze_single_content');
-        if (savedText) inputArea.value = savedText;
-    }
-    
-    const savedSize = localStorage.getItem('cloze_user_font_size');
-    
-    if (savedSize) {
-        currentFontSize = parseInt(savedSize);
-    } else {
-        // 精准判定：是不是手机？
-        // 1. 检查 UA 字符串
-        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        // 2. 检查屏幕宽度（手机通常在 500px 以下）
-        const isNarrowScreen = window.innerWidth < 500;
-        
-        // 只有真的是手机 UA 且 屏幕窄，才给 26，否则一律 20
-        currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
-    }
+const app=document.getElementById("app");
+const inputArea=document.getElementById("inputText");
+const clozeContent=document.getElementById("clozeContent");
 
-    applyFontSize(currentFontSize);
-    
-    // 异步同步数据
-    setTimeout(() => { 
-        if(window.syncDownload) window.syncDownload(); 
-    }, 1500);
+/* ✅练习界面编辑挖空开关 */
+let isEditClozeMode=false;
 
-    // --- 新增代码：如果输入框有内容，自动进入练习模式 ---
-    if (inputArea.value.trim()) {
-        toggleMode(true);
-    }
+/* C 键恢复保留 */
+let isCPressed=false;
+window.addEventListener("keydown",e=>{
+  if(e.key.toLowerCase()==="c") isCPressed=true;
+});
+window.addEventListener("keyup",e=>{
+  if(e.key.toLowerCase()==="c") isCPressed=false;
+});
+
+/* 编辑挖空按钮 */
+window.toggleEditClozeMode=function(){
+  isEditClozeMode=!isEditClozeMode;
+  const btn=document.getElementById("editClozeBtn");
+  if(isEditClozeMode){
+    btn.innerText="编辑挖空: 开";
+    btn.style.background="#ffe0b2";
+  }else{
+    btn.innerText="编辑挖空: 关";
+    btn.style.background="#fff8f8";
+  }
 };
 
-// 确保有这个统一应用函数
-function applyFontSize(size) {
-    inputArea.style.fontSize = clozeContent.style.fontSize = size + "px";
-    const label = document.getElementById('fontSizeLabel');
-    if(label) label.innerText = size;
-}
+/* 页面初始化 */
+window.onload=()=>{
+  const urlParams=new URLSearchParams(window.location.search);
+  const textFromAnki=urlParams.get("text");
 
-async function toggleMode(isExercise) {
-    if (isExercise) {
-        if (!inputArea.value.trim()) return alert("请先输入内容");
-        if (window.syncDownload) await window.syncDownload();
-        renderCloze();
-        app.classList.add('exercise-mode');
-    } else {
-        app.classList.remove('exercise-mode');
-    }
-}
+  if(textFromAnki){
+    inputArea.value=decodeURIComponent(textFromAnki);
+  }else{
+    const savedText=localStorage.getItem("cloze_single_content");
+    if(savedText) inputArea.value=savedText;
+  }
 
-function renderCloze() {
-    const segments = inputArea.value.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
-    answers = [];
-    let unitCount = 0;
+  const savedSize=localStorage.getItem("cloze_user_font_size");
+  if(savedSize){
+    currentFontSize=parseInt(savedSize);
+  }else{
+    const isMobileUA=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const isNarrow=window.innerWidth<500;
+    currentFontSize=(isMobileUA && isNarrow)?26:20;
+  }
 
-    clozeContent.innerHTML = segments.map(seg => {
-        if (!seg || !seg.trim()) return seg;
-        const idx = unitCount++;
-        const isChinese = /[\u4e00-\u9fa5]/.test(seg);
+  applyFontSize(currentFontSize);
 
-        if (manualPositions.includes(idx)) {
-            answers.push(seg);
-            const boxWidth = isChinese ? 2 : (seg.length + 0.1); 
-            return `<input class="cloze-display-input" data-id="${answers.length - 1}" data-index="${idx}" 
-                    style="width:${boxWidth}ch;" 
-                    oninput="validateInput(this)" onkeydown="handleSpaceKey(event, this)"
-                    placeholder="${isChinese ? '?' : getHint(seg)}">`;
-        }
-        return `<span class="word-span" data-index="${idx}">${seg}</span>`;
-    }).join("");
-    bindEvents();
-}
+  setTimeout(()=>{
+    if(window.syncDownload) window.syncDownload();
+  },1500);
 
-function validateInput(el) {
-    const ans = answers[el.dataset.id];
-    const val = el.value.trim();
-    const isMatch = ans.toLowerCase().startsWith(val.toLowerCase());
-    el.style.backgroundColor = (val.toLowerCase() === ans.toLowerCase()) ? "#c8f7c5" : (isMatch ? "var(--input-bg)" : "#f7c5c5");
-    el.style.color = isMatch ? "#000" : "var(--danger)";
-}
-
-// 1. 状态变量
-let isCPressed = false;
-let isDeleteMode = false; // 手机端删除模式开关
-
-// 2. 键盘监听 (保留 PC 端的极速体验)
-window.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'c') isCPressed = true; });
-window.addEventListener('keyup', (e) => { if (e.key.toLowerCase() === 'c') isCPressed = false; });
-
-// 3. 模式切换函数
-window.toggleDeleteMode = function() {
-    isDeleteMode = !isDeleteMode;
-    const btn = document.getElementById('delModeBtn');
-    if (isDeleteMode) {
-        btn.innerText = "重置: 开";
-        btn.style.backgroundColor = "#ffe0b2";
-    } else {
-        btn.innerText = "重置: 关";
-        btn.style.backgroundColor = "#fff3e0";
-    }
+  if(inputArea.value.trim()){
+    toggleMode(true);
+  }
 };
 
-// 4. 核心事件绑定修改
-function bindEvents() {
-    // 1. 处理普通文字
-    clozeContent.querySelectorAll('.word-span').forEach(el => {
-        // 保留双击挖空
-        el.ondblclick = () => {
-            const idx = parseInt(el.dataset.index);
-            if (!manualPositions.includes(idx)) {
-                manualPositions.push(idx);
-                savePositions();
-                renderCloze();
-            }
-        };
-        // 不要在这里写任何 ontouchstart，让浏览器处理长按
-    });
-
-    // 2. 处理已挖空的输入框
-    clozeContent.querySelectorAll('input').forEach(el => {
-        el.onclick = () => {
-            // 只保留 C 键或删除模式的逻辑
-            if (isCPressed || isDeleteMode) {
-                recover(el, false);
-            }
-        };
-        // 确保没有 e.preventDefault()，否则菜单弹不出来
-    });
+/* 字号应用 */
+function applyFontSize(size){
+  inputArea.style.fontSize=clozeContent.style.fontSize=size+"px";
+  document.getElementById("fontSizeLabel").innerText=size;
 }
 
-// 5. 恢复函数
-function recover(el, showConfirm = true) {
-    const doRecover = () => {
-        manualPositions = manualPositions.filter(i => i !== parseInt(el.dataset.index));
+/* 模式切换 */
+async function toggleMode(isExercise){
+  if(isExercise){
+    if(!inputArea.value.trim()) return alert("请先输入内容");
+    if(window.syncDownload) await window.syncDownload();
+    renderCloze();
+    app.classList.add("exercise-mode");
+  }else{
+    app.classList.remove("exercise-mode");
+    isEditClozeMode=false;
+    document.getElementById("editClozeBtn").innerText="编辑挖空: 关";
+  }
+}
+
+/* 渲染挖空 */
+function renderCloze(){
+  const segments=inputArea.value.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
+  answers=[];
+  let unitCount=0;
+
+  clozeContent.innerHTML=segments.map(seg=>{
+    if(!seg||!seg.trim()) return seg;
+    const idx=unitCount++;
+    const isChinese=/[\u4e00-\u9fa5]/.test(seg);
+
+    if(manualPositions.includes(idx)){
+      answers.push(seg);
+      const w=isChinese?2:(seg.length+0.1);
+      return `<input class="cloze-display-input"
+              data-id="${answers.length-1}"
+              data-index="${idx}"
+              style="width:${w}ch;"
+              placeholder="${isChinese?"?":getHint(seg)}"
+              oninput="validateInput(this)"
+              onkeydown="handleSpaceKey(event,this)">`;
+    }
+    return `<span class="word-span" data-index="${idx}">${seg}</span>`;
+  }).join("");
+
+  bindEvents();
+}
+
+/* 输入校验 */
+function validateInput(el){
+  const ans=answers[el.dataset.id];
+  const val=el.value.trim();
+  const isMatch=ans.toLowerCase().startsWith(val.toLowerCase());
+
+  el.style.backgroundColor=
+    (val.toLowerCase()===ans.toLowerCase())
+      ?"#c8f7c5"
+      :(isMatch?"var(--input-bg)":"#f7c5c5");
+
+  el.style.color=isMatch?"#000":"var(--danger)";
+}
+
+/* 事件绑定 */
+function bindEvents(){
+
+  /* 双击挖空：仅编辑挖空模式允许 */
+  clozeContent.querySelectorAll(".word-span").forEach(el=>{
+    el.ondblclick=()=>{
+      if(!isEditClozeMode) return;
+      const idx=parseInt(el.dataset.index);
+      if(!manualPositions.includes(idx)){
+        manualPositions.push(idx);
         savePositions();
         renderCloze();
+      }
     };
-    if (showConfirm) {
-        if (confirm("恢复显示？")) doRecover();
-    } else {
-        doRecover();
+  });
+
+  /* 点击恢复：仅编辑挖空模式 或 C 键允许 */
+  clozeContent.querySelectorAll("input").forEach(el=>{
+    el.onclick=()=>{
+      if(isCPressed || isEditClozeMode){
+        recover(el,false);
+      }
+    };
+  });
+}
+
+/* 恢复显示 */
+function recover(el,showConfirm=true){
+  const doRecover=()=>{
+    manualPositions=manualPositions.filter(i=>i!==parseInt(el.dataset.index));
+    savePositions();
+    renderCloze();
+  };
+  if(showConfirm){
+    if(confirm("恢复显示？")) doRecover();
+  }else{
+    doRecover();
+  }
+}
+
+/* Space 补全保留 */
+function handleSpaceKey(e,el){
+  if(e.code==="Space"){
+    e.preventDefault();
+    const target=answers[el.dataset.id];
+    if(el.value.length<target.length){
+      el.value=target.substring(0,el.value.length+1);
+      validateInput(el);
     }
+  }
 }
 
-function handleSpaceKey(e, el) {
-    if (e.code === 'Space' || e.keyCode === 32) {
-        e.preventDefault();
-        const targetAns = answers[el.dataset.id];
-        if (el.value.length < targetAns.length) {
-            el.value = targetAns.substring(0, el.value.length + 1);
-            validateInput(el);
-        }
-    }
+/* 字号调节 */
+function changeFontSize(delta){
+  currentFontSize+=delta;
+  applyFontSize(currentFontSize);
+  localStorage.setItem("cloze_user_font_size",currentFontSize);
 }
 
-function changeFontSize(delta) {
-    currentFontSize += delta;
-    // 更新输入框和显示框的字体
-    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
-    // 更新底部新位置的字号数字
-    const label = document.getElementById('fontSizeLabel');
-    if(label) label.innerText = currentFontSize;
+/* 提示 */
+function getHint(w){
+  return w.length<=2 ? w[0]+"_" :
+    w[0]+"_".repeat(w.length-2)+w[w.length-1];
 }
 
-
-function getHint(w) { return w.length <= 2 ? w[0] + "_" : w[0] + "_".repeat(w.length - 2) + w[w.length-1]; }
-function savePositions() { 
-    localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions)); 
-    localStorage.setItem('cloze_single_content', inputArea.value);
-    if (window.syncUpload) window.syncUpload();
+/* 保存同步 */
+function savePositions(){
+  localStorage.setItem("cloze_single_positions",JSON.stringify(manualPositions));
+  localStorage.setItem("cloze_single_content",inputArea.value);
+  if(window.syncUpload) window.syncUpload();
 }
-inputArea.oninput = savePositions;
+inputArea.oninput=savePositions;
+
+/* 清空 */
+function handleClear(){
+  if(confirm("确定清空？")){
+    inputArea.value="";
+    manualPositions=[];
+    savePositions();
+    clozeContent.innerHTML="";
+    app.classList.remove("exercise-mode");
+  }
+}
 </script>
+
 </body>
 </html>
-
