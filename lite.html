@@ -73,6 +73,10 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 
     <nav class="footer-actions">
         <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
+             <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()" 
+             style="flex:0.6; background:#fff3e0; color:#e65100; border-left:1px solid #ddd;">
+             重置: 关
+             </button>
         <div class="font-ctrl edit-only">
              <button class="font-btn" onclick="changeFontSize(-2)">A-</button>
              <span id="fontSizeLabel">26</span>
@@ -194,19 +198,30 @@ function validateInput(el) {
     el.style.color = isMatch ? "#000" : "var(--danger)";
 }
 
-// 状态维护
+// 1. 状态变量
 let isCPressed = false;
+let isDeleteMode = false; // 手机端删除模式开关
 
-// 监听键盘 C 键状态
-window.addEventListener('keydown', (e) => {
-    if (e.key.toLowerCase() === 'c') isCPressed = true;
-});
-window.addEventListener('keyup', (e) => {
-    if (e.key.toLowerCase() === 'c') isCPressed = false;
-});
+// 2. 键盘监听 (保留 PC 端的极速体验)
+window.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'c') isCPressed = true; });
+window.addEventListener('keyup', (e) => { if (e.key.toLowerCase() === 'c') isCPressed = false; });
 
+// 3. 模式切换函数
+window.toggleDeleteMode = function() {
+    isDeleteMode = !isDeleteMode;
+    const btn = document.getElementById('delModeBtn');
+    if (isDeleteMode) {
+        btn.innerText = "重置: 开";
+        btn.style.backgroundColor = "#ffe0b2";
+    } else {
+        btn.innerText = "重置: 关";
+        btn.style.backgroundColor = "#fff3e0";
+    }
+};
+
+// 4. 核心事件绑定修改
 function bindEvents() {
-    // 处理普通文字：改为双击挖空
+    // 处理文字：双击挖空
     clozeContent.querySelectorAll('.word-span').forEach(el => {
         el.ondblclick = () => {
             const idx = parseInt(el.dataset.index);
@@ -218,34 +233,27 @@ function bindEvents() {
         };
     });
 
-    // 处理已挖空的输入框：
+    // 处理输入框：点击恢复
     clozeContent.querySelectorAll('input').forEach(el => {
-        // 点击逻辑：如果按下 C 键，点击即恢复
         el.onclick = () => {
-            if (isCPressed) {
-                recover(el, false); // false 表示不弹出 confirm
+            // 如果键盘按住 C，或者手机端打开了“重置模式”
+            if (isCPressed || isDeleteMode) {
+                recover(el, false); // 直接恢复，不弹窗
             }
         };
-
-        // 保留原有的长按恢复（可选，方便手机端操作）
-        let timer;
-        el.ontouchstart = () => timer = setTimeout(() => recover(el, true), 800);
-        el.ontouchend = () => clearTimeout(timer);
-        el.onmousedown = (e) => { 
-            if(e.button === 0 && !isCPressed) timer = setTimeout(() => recover(el, true), 800); 
-        };
-        el.onmouseup = () => clearTimeout(timer);
+        
+        // 彻底禁用输入框的长按弹出菜单，防止干扰
+        el.oncontextmenu = (e) => e.preventDefault();
     });
 }
 
-// 优化后的恢复函数
+// 5. 恢复函数
 function recover(el, showConfirm = true) {
     const doRecover = () => {
         manualPositions = manualPositions.filter(i => i !== parseInt(el.dataset.index));
         savePositions();
         renderCloze();
     };
-
     if (showConfirm) {
         if (confirm("恢复显示？")) doRecover();
     } else {
