@@ -7,42 +7,37 @@
 <style>
 :root { --primary: #43a047; --bg: #f8f9fa; --danger: #ff5252; --input-bg: #fffde7; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { 
-    margin: 0; 
-    padding: 0; 
-    width: 100%; 
-    height: auto !important; /* 必须是 auto，由内容撑开 */
-    min-height: unset !important;
-    font-family: -apple-system, sans-serif; 
-    background: #fff; 
-    overflow: visible !important; /* 必须 visible，否则父级拿不到高度 */
-}
+html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-system, sans-serif; background:#fff; overflow:hidden; }
 
 /* 1. 修正容器和导航条 */
 .app-container { 
     display: flex; 
     flex-direction: column; 
-    height: auto !important; /* 取消 100dvh */
-    min-height: 100px;
-    padding-top: 35px; 
+    height: 100dvh; /* 使用动态视口高度 */
+    padding-top: 35px; /* 略大于导航条高度 */
 }
 .btn-group { display:flex; align-items:center; gap:8px; }
 
 .main-area { 
-    flex: none; /* 不再自适应分配空间 */
+    flex: 1; 
     position: relative; 
-    overflow: visible !important; 
+    overflow-y: auto; 
+    -webkit-overflow-scrolling: touch;
 }
 /* 2. 核心修正：取消绝对定位，改用相对定位 */
 #inputText, #clozeContent {
     width: 100%; 
-    min-height: 50px; /* 取消根据 vh 计算的高度 */
+    min-height: calc(100vh - 35px);
     text-align: center;
-    padding: 20px 10px; 
+    padding: 20px 0px; /* 增加顶部间距防止被挡 */
+    border: none; 
+    outline: none;
     font-size: 20px !important; 
-    line-height: 1.6;
+    line-height: 1; 
+    font-family: inherit;
     white-space: pre-wrap; 
     word-break: break-word;
+    position: relative; /* 改为 relative */
     display: block;
 }
 /* 2. 只有当屏幕真的很窄（手机竖屏）时才切换 */
@@ -70,11 +65,17 @@ html, body {
     -webkit-appearance: none;
 }
 
-/* 确保导航条在内容上方但不遮挡 */
+/* 1. 导航条改为顶部固定 */
 .footer-actions { 
-    position: sticky; /* 改为 sticky，在 Anki 容器顶部吸附 */
+    display: flex; 
+    background: #fff; 
+    position: fixed; 
     top: 0; 
-    height: 35px;
+    left: 0; 
+    width: 100%; 
+    z-index: 1000; /* 确保在最顶层 */
+    height: 30px; 
+    border-bottom: 1px solid #ddd;
 }
 /* 2. 按钮文字和间距调整 */
 .footer-actions button { 
@@ -208,18 +209,6 @@ const app = document.getElementById('app');
 const inputArea = document.getElementById('inputText');
 const clozeContent = document.getElementById('clozeContent');
 
-// 1. 定义发送高度的函数
-function sendHeight() {
-    // 确保在渲染完成后获取高度
-    // 使用 scrollHeight 获取内容实际撑开的高度
-    const height = document.documentElement.scrollHeight || document.body.scrollHeight;
-    
-    // 向 Anki 父窗口发送高度，添加一个独特的 key 避免冲突
-    window.parent.postMessage({ 
-        'clozeAppHeight': height,
-        'source': 'cloze-app' 
-    }, "*");
-}
 window.onload = async () => { // 加上 async
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
@@ -251,19 +240,12 @@ window.onload = async () => { // 加上 async
 
     // 此时逻辑已跑完，显示界面
     document.body.classList.add('app-ready');
-    // --- 新增：渲染完成后立即发送一次高度 ---
-    setTimeout(sendHeight, 100);
     
     // 异步同步放在最后，不阻塞渲染
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
     }, 1000);
 };
-// 3. 监听窗口缩放或内容变化
-window.addEventListener('resize', sendHeight);
-
-// 4. 定时轮询（可选，应对一些动态展开的内容）
-setInterval(sendHeight, 500);
 
 // 确保有这个统一应用函数
 function applyFontSize(size) {
@@ -281,8 +263,6 @@ async function toggleMode(isExercise) {
     } else {
         app.classList.remove('exercise-mode');
     }
-    // 切换模式后，高度会变，立即通知 Anki
-    setTimeout(sendHeight, 100);
 }
 
 function renderCloze() {
@@ -306,7 +286,6 @@ function renderCloze() {
         return `<span class="word-span" data-index="${idx}">${seg}</span>`;
     }).join("");
     bindEvents();
-    etTimeout(sendHeight, 50); // 每一轮渲染后都同步一次高度
 }
 
 function validateInput(el) {
