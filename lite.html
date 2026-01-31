@@ -204,6 +204,12 @@ const inputArea = document.getElementById('inputText');
 const clozeContent = document.getElementById('clozeContent');
 
 window.onload = () => {
+    // 从本地存储读取字号，如果没有记录则默认为 26
+    const savedFontSize = localStorage.getItem('cloze_font_size');
+    if (savedFontSize) {
+        currentFontSize = parseInt(savedFontSize);
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
     if (textFromAnki) inputArea.value = decodeURIComponent(textFromAnki);
@@ -211,7 +217,12 @@ window.onload = () => {
         const savedText = localStorage.getItem('cloze_single_content');
         if (savedText) inputArea.value = savedText;
     }
+
+    // 应用读取到的字号
     inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
+    const label = document.getElementById('fontSizeLabel');
+    if(label) label.innerText = currentFontSize;
+
     setTimeout(() => { if(window.syncDownload) window.syncDownload(); }, 1500);
 };
 
@@ -333,11 +344,17 @@ function handleSpaceKey(e, el) {
 
 function changeFontSize(delta) {
     currentFontSize += delta;
-    // 更新输入框和显示框的字体
+    
+    // 限制最小字号，防止缩得太小看不见
+    if (currentFontSize < 12) currentFontSize = 12;
+
+    // 1. 更新界面显示
     inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
-    // 更新底部新位置的字号数字
     const label = document.getElementById('fontSizeLabel');
     if(label) label.innerText = currentFontSize;
+
+    // 2. 核心修改：保存到本地存储
+    localStorage.setItem('cloze_font_size', currentFontSize);
 }
 
 
