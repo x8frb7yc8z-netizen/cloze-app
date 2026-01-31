@@ -7,24 +7,35 @@
 <style>
 :root { --primary: #43a047; --bg: #f8f9fa; --danger: #ff5252; --input-bg: #fffde7; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-system, sans-serif; background:#fff; overflow:hidden; }
+html, body { 
+    margin:0; padding:0; width:100%; height:100dvh; 
+    font-family:-apple-system, sans-serif; 
+    background:#fff; 
+    /* 移除 overflow: hidden; 或者改为以下方式 */
+    overflow: auto; 
+}
 
 /* 1. 修正容器和导航条 */
 .app-container { 
     display: flex; 
     flex-direction: column; 
-    height: 100dvh; /* 使用动态视口高度 */
-    padding-top: 35px; /* 略大于导航条高度 */
+    height: 100dvh; 
+    /* 核心修改：移除 padding-top，改用下面的方式 */
+    padding-top: 0; 
+    position: relative;
+    overflow: hidden; 
 }
 .btn-group { display:flex; align-items:center; gap:8px; }
 
 /* 核心修正：确保主区域在滚动时不会拦截系统的长按手势 */
 .main-area {
     flex: 1;
+    margin-top: 35px; /* 用 margin 代替容器的 padding */
     overflow-y: auto;
-    -webkit-overflow-scrolling: touch; /* 启用流畅滚动，但也可能导致手势竞争 */
-    position: relative;
-    z-index: 1;
+    -webkit-overflow-scrolling: touch;
+    /* 允许文本选中 */
+    -webkit-user-select: text;
+    user-select: text;
 }
 /* 2. 核心修正：取消绝对定位，改用相对定位 */
 #inputText, #clozeContent {
@@ -104,21 +115,22 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 .btn-danger { color:var(--danger); background:#fff8f8; }
 
 #clozeContent {
-    /* 移除所有可能干扰长按的 transform 或 z-index */
-    transform: none !important;
-    z-index: auto !important;
+    /* 核心修复：确保没有元素遮挡，并且允许选择 */
     -webkit-user-select: text !important;
     user-select: text !important;
-    /* 增加行高，让 iOS 更容易捕捉到手指下的文字块 */
+    /* 强制允许系统菜单 */
+    -webkit-touch-callout: default !important; 
     line-height: 2 !important; 
-    padding-bottom: 200px; /* 留出底部空白，确保最后一行能滚到屏幕上方弹出菜单 */
+    padding-bottom: 200px;
 }
 
 /* 练习模式下的单词 Span：彻底回归最原始的文本表现 */
 .word-span {
     display: inline;
-    position: static; /* 关键：不要用 relative，防止层级复杂化 */
-    pointer-events: auto;
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    /* 避免点击穿透 */
+    pointer-events: auto; 
 }
 
 .cloze-display-input {
