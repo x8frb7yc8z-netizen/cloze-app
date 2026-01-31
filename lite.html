@@ -246,16 +246,7 @@ window.onload = async () => { // 加上 async
         if(window.syncDownload) window.syncDownload(); 
     }, 1000);
 };
-function sendHeight() {
-    const height = document.body.scrollHeight;
-    parent.postMessage({ type: 'setHeight', height: height }, '*');
-}
 
-window.addEventListener('load', sendHeight);
-window.addEventListener('resize', sendHeight);
-
-// 可选：文字或元素动态变化时，也可以定时发送高度
-setInterval(sendHeight, 300);
 
 // 确保有这个统一应用函数
 function applyFontSize(size) {
@@ -397,6 +388,16 @@ function savePositions() {
     if (window.syncUpload) window.syncUpload();
 }
 inputArea.oninput = savePositions;
+function sendHeight() {
+    const height = document.body.scrollHeight;
+    parent.postMessage({ type: 'setHeight', height: height }, '*');
+}
+
+window.addEventListener('load', sendHeight);
+window.addEventListener('resize', sendHeight);
+
+// 动态内容时，定时发送高度
+setInterval(sendHeight, 300);
 </script>
 
 </body>
