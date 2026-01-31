@@ -11,44 +11,38 @@ html, body {
     margin: 0; 
     padding: 0; 
     width: 100%; 
-    /* 修改这里：去掉 100dvh，改为 min-height */
-    min-height: 100%; 
-    height: auto; 
+    height: auto !important; /* 必须是 auto，由内容撑开 */
+    min-height: unset !important;
     font-family: -apple-system, sans-serif; 
     background: #fff; 
-    /* 修改这里：允许溢出，以便父级计算高度 */
-    overflow-y: visible; 
+    overflow: visible !important; /* 必须 visible，否则父级拿不到高度 */
 }
 
 /* 1. 修正容器和导航条 */
 .app-container { 
     display: flex; 
     flex-direction: column; 
-    height: 100dvh; /* 使用动态视口高度 */
-    padding-top: 35px; /* 略大于导航条高度 */
+    height: auto !important; /* 取消 100dvh */
+    min-height: 100px;
+    padding-top: 35px; 
 }
 .btn-group { display:flex; align-items:center; gap:8px; }
 
 .main-area { 
-    flex: 1; 
+    flex: none; /* 不再自适应分配空间 */
     position: relative; 
-    overflow-y: auto; 
-    -webkit-overflow-scrolling: touch;
+    overflow: visible !important; 
 }
 /* 2. 核心修正：取消绝对定位，改用相对定位 */
 #inputText, #clozeContent {
     width: 100%; 
-    min-height: calc(100vh - 35px);
+    min-height: 50px; /* 取消根据 vh 计算的高度 */
     text-align: center;
-    padding: 20px 0px; /* 增加顶部间距防止被挡 */
-    border: none; 
-    outline: none;
+    padding: 20px 10px; 
     font-size: 20px !important; 
-    line-height: 1; 
-    font-family: inherit;
+    line-height: 1.6;
     white-space: pre-wrap; 
     word-break: break-word;
-    position: relative; /* 改为 relative */
     display: block;
 }
 /* 2. 只有当屏幕真的很窄（手机竖屏）时才切换 */
@@ -76,17 +70,11 @@ html, body {
     -webkit-appearance: none;
 }
 
-/* 1. 导航条改为顶部固定 */
+/* 确保导航条在内容上方但不遮挡 */
 .footer-actions { 
-    display: flex; 
-    background: #fff; 
-    position: fixed; 
+    position: sticky; /* 改为 sticky，在 Anki 容器顶部吸附 */
     top: 0; 
-    left: 0; 
-    width: 100%; 
-    z-index: 1000; /* 确保在最顶层 */
-    height: 30px; 
-    border-bottom: 1px solid #ddd;
+    height: 35px;
 }
 /* 2. 按钮文字和间距调整 */
 .footer-actions button { 
@@ -293,6 +281,8 @@ async function toggleMode(isExercise) {
     } else {
         app.classList.remove('exercise-mode');
     }
+    // 切换模式后，高度会变，立即通知 Anki
+    setTimeout(sendHeight, 100);
 }
 
 function renderCloze() {
@@ -316,6 +306,7 @@ function renderCloze() {
         return `<span class="word-span" data-index="${idx}">${seg}</span>`;
     }).join("");
     bindEvents();
+    etTimeout(sendHeight, 50); // 每一轮渲染后都同步一次高度
 }
 
 function validateInput(el) {
