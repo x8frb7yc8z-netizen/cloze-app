@@ -29,16 +29,16 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
     width: 100%; 
     min-height: calc(100vh - 35px);
     text-align: center;
-    padding: 20px 10px; /* 增加顶部间距防止被挡 */
+    padding: 20px 0px; /* 增加顶部间距防止被挡 */
     border: none; 
     outline: none;
+    font-size: 20px !important; 
     line-height: 1; 
     font-family: inherit;
     white-space: pre-wrap; 
     word-break: break-word;
     position: relative; /* 改为 relative */
     display: block;
-    font-size: 26px !important;
 }
 /* 2. 只有当屏幕真的很窄（手机竖屏）时才切换 */
 @media screen and (max-width: 500px) {
@@ -139,7 +139,7 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
         <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">重置: 关</button>
         <div class="font-ctrl edit-only">
              <button class="font-btn" onclick="changeFontSize(-2)">A-</button>
-             <span id="fontSizeLabel">20</span>
+             <span id="fontSizeLabel">26</span>
              <button class="font-btn" onclick="changeFontSize(2)">A+</button>
         </div>
         <button class="btn-primary edit-only" onclick="toggleMode(true)">开始练习</button>
@@ -201,7 +201,7 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 
 <script>
 // 常规业务逻辑
-let currentFontSize;
+let currentFontSize = 26;
 let manualPositions = JSON.parse(localStorage.getItem('cloze_single_positions')) || [];
 let answers = [];
 
@@ -219,12 +219,24 @@ window.onload = () => {
         const savedText = localStorage.getItem('cloze_single_content');
         if (savedText) inputArea.value = savedText;
     }
+    
+    const savedSize = localStorage.getItem('cloze_user_font_size');
+    
+    if (savedSize) {
+        currentFontSize = parseInt(savedSize);
+    } else {
+        // 精准判定：是不是手机？
+        // 1. 检查 UA 字符串
+        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        // 2. 检查屏幕宽度（手机通常在 500px 以下）
+        const isNarrowScreen = window.innerWidth < 500;
+        
+        // 只有真的是手机 UA 且 屏幕窄，才给 26，否则一律 20
+        currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
+    }
 
-    const computedStyle = window.getComputedStyle(clozeContent);
-    currentFontSize = parseInt(computedStyle.fontSize);
-    const label = document.getElementById('fontSizeLabel');
-    if(label) label.innerText = currentFontSize;
-    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
+    applyFontSize(currentFontSize);
+    
     // 异步同步数据
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
@@ -235,6 +247,13 @@ window.onload = () => {
         toggleMode(true);
     }
 };
+
+// 确保有这个统一应用函数
+function applyFontSize(size) {
+    inputArea.style.fontSize = clozeContent.style.fontSize = size + "px";
+    const label = document.getElementById('fontSizeLabel');
+    if(label) label.innerText = size;
+}
 
 async function toggleMode(isExercise) {
     if (isExercise) {
