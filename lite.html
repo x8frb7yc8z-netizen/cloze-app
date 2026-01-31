@@ -204,35 +204,14 @@ const inputArea = document.getElementById('inputText');
 const clozeContent = document.getElementById('clozeContent');
 
 window.onload = () => {
-    // 1. 恢复字号：从本地读取，没有则用默认值 26
-    const savedFontSize = localStorage.getItem('cloze_font_size');
-    if (savedFontSize) {
-        currentFontSize = parseInt(savedFontSize);
-    }
-    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
-    if (document.getElementById('fontSizeLabel')) {
-        fontSizeLabel.innerText = currentFontSize;
-    }
-
-    // 2. 加载文章内容 (保持你原有的逻辑)
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
-    if (textFromAnki) {
-        inputArea.value = decodeURIComponent(textFromAnki);
-    } else {
+    if (textFromAnki) inputArea.value = decodeURIComponent(textFromAnki);
+    else {
         const savedText = localStorage.getItem('cloze_single_content');
         if (savedText) inputArea.value = savedText;
     }
-
-    // 3. 核心修复：根据当前文章生成的 ID 读取对应的挖空位置
-    const id = getDocId(); 
-    if (id) {
-        const specificPos = localStorage.getItem('cloze_pos_' + id);
-        // 如果这篇新文章以前没挖过，manualPositions 就重置为空数组
-        manualPositions = specificPos ? JSON.parse(specificPos) : [];
-    }
-
-    // 4. 云端同步
+    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
     setTimeout(() => { if(window.syncDownload) window.syncDownload(); }, 1500);
 };
 
@@ -354,17 +333,11 @@ function handleSpaceKey(e, el) {
 
 function changeFontSize(delta) {
     currentFontSize += delta;
-    
-    // 限制最小字号，防止缩得太小看不见
-    if (currentFontSize < 12) currentFontSize = 12;
-
-    // 1. 更新界面显示
+    // 更新输入框和显示框的字体
     inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
+    // 更新底部新位置的字号数字
     const label = document.getElementById('fontSizeLabel');
     if(label) label.innerText = currentFontSize;
-
-    // 2. 核心修改：保存到本地存储
-    localStorage.setItem('cloze_font_size', currentFontSize);
 }
 
 
