@@ -46,7 +46,13 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
         font-size: 26px !important;
     }
 }
-#inputText { resize: none; }
+#inputText {
+    resize: none;         /* 禁用缩放 */
+    position: absolute;   /* 脱离文档流 */
+    left: -9999px;        /* 移出视口，解决遮挡底部的问题 */
+    width: 100%;
+    height: 100%;
+}
 #clozeContent { display: none; } /* 默认隐藏 */
 
 .exercise-mode #inputText { display: none !important; }
@@ -118,10 +124,21 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
     user-select: text !important;
     -webkit-touch-callout: default !important;
     
-    /* 关键：去掉 padding 防止坐标偏移 */
     padding: 0 !important;
     margin: 0 !important;
-    display: inline; /* 确保它像普通文字一样排列 */
+    display: inline;
+
+    /* --- 核心修正：解决 iOS 选中问题的三剑客 --- */
+    
+    /* 1. 提升物理层级：确保文字在最上层，不被 textarea 或背景遮挡 */
+    position: relative;
+    z-index: 10;
+
+    /* 2. 释放手势：告诉浏览器不要为了等双击而拦截长按 */
+    touch-action: manipulation;
+
+    /* 3. 明确交互：确保元素是“可点击”的目标 */
+    pointer-events: auto !important;
 }
 
 .cloze-display-input {
@@ -314,45 +331,40 @@ window.toggleDeleteMode = function() {
 let eventsBound = false;
 
 function bindEvents() {
-
-    if (eventsBound) return; // ✅防止重复绑定
+    if (eventsBound) return;
     eventsBound = true;
 
     let lastTap = 0;
 
+    // 使用 pointerdown 通常比 click 在移动端更灵敏，且不易干扰选中
     clozeContent.addEventListener("click", (e) => {
         const el = e.target;
 
-        // 输入框恢复
+        // 输入框逻辑
         if (el.tagName === "INPUT") {
-            if (isCPressed || isDeleteMode) {
-                recover(el, false);
-            }
+            if (isCPressed || isDeleteMode) recover(el, false);
             return;
         }
 
-        // 双击挖空
+        // 单词逻辑
         if (el.classList.contains("word-span")) {
             const now = Date.now();
-
             if (now - lastTap < 300) {
+                // 是双击：立即清除可能产生的误选，并执行挖空
+                window.getSelection().removeAllRanges(); 
                 const idx = parseInt(el.dataset.index);
-
                 if (!manualPositions.includes(idx)) {
                     manualPositions.push(idx);
                     savePositions();
                     renderCloze();
                 }
-
                 lastTap = 0;
                 return;
             }
-
             lastTap = now;
         }
-    });
+    }, { passive: true }); // 关键：告诉浏览器我们不会 preventDefault，这会让滚动和长按更顺滑
 }
-
 // 5. 恢复函数
 function recover(el, showConfirm = true) {
     const doRecover = () => {
