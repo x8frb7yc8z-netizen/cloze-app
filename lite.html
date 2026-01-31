@@ -425,6 +425,42 @@ window.autoGenerateCloze = function() {
     // 可选：自动切换到练习模式
     app.classList.add('exercise-mode');
 };
+
+// 解决软键盘弹出导致的布局错位和同步问题
+if (window.visualViewport) {
+    const appContainer = document.querySelector('.app-container');
+    
+    window.visualViewport.addEventListener('resize', () => {
+        // 1. 获取当前真实的可见高度（不含键盘）
+        const vh = window.visualViewport.height;
+        
+        // 2. 强制将 App 容器高度设置为可视区高度
+        appContainer.style.height = `${vh}px`;
+        
+        // 3. 修正 offset，防止 iOS 整体页面被顶起
+        window.scrollTo(0, 0);
+
+        // 4. 如果在跟打模式或练习模式，确保当前光标/输入框在视口内
+        if (window.typingModeActive) {
+            updateTypingDisplay(); // 触发你原有的滚动到光标逻辑
+        } else {
+            const activeInput = document.activeElement;
+            if (activeInput && activeInput.tagName === 'INPUT') {
+                activeInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }
+    });
+}
+
+// 针对 iOS 键盘收起后页面不回弹的额外修复
+document.body.addEventListener('focusout', () => {
+    window.scrollTo(0, 0);
+});
+
+// 针对 iOS 键盘收起后页面不回弹的额外修复
+document.body.addEventListener('focusout', () => {
+    window.scrollTo(0, 0);
+});
 inputArea.oninput = savePositions;
 </script>
 </body>
