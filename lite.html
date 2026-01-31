@@ -58,7 +58,21 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 .btn-primary { background:var(--primary); color:white; }
 .btn-danger { color:var(--danger); background:#fff8f8; }
 
-.word-span { cursor:pointer; border-radius:3px; padding: 0 2px; }
+.word-span {
+    /* 允许文本被选中，这是弹出菜单的前提 */
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    
+    /* 允许 iOS 弹出默认菜单 */
+    -webkit-touch-callout: default !important;
+    
+    cursor: pointer;
+}
+
+.cloze-display-input {
+    /* 输入框通常长按会弹出全选/粘贴，保持默认即可 */
+    -webkit-user-select: auto;
+}
 .word-span:hover { background:#e8f5e9; }
 .exercise-only { display: none; }
 </style>
@@ -221,8 +235,9 @@ window.toggleDeleteMode = function() {
 
 // 4. 核心事件绑定修改
 function bindEvents() {
-    // 处理文字：双击挖空
+    // 1. 处理普通文字
     clozeContent.querySelectorAll('.word-span').forEach(el => {
+        // 保留双击挖空
         el.ondblclick = () => {
             const idx = parseInt(el.dataset.index);
             if (!manualPositions.includes(idx)) {
@@ -231,19 +246,18 @@ function bindEvents() {
                 renderCloze();
             }
         };
+        // 不要在这里写任何 ontouchstart，让浏览器处理长按
     });
 
-    // 处理输入框：点击恢复
+    // 2. 处理已挖空的输入框
     clozeContent.querySelectorAll('input').forEach(el => {
         el.onclick = () => {
-            // 如果键盘按住 C，或者手机端打开了“重置模式”
+            // 只保留 C 键或删除模式的逻辑
             if (isCPressed || isDeleteMode) {
-                recover(el, false); // 直接恢复，不弹窗
+                recover(el, false);
             }
         };
-        
-        // 彻底禁用输入框的长按弹出菜单，防止干扰
-        el.oncontextmenu = (e) => e.preventDefault();
+        // 确保没有 e.preventDefault()，否则菜单弹不出来
     });
 }
 
