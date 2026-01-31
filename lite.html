@@ -238,11 +238,6 @@ window.onload = async () => {
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
     }, 1000);
-
-    // --- 新增代码：如果输入框有内容，自动进入练习模式 ---
-    if (inputArea.value.trim()) {
-        toggleMode(true);
-    }
 };
 
 // 确保有这个统一应用函数
