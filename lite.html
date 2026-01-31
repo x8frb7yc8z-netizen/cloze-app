@@ -204,14 +204,35 @@ const inputArea = document.getElementById('inputText');
 const clozeContent = document.getElementById('clozeContent');
 
 window.onload = () => {
+    // 1. 恢复字号：从本地读取，没有则用默认值 26
+    const savedFontSize = localStorage.getItem('cloze_font_size');
+    if (savedFontSize) {
+        currentFontSize = parseInt(savedFontSize);
+    }
+    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
+    if (document.getElementById('fontSizeLabel')) {
+        fontSizeLabel.innerText = currentFontSize;
+    }
+
+    // 2. 加载文章内容 (保持你原有的逻辑)
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
-    if (textFromAnki) inputArea.value = decodeURIComponent(textFromAnki);
-    else {
+    if (textFromAnki) {
+        inputArea.value = decodeURIComponent(textFromAnki);
+    } else {
         const savedText = localStorage.getItem('cloze_single_content');
         if (savedText) inputArea.value = savedText;
     }
-    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
+
+    // 3. 核心修复：根据当前文章生成的 ID 读取对应的挖空位置
+    const id = getDocId(); 
+    if (id) {
+        const specificPos = localStorage.getItem('cloze_pos_' + id);
+        // 如果这篇新文章以前没挖过，manualPositions 就重置为空数组
+        manualPositions = specificPos ? JSON.parse(specificPos) : [];
+    }
+
+    // 4. 云端同步
     setTimeout(() => { if(window.syncDownload) window.syncDownload(); }, 1500);
 };
 
