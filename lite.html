@@ -391,7 +391,7 @@ function savePositions() {
 }
 window.autoGenerateCloze = function() {
     // 1. 获取用户设置的间隔 N
-    const n = parseInt(document.getElementById('nthInput').value) || 5;
+    const n = parseInt(document.getElementById('nthInput').value) || 2;
     const text = inputArea.value.trim();
     if (!text) return alert("请先输入内容");
 
