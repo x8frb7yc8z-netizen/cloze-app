@@ -219,14 +219,12 @@ window.onload = () => {
         const savedText = localStorage.getItem('cloze_single_content');
         if (savedText) inputArea.value = savedText;
     }
-    
-    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
 
     const computedStyle = window.getComputedStyle(clozeContent);
     currentFontSize = parseInt(computedStyle.fontSize);
     const label = document.getElementById('fontSizeLabel');
     if(label) label.innerText = currentFontSize;
-    
+    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
     // 异步同步数据
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
