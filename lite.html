@@ -32,18 +32,18 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
     padding: 20px 10px; /* 增加顶部间距防止被挡 */
     border: none; 
     outline: none;
-    line-height: 1.6; 
+    line-height: 1; 
     font-family: inherit;
     white-space: pre-wrap; 
     word-break: break-word;
     position: relative; /* 改为 relative */
     display: block;
-    font-size: 20px;
+    font-size: 26px !important;
 }
-/* 针对手机端（屏幕宽度小于 768px）进行微调 */
-@media screen and (max-width: 768px) {
+/* 2. 只有当屏幕真的很窄（手机竖屏）时才切换 */
+@media screen and (max-width: 500px) {
     #inputText, #clozeContent {
-        font-size: 26px; /* 移动端保持稍大字号方便点击 */
+        font-size: 26px !important;
     }
 }
 #inputText { resize: none; }
