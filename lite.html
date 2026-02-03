@@ -14,6 +14,7 @@ html, body { margin:0; padding:0; width:100%; min-height:100dvh; font-family:-ap
 .app-container { 
     display: flex; 
     flex-direction: column; 
+    min-height: 100vh; /* 使用 min-height 而不是 height */
     padding-top: 40px; 
 }
 
@@ -32,18 +33,20 @@ html, body { margin:0; padding:0; width:100%; min-height:100dvh; font-family:-ap
     background: transparent;
 }
 
-.main-area { flex: 1; width: 100%; padding: 10px; }
+.main-area { 
+    flex: 1; 
+    width: 100%;
+    /* 移除任何 overflow: hidden */
+    overflow: visible; 
+}
 
+/* 3. 修正文本显示区域 */
 #inputText, #clozeContent {
     width: 100%; 
-    min-height: 300px;
-    text-align: center;
-    border: none; 
-    outline: none;
-    font-size: 26px !important; 
-    line-height: 1.8; 
-    white-space: pre-wrap; 
-    word-break: break-word;
+    min-height: auto; /* 让它根据文字行数自动撑开 */
+    padding: 20px 15px 100px 15px; /* 增加底部 padding，防止文字紧贴屏幕底部 */
+    box-sizing: border-box;
+    display: block; /* 确保是块级元素 */
 }
 #inputText { resize: none; }
 
