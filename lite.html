@@ -7,17 +7,14 @@
 <style>
 :root { --primary: #43a047; --bg: #f8f9fa; --danger: #ff5252; --input-bg: #fffde7; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body {
-    height: auto !important; /* 允许根据内容高度自动增长 */
-    overflow-y: auto !important; /* 开启系统级纵向滚动 */
-    -webkit-overflow-scrolling: touch; /* 保证 iOS 滚动顺滑 */
-}
+html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-system, sans-serif; background:#fff; overflow:hidden; }
 
-/* 2. 容器高度改为 min-height，增加底部间距 */
-.app-container {
-    height: auto !important;
-    min-height: 100vh;
-    padding-top: 50px; /* 避开固定导航栏 */
+/* 1. 修正容器和导航条 */
+.app-container { 
+    display: flex; 
+    flex-direction: column; 
+    height: 100dvh; /* 使用动态视口高度 */
+    padding-top: 35px; /* 略大于导航条高度 */
 }
 .btn-group { display:flex; align-items:center; gap:8px; }
 
@@ -29,11 +26,19 @@ html, body {
 }
 /* 2. 核心修正：取消绝对定位，改用相对定位 */
 #inputText, #clozeContent {
-    line-height: 1.8 !important; /* 倍增行高，修复点击热区冲突 */
-    padding-bottom: 100px; /* 核心：防止底部内容被系统条截断 */
-    -webkit-user-select: auto !important; /* 恢复原生选词行为 */
-    user-select: auto !important;
-    position: static; /* 确保不参与复杂的层级计算 */
+    width: 100%; 
+    min-height: calc(100vh - 35px);
+    text-align: center;
+    padding: 20px 0px; /* 增加顶部间距防止被挡 */
+    border: none; 
+    outline: none;
+    font-size: 20px !important; 
+    line-height: 1; 
+    font-family: inherit;
+    white-space: pre-wrap; 
+    word-break: break-word;
+    position: relative; /* 改为 relative */
+    display: block;
 }
 /* 2. 只有当屏幕真的很窄（手机竖屏）时才切换 */
 @media screen and (max-width: 500px) {
@@ -49,11 +54,19 @@ html, body {
 .exercise-mode .edit-only { display: none; }
 .exercise-mode .exercise-only { display: flex !important; flex: 1; }
 
-/* 4. 输入框精简 */
+/* 核心：输入框样式 */
 .cloze-display-input {
-    touch-action: auto !important; /* 移除 manipulation，恢复原生触控 */
-    -webkit-appearance: none;
-    vertical-align: baseline; /* 保持与文字基线对齐 */
+    font-size: 0.9em; 
+    min-width: 2.2ch; 
+    height: 1.2em;
+    margin: 0 2px;
+    border: none; 
+    border-bottom: 2px solid #666;
+    background: var(--input-bg);
+    text-align: center;
+    border-radius: 0;
+    -webkit-appearance: none; /* 移除 iOS 默认阴影 */
+    vertical-align: middle;
 }
 
 /* 1. 导航条改为顶部固定 */
@@ -246,35 +259,37 @@ function applyFontSize(size) {
 }
 
 async function toggleMode(isExercise) {
-    const app = document.getElementById('app');
     if (isExercise) {
         if (!inputArea.value.trim()) return alert("请先输入内容");
         renderCloze();
-        app.classList.add('exercise-mode');
-        // 修复截图中的截断感：强制视口回到顶部
-        window.scrollTo({ top: 0, behavior: 'instant' }); 
+        document.getElementById('app').classList.add('exercise-mode');
+        window.scrollTo(0, 0); // 修正 iOS 滚动偏离
     } else {
-        app.classList.remove('exercise-mode');
+        document.getElementById('app').classList.remove('exercise-mode');
     }
 }
 
 function renderCloze() {
-    // ... 前面逻辑保持不变 ...
-    if (manualPositions.includes(idx)) {
-        answers.push(seg);
-        const boxWidth = isChinese ? 2 : (seg.length + 0.1); 
-        // 关键点：移除可能干扰焦点的额外属性，确保顺序
-        return `<input type="text" 
-                inputmode="text" 
-                autocomplete="off" 
-                class="cloze-display-input" 
-                data-id="${answers.length - 1}" 
-                data-index="${idx}" 
-                style="width:${boxWidth}ch;" 
-                oninput="validateInput(this)" 
-                onkeydown="handleSpaceKey(event, this)">`;
-    }
-    // ... 后面逻辑保持不变 ...
+    const segments = inputArea.value.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
+    answers = [];
+    let unitCount = 0;
+
+    clozeContent.innerHTML = segments.map(seg => {
+        if (!seg || !seg.trim()) return seg;
+        const idx = unitCount++;
+        const isChinese = /[\u4e00-\u9fa5]/.test(seg);
+
+        if (manualPositions.includes(idx)) {
+            answers.push(seg);
+            const boxWidth = isChinese ? 2 : (seg.length + 0.1); 
+            return `<input class="cloze-display-input" data-id="${answers.length - 1}" data-index="${idx}" 
+                    style="width:${boxWidth}ch;" 
+                    oninput="validateInput(this)" onkeydown="handleSpaceKey(event, this)"
+                    placeholder="${isChinese ? '?' : getHint(seg)}">`;
+        }
+        return `<span class="word-span" data-index="${idx}">${seg}</span>`;
+    }).join("");
+    bindEvents();
 }
 
 function validateInput(el) {
@@ -376,6 +391,14 @@ function savePositions() {
     if (window.syncUpload) window.syncUpload();
 }
 inputArea.oninput = savePositions;
+function handleClear() {
+    if(confirm("确定清空吗？")) {
+        inputArea.value = "";
+        manualPositions = [];
+        savePositions();
+        renderCloze();
+    }
+}
 </script>
 </body>
 </html>
