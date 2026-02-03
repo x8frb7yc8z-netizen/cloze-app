@@ -101,39 +101,42 @@ html, body { margin:0; padding:0; width:100%; height:100dvh; font-family:-apple-
 .btn-danger { color:var(--danger); background:#fff8f8; }
 
 #clozeContent {
-    display: none; /* 默认隐藏 */
+    display: none;
     width: 100%; 
     min-height: calc(100vh - 35px);
     text-align: center;
     padding: 20px 0px;
-    border: none; 
-    outline: none;
-    font-size: 20px !important; 
-    white-space: pre-wrap; 
+    font-size: 20px !important;
+    white-space: pre-wrap;
     word-break: break-word;
-    position: relative;
-    
-    /* 核心交互修正：改为 auto 提升 iOS 兼容性，允许选词 */
+    line-height: 1.6;
+    /* 彻底放开，让 iOS 决定选词逻辑 */
     -webkit-user-select: auto;
     user-select: auto;
-    pointer-events: auto; 
-    line-height: 1.6; /* 练习模式行高调大，方便手指点击 */
 }
 
 .word-span {
-    /* 关键：设置为 auto，让 iOS 能够触发长按选词 */
+    display: inline;
     -webkit-user-select: auto !important;
     user-select: auto !important;
-    -webkit-touch-callout: default !important;
-    display: inline;
 }
 
 .cloze-display-input {
-    /* 允许输入框获得焦点，并确保 iOS 的导航箭头能识别它 */
-    -webkit-user-select: initial !important; 
-    user-select: initial !important;
-    /* 移除 touch-action，由浏览器决定手势 */
-    touch-action: auto; 
+    font-size: inherit; 
+    font-family: inherit;
+    min-width: 2ch; /* 稍微加宽，方便点击 */
+    height: 1.2em;
+    padding: 0; 
+    margin: 0 2px;
+    border: none; 
+    border-bottom: 1.5px solid #666;
+    background: var(--input-bg);
+    text-align: center;
+    outline: none;
+    /* 必须：让 iOS 认为它是可交互的标准表单项 */
+    -webkit-appearance: none;
+    border-radius: 0;
+    /* 不要在这里写 touch-action: manipulation */
 }
 .exercise-only { display: none !important; }
 </style>
@@ -326,7 +329,43 @@ window.toggleDeleteMode = function() {
 
 // 4. 核心事件绑定修改
 function bindEvents() {
-    // 1. 处理普通文字 (双击挖空)
+    const inputs = Array.from(clozeContent.querySelectorAll('input'));
+
+    inputs.forEach((el, index) => {
+        // 使用 click 而不是 mousedown，确保不干扰聚焦序列
+        el.onclick = (e) => {
+            if (isCPressed || isDeleteMode) {
+                e.preventDefault();
+                recover(el, false);
+            }
+        };
+
+        // 核心修复：手动处理“下一个”逻辑
+        el.onkeydown = (e) => {
+            // 处理空格补全
+            handleSpaceKey(e, el);
+            
+            // 处理 Enter 键：跳转到下一个输入框
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const nextEl = inputs[index + 1];
+                if (nextEl) nextEl.focus();
+            }
+        };
+
+        el.onfocus = () => {
+            if (isDeleteMode) {
+                el.blur();
+                return;
+            }
+            // 解决 iOS 选词和聚焦冲突
+            setTimeout(() => {
+                el.setSelectionRange(0, 9999);
+            }, 100);
+        };
+    });
+
+    // 处理普通文本双击
     clozeContent.querySelectorAll('.word-span').forEach(el => {
         el.ondblclick = () => {
             const idx = parseInt(el.dataset.index);
@@ -335,33 +374,6 @@ function bindEvents() {
                 savePositions();
                 renderCloze();
             }
-        };
-        // 移除 onclick 可能造成的干扰
-    });
-
-    // 2. 处理已挖空的输入框
-    clozeContent.querySelectorAll('input').forEach(el => {
-        // 关键：将逻辑改在 mousedown 上，这样不会干扰 click/focus 序列
-        el.onmousedown = (e) => {
-            if (isCPressed || isDeleteMode) {
-                e.preventDefault(); 
-                recover(el, false);
-            }
-        };
-
-        // 提升聚焦兼容性
-        el.onfocus = (e) => {
-            // 如果是在删除模式下被误点聚焦，立即失焦
-            if (isDeleteMode) {
-                el.blur();
-                return;
-            }
-            // 正常聚焦时，延迟全选以适应 iOS
-            setTimeout(() => {
-                if (typeof el.setSelectionRange === "function") {
-                    el.setSelectionRange(0, 9999);
-                }
-            }, 50);
         };
     });
 }
