@@ -321,34 +321,67 @@ window.toggleDeleteMode = function() {
     }
 };
 
+async function copyToClipboard(text) {
+    if (!text) return;
+    try {
+        await navigator.clipboard.writeText(text);
+        // 如果是在 Anki 或某些安卓环境下，可以使用以下兜底方案
+    } catch (err) {
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
+    }
+}
+
 // 4. 核心事件绑定修改
 function bindEvents() {
-    // 1. 处理普通文字
-    clozeContent.querySelectorAll('.word-span').forEach(el => {
-        // 保留双击挖空
-        el.ondblclick = () => {
-            const idx = parseInt(el.dataset.index);
+    // 先移除旧的监听防止重复（针对直接赋值的情况）
+    clozeContent.onclick = null;
+
+    clozeContent.onclick = (e) => {
+        const isExercise = app.classList.contains('exercise-mode');
+        const target = e.target;
+
+        // 逻辑 A：点击的是普通单词 (.word-span)
+        if (target.classList.contains('word-span')) {
+            if (isExercise) {
+                // 练习模式：单击复制
+                const word = target.innerText.trim();
+                copyToClipboard(word);
+                
+                // 视觉反馈
+                const range = document.createRange();
+                range.selectNodeContents(target);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+        }
+        
+        // 逻辑 B：点击的是输入框 (input)
+        if (target.tagName === 'INPUT') {
+            if (isCPressed || isDeleteMode) {
+                recover(target, false);
+            }
+        }
+    };
+
+    // 双击逻辑：依然使用委托
+    clozeContent.ondblclick = (e) => {
+        const target = e.target;
+        if (target.classList.contains('word-span')) {
+            const idx = parseInt(target.dataset.index);
             if (!manualPositions.includes(idx)) {
                 manualPositions.push(idx);
                 savePositions();
                 renderCloze();
             }
-        };
-        // 不要在这里写任何 ontouchstart，让浏览器处理长按
-    });
-
-    // 2. 处理已挖空的输入框
-    clozeContent.querySelectorAll('input').forEach(el => {
-        el.onclick = () => {
-            // 只保留 C 键或删除模式的逻辑
-            if (isCPressed || isDeleteMode) {
-                recover(el, false);
-            }
-        };
-        // 确保没有 e.preventDefault()，否则菜单弹不出来
-    });
+        }
+    };
 }
-
 // 5. 恢复函数
 function recover(el, showConfirm = true) {
     const doRecover = () => {
