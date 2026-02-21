@@ -213,6 +213,51 @@ const app = document.getElementById('app');
 const inputArea = document.getElementById('inputText');
 const clozeContent = document.getElementById('clozeContent');
 
+function getSentenceByPunct(el) {
+    if (!el || !el.classList.contains('word-span')) return null;
+
+    const parent = el.parentNode;
+    const children = Array.from(parent.childNodes);
+    const index = children.indexOf(el);
+    
+    // 定义硬性句子边界：点、感叹号、问号、冒号、分号（中文也包含）
+    // 注意：这里不包含 \n，所以它会跨行寻找
+    const boundary = /[.!?。！？；;]/;
+
+    let start = index;
+    let end = index;
+
+    // 向前寻找上一个句子的结尾（即本句的开始）
+    while (start > 0) {
+        const prevText = children[start - 1].textContent;
+        // 如果前一个节点包含标点，说明本句从这里开始
+        if (boundary.test(prevText)) break;
+        start--;
+    }
+
+    // 向后寻找本句的结尾（即撞到下一个标点）
+    while (end < children.length - 1) {
+        const currentText = children[end].textContent;
+        if (boundary.test(currentText)) {
+            end++; // 包含这个标点符号
+            break;
+        }
+        end++;
+    }
+
+    const sentenceNodes = children.slice(start, end);
+    const sentenceText = sentenceNodes.map(n => n.textContent).join("").trim();
+
+    // 视觉高亮选中
+    const range = document.createRange();
+    range.setStartBefore(sentenceNodes[0]);
+    range.setEndAfter(sentenceNodes[sentenceNodes.length - 1]);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+
+    return sentenceText;
+}
 window.onload = async () => { // 加上 async
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
@@ -338,41 +383,36 @@ async function copyToClipboard(text) {
 
 // 4. 核心事件绑定修改
 function bindEvents() {
-    // 先移除旧的监听防止重复（针对直接赋值的情况）
-    clozeContent.onclick = null;
-
+    // 单击复制单词
     clozeContent.onclick = (e) => {
-        const isExercise = app.classList.contains('exercise-mode');
         const target = e.target;
-
-        // 逻辑 A：点击的是普通单词 (.word-span)
-        if (target.classList.contains('word-span')) {
-            if (isExercise) {
-                // 练习模式：单击复制
-                const word = target.innerText.trim();
-                copyToClipboard(word);
-                
-                // 视觉反馈
-                const range = document.createRange();
-                range.selectNodeContents(target);
-                const sel = window.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(range);
-            }
+        if (target.classList.contains('word-span') && app.classList.contains('exercise-mode')) {
+            copyToClipboard(target.innerText.trim());
+            
+            // 单词选中视觉反馈
+            const range = document.createRange();
+            range.selectNodeContents(target);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
         }
         
-        // 逻辑 B：点击的是输入框 (input)
-        if (target.tagName === 'INPUT') {
-            if (isCPressed || isDeleteMode) {
-                recover(target, false);
-            }
+        // 恢复挖空逻辑
+        if (target.tagName === 'INPUT' && (isCPressed || isDeleteMode)) {
+            recover(target, false);
         }
     };
 
-    // 双击逻辑：依然使用委托
-    clozeContent.ondblclick = (e) => {
-        const target = e.target;
-        if (target.classList.contains('word-span')) {
+  clozeContent.ondblclick = (e) => {
+    e.preventDefault();
+    const target = e.target;
+    if (target.classList.contains('word-span')) {
+        if (!isDeleteMode) {
+            // 练习模式：按照标点复制整句
+            const txt = getSentenceByPunct(target);
+            if (txt) copyToClipboard(txt);
+        } else {
+            // 重置模式：双击挖空
             const idx = parseInt(target.dataset.index);
             if (!manualPositions.includes(idx)) {
                 manualPositions.push(idx);
@@ -380,7 +420,23 @@ function bindEvents() {
                 renderCloze();
             }
         }
-    };
+    }
+};
+
+    // 移动端双触支持
+    let lastTapTime = 0;
+    clozeContent.addEventListener('touchend', (e) => {
+        const now = performance.now();
+        if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
+            const target = e.target;
+            if (target.classList.contains('word-span') && !isDeleteMode) {
+                e.preventDefault(); 
+                const txt = getContentBlock(target);
+                if (txt) copyToClipboard(txt);
+            }
+        }
+        lastTapTime = now;
+    }, { passive: false });
 }
 // 5. 恢复函数
 function recover(el, showConfirm = true) {
