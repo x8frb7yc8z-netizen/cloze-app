@@ -424,82 +424,50 @@ function updateModeButtons() {
 
 // 4. 核心事件绑定修改
 function bindEvents() {
-    // --- 单击处理 (单击单词、单击输入框) ---
     clozeContent.onclick = (e) => {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
-        const isInput = target.tagName === 'INPUT';
         const idx = parseInt(target.dataset.index);
 
         if (!app.classList.contains('exercise-mode')) return;
 
-        // A. 加粗模式处理 (仅限点击单词)
+        // 加粗逻辑：点击后自动关闭
         if (isBoldMode && isWord) {
             if (boldPositions.includes(idx)) {
                 boldPositions = boldPositions.filter(i => i !== idx);
             } else {
                 boldPositions.push(idx);
             }
+            isBoldMode = false; // [修改点] 点击完立即关闭模式
+            updateModeButtons(); 
             savePositions();
             renderCloze();
-            return; // 处理完加粗直接返回，不触发复制
-        }
-
-        // B. 重置/恢复逻辑 (点击输入框)
-        if (isInput && (isCPressed || isDeleteMode)) {
-            recover(target, false);
             return;
         }
 
-        // C. 普通模式：单击复制单词
+        if (target.tagName === 'INPUT' && (isDeleteMode)) {
+            manualPositions = manualPositions.filter(i => i !== idx);
+            savePositions();
+            renderCloze();
+            return;
+        }
+
         if (isWord && !isDeleteMode && !isBoldMode) {
             copyToClipboard(target.innerText.trim());
-            
-            // 单词选中视觉反馈
-            const range = document.createRange();
-            range.selectNodeContents(target);
-            const sel = window.getSelection();
-            sel.removeAllRanges();
-            sel.addRange(range);
         }
     };
 
-    // --- 双击处理 (PC端) ---
+    // 双击挖空
     clozeContent.ondblclick = (e) => {
-        e.preventDefault();
         const target = e.target;
-        if (!target.classList.contains('word-span')) return;
+        if (!target.classList.contains('word-span') || isBoldMode) return;
         const idx = parseInt(target.dataset.index);
-
-        if (isDeleteMode) {
-            // 重置模式：双击挖空
-            if (!manualPositions.includes(idx)) {
-                manualPositions.push(idx);
-                savePositions();
-                renderCloze();
-            }
-        } else if (!isBoldMode) {
-            // 普通模式：双击复制整句
-            const txt = getSentenceByPunct(target);
-            if (txt) copyToClipboard(txt);
+        if (isDeleteMode && !manualPositions.includes(idx)) {
+            manualPositions.push(idx);
+            savePositions();
+            renderCloze();
         }
     };
-
-    // --- 移动端双触支持 ---
-    let lastTapTime = 0;
-    clozeContent.addEventListener('touchend', (e) => {
-        const now = performance.now();
-        if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
-            const target = e.target;
-            // 只有在非加粗、非重置模式下，双击才触发复制整句
-            if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
-                e.preventDefault(); 
-                const txt = getSentenceByPunct(target);
-                if (txt) copyToClipboard(txt);
-            }
-        }
-        lastTapTime = now;
-    }, { passive: false });
 }
 // 5. 恢复函数
 function recover(el, showConfirm = true) {
