@@ -210,6 +210,8 @@ window.syncDownload = async function() {
       const data = snapshot.val();
       manualPositions = data.positions || [];
       boldPositions = data.boldPositions || []; // 下载加粗位置
+      localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
+      localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions));
       if (app.classList.contains('exercise-mode')) renderCloze();
     }
 };
