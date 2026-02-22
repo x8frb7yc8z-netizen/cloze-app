@@ -148,6 +148,7 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
 <div class="app-container" id="app">
     <nav class="footer-actions">
         <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
+	<button class="exercise-only" onclick="copyFullText()" style="background:#f3e5f5;">复制</button>
 	<button id="boldModeBtn" class="exercise-only" onclick="toggleBoldMode()" style="background:#e8f5e9;">加粗: 关</button>
         <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">挖空: 关</button>
         <div class="font-ctrl edit-only">
@@ -553,6 +554,25 @@ function handleClear() {
         renderCloze();
     }
 }
+// 新增：复制全文函数
+window.copyFullText = function() {
+    // 获取当前 textarea 里的原始文本
+    const fullText = inputArea.value.trim();
+    if (!fullText) {
+        alert("没有内容可复制");
+        return;
+    }
+    
+    copyToClipboard(fullText);
+    
+    // 给一点视觉反馈，暂时改变按钮文字
+    const btn = event.currentTarget;
+    const originalText = btn.innerText;
+    btn.innerText = "已复制 √";
+    setTimeout(() => {
+        btn.innerText = originalText;
+    }, 1000);
+};
 </script>
 </body>
 </html>
