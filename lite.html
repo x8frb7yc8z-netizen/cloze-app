@@ -220,8 +220,8 @@ window.syncDownload = async function() {
 <script>
 // 常规业务逻辑
 let currentFontSize = 26;
-let manualPositions = JSON.parse(localStorage.getItem('cloze_single_positions')) || [];
-let boldPositions = JSON.parse(localStorage.getItem('cloze_single_bold_positions')) || []; // 新增
+let manualPositions = [];
+let boldPositions = [];
 let isBoldMode = false; // 新增状态
 let answers = [];
 
@@ -280,9 +280,6 @@ window.onload = async () => { // 加上 async
     
     if (textFromAnki) {
         inputArea.value = decodeURIComponent(textFromAnki);
-    } else {
-        const savedText = localStorage.getItem('cloze_single_content');
-        if (savedText) inputArea.value = savedText;
     }
 
     // --- 字号逻辑 ---
@@ -554,9 +551,6 @@ function getHint(w) { return w.length <= 2 ? w[0] + "_" : w[0] + "_".repeat(w.le
 
 
 function savePositions() { 
-    localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions)); 
-    localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions)); // 新增
-    localStorage.setItem('cloze_single_content', inputArea.value);
     if (window.syncUpload) window.syncUpload();
 }
 inputArea.oninput = savePositions;
