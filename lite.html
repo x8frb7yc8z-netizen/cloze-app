@@ -309,12 +309,27 @@ function getSentenceByPunct(el) {
 
     return sentenceText;
 }
-window.onload = async () => { // 加上 async
+window.onload = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
     
     if (textFromAnki) {
-        inputArea.value = decodeURIComponent(textFromAnki);
+        const currentText = decodeURIComponent(textFromAnki);
+        inputArea.value = currentText;
+
+        // --- 补丁 2：ID 隔离逻辑 ---
+        const currentId = getDocId(); // 你的 DJB2 哈希函数
+        const lastActiveId = localStorage.getItem('last_active_doc_id');
+
+        // 如果文本变了（ID 不匹配），强制重置所有位置状态
+        if (currentId !== lastActiveId) {
+            console.log("Detecting new card: isolating state.");
+            manualPositions = [];
+            boldPositions = [];
+            localStorage.removeItem('cloze_single_positions');
+            localStorage.removeItem('cloze_single_bold_positions');
+            localStorage.setItem('last_active_doc_id', currentId);
+        }
     } else {
         const savedText = localStorage.getItem('cloze_single_content');
         if (savedText) inputArea.value = savedText;
@@ -322,29 +337,20 @@ window.onload = async () => { // 加上 async
 
     // --- 字号逻辑 ---
     const savedSize = localStorage.getItem('cloze_user_font_size');
-    if (savedSize) {
-        currentFontSize = parseInt(savedSize);
-    } else {
-        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const isNarrowScreen = window.innerWidth < 500;
-        currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
-    }
-    applyFontSize(currentFontSize);
+    applyFontSize(savedSize ? parseInt(savedSize) : (window.innerWidth < 500 ? 26 : 20));
 
-    // --- 核心修正：立即判断并渲染，不等待异步 ---
+    // --- 核心渲染 ---
     if (inputArea.value.trim()) {
-        // 先手动执行渲染，不依赖带延迟的 toggleMode
         renderCloze(); 
         app.classList.add('exercise-mode');
     }
 
-    // 此时逻辑已跑完，显示界面
     document.body.classList.add('app-ready');
     
-    // 异步同步放在最后，不阻塞渲染
+    // 异步同步放在最后
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
-    }, 1000);
+    }, 500); 
 };
 
 // 确保有这个统一应用函数
