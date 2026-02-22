@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>极简完形填空 Pro Sync</title>
 <style>
+
+/* 加粗单词的样式 */
+.word-bold {
+    font-weight: 800;
+    color: #000;
+    /* 可以加个底色或者下划线增加辨识度 */
+
+}
 :root { --primary: #43a047; --bg: #f8f9fa; --danger: #ff5252; --input-bg: #fffde7; }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-apple-system, sans-serif; background:#fff; }
@@ -140,7 +148,8 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
 <div class="app-container" id="app">
     <nav class="footer-actions">
         <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
-        <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">重置: 关</button>
+	<button id="boldModeBtn" class="exercise-only" onclick="toggleBoldMode()" style="background:#e8f5e9;">加粗: 关</button>
+        <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">挖空: 关</button>
         <div class="font-ctrl edit-only">
              <button class="font-btn" onclick="changeFontSize(-2)">A-</button>
              <span id="fontSizeLabel">26</span>
@@ -182,31 +191,37 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
     } catch(e) { return "default_doc"; }
   }
 
-  window.syncUpload = async function() {
+window.syncUpload = async function() {
     const id = getDocId();
     if (!id) return;
-    set(ref(db, 'clozes/' + id), { positions: manualPositions, ts: Date.now() });
-  };
+    set(ref(db, 'clozes/' + id), { 
+        positions: manualPositions, 
+        boldPositions: boldPositions, // 同步加粗位置
+        ts: Date.now() 
+    });
+};
 
-  window.syncDownload = async function() {
+window.syncDownload = async function() {
     const id = getDocId();
     if (!id) return;
     const snapshot = await get(child(ref(db), 'clozes/' + id));
     if (snapshot.exists()) {
       const data = snapshot.val();
-      if (data.positions) {
-        manualPositions = data.positions;
-        localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
-        if (app.classList.contains('exercise-mode')) renderCloze();
-      }
+      manualPositions = data.positions || [];
+      boldPositions = data.boldPositions || []; // 下载加粗位置
+      localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
+      localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions));
+      if (app.classList.contains('exercise-mode')) renderCloze();
     }
-  };
+};
 </script>
 
 <script>
 // 常规业务逻辑
 let currentFontSize = 26;
 let manualPositions = JSON.parse(localStorage.getItem('cloze_single_positions')) || [];
+let boldPositions = JSON.parse(localStorage.getItem('cloze_single_bold_positions')) || []; // 新增
+let isBoldMode = false; // 新增状态
 let answers = [];
 
 const app = document.getElementById('app');
@@ -324,6 +339,7 @@ function renderCloze() {
         const idx = unitCount++;
         const isChinese = /[\u4e00-\u9fa5]/.test(seg);
 
+        // 优先判断挖空
         if (manualPositions.includes(idx)) {
             answers.push(seg);
             const boxWidth = isChinese ? 2 : (seg.length + 0.1); 
@@ -332,7 +348,10 @@ function renderCloze() {
                     oninput="validateInput(this)" onkeydown="handleSpaceKey(event, this)"
                     placeholder="${isChinese ? '?' : getHint(seg)}">`;
         }
-        return `<span class="word-span" data-index="${idx}">${seg}</span>`;
+        
+        // 判断是否加粗
+        const boldClass = boldPositions.includes(idx) ? 'word-bold' : '';
+        return `<span class="word-span ${boldClass}" data-index="${idx}">${seg}</span>`;
     }).join("");
     bindEvents();
 }
@@ -381,12 +400,58 @@ async function copyToClipboard(text) {
     }
 }
 
+
+// 2. 模式切换函数 (绑定到新按钮)
+window.toggleBoldMode = function() {
+    isBoldMode = !isBoldMode;
+    if (isBoldMode) isDeleteMode = false; // 互斥，避免冲突
+    updateModeButtons();
+};
+
+function updateModeButtons() {
+    const bBtn = document.getElementById('boldModeBtn');
+    const dBtn = document.getElementById('delModeBtn');
+    if(bBtn) {
+        bBtn.innerText = isBoldMode ? "加粗: 开" : "加粗: 关";
+        bBtn.style.backgroundColor = isBoldMode ? "#a5d6a7" : "#fff";
+    }
+    if(dBtn) {
+        dBtn.innerText = isDeleteMode ? "重置: 开" : "重置: 关";
+        dBtn.style.backgroundColor = isDeleteMode ? "#ffe0b2" : "#fff";
+    }
+}
+
 // 4. 核心事件绑定修改
 function bindEvents() {
-    // 单击复制单词
+    // --- 单击处理 (单击单词、单击输入框) ---
     clozeContent.onclick = (e) => {
         const target = e.target;
-        if (target.classList.contains('word-span') && app.classList.contains('exercise-mode')) {
+        const isWord = target.classList.contains('word-span');
+        const isInput = target.tagName === 'INPUT';
+        const idx = parseInt(target.dataset.index);
+
+        if (!app.classList.contains('exercise-mode')) return;
+
+        // A. 加粗模式处理 (仅限点击单词)
+        if (isBoldMode && isWord) {
+            if (boldPositions.includes(idx)) {
+                boldPositions = boldPositions.filter(i => i !== idx);
+            } else {
+                boldPositions.push(idx);
+            }
+            savePositions();
+            renderCloze();
+            return; // 处理完加粗直接返回，不触发复制
+        }
+
+        // B. 重置/恢复逻辑 (点击输入框)
+        if (isInput && (isCPressed || isDeleteMode)) {
+            recover(target, false);
+            return;
+        }
+
+        // C. 普通模式：单击复制单词
+        if (isWord && !isDeleteMode && !isBoldMode) {
             copyToClipboard(target.innerText.trim());
             
             // 单词选中视觉反馈
@@ -396,42 +461,39 @@ function bindEvents() {
             sel.removeAllRanges();
             sel.addRange(range);
         }
-        
-        // 恢复挖空逻辑
-        if (target.tagName === 'INPUT' && (isCPressed || isDeleteMode)) {
-            recover(target, false);
-        }
     };
 
-  clozeContent.ondblclick = (e) => {
-    e.preventDefault();
-    const target = e.target;
-    if (target.classList.contains('word-span')) {
-        if (!isDeleteMode) {
-            // 练习模式：按照标点复制整句
-            const txt = getSentenceByPunct(target);
-            if (txt) copyToClipboard(txt);
-        } else {
+    // --- 双击处理 (PC端) ---
+    clozeContent.ondblclick = (e) => {
+        e.preventDefault();
+        const target = e.target;
+        if (!target.classList.contains('word-span')) return;
+        const idx = parseInt(target.dataset.index);
+
+        if (isDeleteMode) {
             // 重置模式：双击挖空
-            const idx = parseInt(target.dataset.index);
             if (!manualPositions.includes(idx)) {
                 manualPositions.push(idx);
                 savePositions();
                 renderCloze();
             }
+        } else if (!isBoldMode) {
+            // 普通模式：双击复制整句
+            const txt = getSentenceByPunct(target);
+            if (txt) copyToClipboard(txt);
         }
-    }
-};
+    };
 
-    // 移动端双触支持
+    // --- 移动端双触支持 ---
     let lastTapTime = 0;
     clozeContent.addEventListener('touchend', (e) => {
         const now = performance.now();
         if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
             const target = e.target;
-            if (target.classList.contains('word-span') && !isDeleteMode) {
+            // 只有在非加粗、非重置模式下，双击才触发复制整句
+            if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
                 e.preventDefault(); 
-                const txt = getContentBlock(target);
+                const txt = getSentenceByPunct(target);
                 if (txt) copyToClipboard(txt);
             }
         }
@@ -474,8 +536,11 @@ function changeFontSize(delta) {
 
 
 function getHint(w) { return w.length <= 2 ? w[0] + "_" : w[0] + "_".repeat(w.length - 2) + w[w.length-1]; }
+
+
 function savePositions() { 
     localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions)); 
+    localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions)); // 新增
     localStorage.setItem('cloze_single_content', inputArea.value);
     if (window.syncUpload) window.syncUpload();
 }
