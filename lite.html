@@ -309,47 +309,42 @@ function getSentenceByPunct(el) {
 
     return sentenceText;
 }
-window.onload = async () => {
+window.onload = async () => { // 加上 async
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
     
-    // 1. 优先获取文本
-    let contentToProcess = "";
     if (textFromAnki) {
-        contentToProcess = decodeURIComponent(textFromAnki);
-        inputArea.value = contentToProcess; // 立即填充到 textarea
+        inputArea.value = decodeURIComponent(textFromAnki);
     } else {
-        contentToProcess = localStorage.getItem('cloze_single_content') || "";
-        inputArea.value = contentToProcess;
+        const savedText = localStorage.getItem('cloze_single_content');
+        if (savedText) inputArea.value = savedText;
     }
 
-    // 2. 在文本填充后，再进行 ID 隔离判断
-    if (contentToProcess.trim()) {
-        const currentId = getDocId(); // 此时 getDocId 能读到正确的内容
-        const lastActiveId = localStorage.getItem('last_active_doc_id');
-
-        if (currentId !== lastActiveId) {
-            console.log("ID 变更，执行隔离");
-            manualPositions = [];
-            boldPositions = [];
-            localStorage.removeItem('cloze_single_positions');
-            localStorage.removeItem('cloze_single_bold_positions');
-            localStorage.setItem('last_active_doc_id', currentId);
-        }
-
-        // 3. 确保在隔离逻辑后再渲染
-        renderCloze(); 
-        app.classList.add('exercise-mode'); // 强制进入练习模式
-    }
-
-    // --- 字号和显示逻辑 ---
+    // --- 字号逻辑 ---
     const savedSize = localStorage.getItem('cloze_user_font_size');
-    applyFontSize(savedSize ? parseInt(savedSize) : (window.innerWidth < 500 ? 26 : 20));
+    if (savedSize) {
+        currentFontSize = parseInt(savedSize);
+    } else {
+        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isNarrowScreen = window.innerWidth < 500;
+        currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
+    }
+    applyFontSize(currentFontSize);
+
+    // --- 核心修正：立即判断并渲染，不等待异步 ---
+    if (inputArea.value.trim()) {
+        // 先手动执行渲染，不依赖带延迟的 toggleMode
+        renderCloze(); 
+        app.classList.add('exercise-mode');
+    }
+
+    // 此时逻辑已跑完，显示界面
     document.body.classList.add('app-ready');
     
+    // 异步同步放在最后，不阻塞渲染
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
-    }, 500); 
+    }, 1000);
 };
 
 // 确保有这个统一应用函数
