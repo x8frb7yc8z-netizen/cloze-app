@@ -183,14 +183,28 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
   const fbApp = initializeApp(firebaseConfig);
   const db = getDatabase(fbApp);
 
-  function getDocId() {
+function getDocId() {
     const text = inputArea.value.trim();
     if (!text) return null;
-    // 使用文本前25位生成Base64 ID
+
+    // 1. 简单的哈希算法 (DJB2)
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) {
+        const char = text.charCodeAt(i);
+        hash = ((hash << 5) - hash) + char;
+        hash = hash & hash; // 转换为 32 位整数
+    }
+    
+    // 2. 结合：文本前5位 + 文本长度 + 哈希值
     try {
-        return btoa(unescape(encodeURIComponent(text.substring(0, 25)))).replace(/[/+=]/g, "");
-    } catch(e) { return "default_doc"; }
-  }
+        const prefix = btoa(unescape(encodeURIComponent(text.substring(0, 5)))).replace(/[/+=]/g, "");
+        const len = text.length;
+        // 使用 36 进制缩短哈希字符长度
+        return `${prefix}_${len}_${Math.abs(hash).toString(36)}`;
+    } catch(e) { 
+        return "doc_" + text.length + "_" + Math.abs(hash).toString(36); 
+    }
+}
 
 window.syncUpload = async function() {
     const id = getDocId();
@@ -203,13 +217,34 @@ window.syncUpload = async function() {
 };
 
 window.syncDownload = async function() {
-    const id = getDocId();
-    if (!id) return;
-    const snapshot = await get(child(ref(db), 'clozes/' + id));
+    const newId = getDocId();
+    if (!newId) return;
+
+    // A. 尝试获取新 ID 的数据
+    let snapshot = await get(child(ref(db), 'clozes/' + newId));
+    
+    // B. 如果新 ID 没数据，尝试兼容旧 ID
+    if (!snapshot.exists()) {
+        try {
+            const oldId = btoa(unescape(encodeURIComponent(inputArea.value.substring(0, 25)))).replace(/[/+=]/g, "");
+            const oldSnapshot = await get(child(ref(db), 'clozes/' + oldId));
+            
+            if (oldSnapshot.exists()) {
+                console.log("检测到旧版数据，正在迁移至新哈希 ID...");
+                const data = oldSnapshot.val();
+                // 立即存入新 ID 位置
+                await set(ref(db, 'clozes/' + newId), { ...data, ts: Date.now() });
+                // 更新当前 snapshot 以便后续逻辑渲染
+                snapshot = oldSnapshot;
+            }
+        } catch(e) { console.error("旧 ID 兼容处理失败", e); }
+    }
+
+    // C. 统一渲染逻辑
     if (snapshot.exists()) {
       const data = snapshot.val();
       manualPositions = data.positions || [];
-      boldPositions = data.boldPositions || []; // 下载加粗位置
+      boldPositions = data.boldPositions || [];
       localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
       localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions));
       if (app.classList.contains('exercise-mode')) renderCloze();
