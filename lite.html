@@ -218,8 +218,8 @@ window.syncDownload = async function() {
 <script>
 // 常规业务逻辑
 let currentFontSize = 26;
-let manualPositions = [];
-let boldPositions = []; // 新增
+let manualPositions = JSON.parse(localStorage.getItem('cloze_single_positions')) || [];
+let boldPositions = JSON.parse(localStorage.getItem('cloze_single_bold_positions')) || []; // 新增
 let isBoldMode = false; // 新增状态
 let answers = [];
 
@@ -272,37 +272,42 @@ function getSentenceByPunct(el) {
 
     return sentenceText;
 }
-window.onload = async () => {
+window.onload = async () => { // 加上 async
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
     
     if (textFromAnki) {
         inputArea.value = decodeURIComponent(textFromAnki);
     } else {
-        // --- 修改处：不再读取 savedText ---
-        inputArea.value = ""; 
+        const savedText = localStorage.getItem('cloze_single_content');
+        if (savedText) inputArea.value = savedText;
     }
 
-    // --- 修改处：字号逻辑不再读取缓存，直接使用默认值 ---
-    const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const isNarrowScreen = window.innerWidth < 500;
-    currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
-    
+    // --- 字号逻辑 ---
+    const savedSize = localStorage.getItem('cloze_user_font_size');
+    if (savedSize) {
+        currentFontSize = parseInt(savedSize);
+    } else {
+        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        const isNarrowScreen = window.innerWidth < 500;
+        currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
+    }
     applyFontSize(currentFontSize);
 
+    // --- 核心修正：立即判断并渲染，不等待异步 ---
     if (inputArea.value.trim()) {
+        // 先手动执行渲染，不依赖带延迟的 toggleMode
         renderCloze(); 
         app.classList.add('exercise-mode');
     }
 
+    // 此时逻辑已跑完，显示界面
     document.body.classList.add('app-ready');
     
-    // 异步同步（Firebase）如果不需要也可以一并注释
-    /*
+    // 异步同步放在最后，不阻塞渲染
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
     }, 1000);
-    */
 };
 
 // 确保有这个统一应用函数
@@ -430,7 +435,7 @@ function updateModeButtons() {
 
 // 4. 核心事件绑定修改
 function bindEvents() {
-    // 1. 处理单击 (包括加粗、重置、和普通复制单词)
+    // --- 单击处理 (单击单词、单击输入框) ---
     clozeContent.onclick = (e) => {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
@@ -439,18 +444,18 @@ function bindEvents() {
 
         if (!app.classList.contains('exercise-mode')) return;
 
-        // A. 加粗逻辑
+        // 加粗逻辑：点击后自动关闭
         if (isBoldMode && isWord) {
             if (boldPositions.includes(idx)) {
                 boldPositions = boldPositions.filter(i => i !== idx);
             } else {
                 boldPositions.push(idx);
             }
-            isBoldMode = false; 
+            isBoldMode = false; // [修改点] 点击完立即关闭模式
             updateModeButtons(); 
             savePositions();
             renderCloze();
-            return; // 执行完加粗直接跳出，不触发复制
+            return;
         }
 
         // B. 重置/恢复逻辑 (点击输入框)
@@ -460,10 +465,8 @@ function bindEvents() {
         }
 
         // C. 普通模式：单击复制单词
-        // 增加逻辑：确保不是在点击输入框，且当前没有开启特殊模式
         if (isWord && !isDeleteMode && !isBoldMode) {
-            const textToCopy = target.innerText.trim();
-            copyToClipboard(textToCopy);
+            copyToClipboard(target.innerText.trim());
             
             // 单词选中视觉反馈
             const range = document.createRange();
@@ -474,21 +477,24 @@ function bindEvents() {
         }
     };
 
-    // 2. 处理双击 (PC端复制整句)
+    // --- 双击处理 (PC端) ---
     clozeContent.ondblclick = (e) => {
+        e.preventDefault();
         const target = e.target;
         if (!target.classList.contains('word-span')) return;
-        
-        // 如果处于加粗或重置模式，双击不触发复制整句，避免逻辑混乱
-        if (isBoldMode || isDeleteMode) return;
+        const idx = parseInt(target.dataset.index);
 
-        e.preventDefault();
-        e.stopPropagation(); // 阻止冒泡
-
-        const txt = getSentenceByPunct(target);
-        if (txt) {
-            copyToClipboard(txt);
-            // 视觉反馈：清除之前的单词选中，改为整句选中（getSentenceByPunct 内部已处理选中）
+        if (isDeleteMode) {
+            // 重置模式：双击挖空
+            if (!manualPositions.includes(idx)) {
+                manualPositions.push(idx);
+                savePositions();
+                renderCloze();
+            }
+        } else if (!isBoldMode) {
+            // 普通模式：双击复制整句
+            const txt = getSentenceByPunct(target);
+            if (txt) copyToClipboard(txt);
         }
     };
 
@@ -547,6 +553,9 @@ function getHint(w) { return w.length <= 2 ? w[0] + "_" : w[0] + "_".repeat(w.le
 
 
 function savePositions() { 
+    localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions)); 
+    localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions)); // 新增
+    localStorage.setItem('cloze_single_content', inputArea.value);
     if (window.syncUpload) window.syncUpload();
 }
 inputArea.oninput = savePositions;
