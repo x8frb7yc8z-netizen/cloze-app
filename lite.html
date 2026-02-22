@@ -309,10 +309,11 @@ function getSentenceByPunct(el) {
 
     return sentenceText;
 }
-window.onload = async () => { // 加上 async
+window.onload = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
     
+    // 1. 首先确保文本被填入
     if (textFromAnki) {
         inputArea.value = decodeURIComponent(textFromAnki);
     } else {
@@ -320,7 +321,24 @@ window.onload = async () => { // 加上 async
         if (savedText) inputArea.value = savedText;
     }
 
-    // --- 字号逻辑 ---
+    // 2. 【核心隔离逻辑】：在渲染前检查 ID
+    const currentText = inputArea.value.trim();
+    if (currentText) {
+        const currentId = getDocId(); // 生成当前文本的 ID
+        const lastId = localStorage.getItem('last_active_doc_id');
+
+        // 如果是新卡片（ID 不匹配）
+        if (currentId !== lastId) {
+            console.log("检测到新卡片，重置本地状态");
+            manualPositions = []; // 清空内存中的位置
+            boldPositions = [];
+            localStorage.removeItem('cloze_single_positions'); // 清空旧缓存
+            localStorage.removeItem('cloze_single_bold_positions');
+            localStorage.setItem('last_active_doc_id', currentId); // 更新 ID 记录
+        }
+    }
+
+    // 3. 字号逻辑 (保持不变)
     const savedSize = localStorage.getItem('cloze_user_font_size');
     if (savedSize) {
         currentFontSize = parseInt(savedSize);
@@ -331,17 +349,15 @@ window.onload = async () => { // 加上 async
     }
     applyFontSize(currentFontSize);
 
-    // --- 核心修正：立即判断并渲染，不等待异步 ---
-    if (inputArea.value.trim()) {
-        // 先手动执行渲染，不依赖带延迟的 toggleMode
+    // 4. 执行渲染并进入练习模式
+    if (currentText) {
         renderCloze(); 
         app.classList.add('exercise-mode');
     }
 
-    // 此时逻辑已跑完，显示界面
     document.body.classList.add('app-ready');
     
-    // 异步同步放在最后，不阻塞渲染
+    // 5. 异步同步（由于 ID 已隔离，这里拉取的是 Firebase 上的正确位置）
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
     }, 1000);
