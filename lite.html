@@ -220,34 +220,38 @@ window.syncDownload = async function() {
     const newId = getDocId();
     if (!newId) return;
 
-    // A. 尝试获取新 ID 的数据
-    let snapshot = await get(child(ref(db), 'clozes/' + newId));
-    
-    // B. 如果新 ID 没数据，尝试兼容旧 ID
-    if (!snapshot.exists()) {
-        try {
+    try {
+        let snapshot = await get(child(ref(db), 'clozes/' + newId));
+        
+        // B. 兼容旧 ID (保持你的逻辑)
+        if (!snapshot.exists()) {
             const oldId = btoa(unescape(encodeURIComponent(inputArea.value.substring(0, 25)))).replace(/[/+=]/g, "");
             const oldSnapshot = await get(child(ref(db), 'clozes/' + oldId));
-            
             if (oldSnapshot.exists()) {
-                console.log("检测到旧版数据，正在迁移至新哈希 ID...");
                 const data = oldSnapshot.val();
-                // 立即存入新 ID 位置
                 await set(ref(db, 'clozes/' + newId), { ...data, ts: Date.now() });
-                // 更新当前 snapshot 以便后续逻辑渲染
                 snapshot = oldSnapshot;
             }
-        } catch(e) { console.error("旧 ID 兼容处理失败", e); }
-    }
+        }
 
-    // C. 统一渲染逻辑
-    if (snapshot.exists()) {
-      const data = snapshot.val();
-      manualPositions = data.positions || [];
-      boldPositions = data.boldPositions || [];
-      localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
-      localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions));
-      if (app.classList.contains('exercise-mode')) renderCloze();
+        // C. 统一渲染逻辑
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            manualPositions = data.positions || [];
+            boldPositions = data.boldPositions || [];
+            
+            // 写入本地，防止下次没网
+            localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
+            localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions));
+            
+            // 【关键修改】：下载完后，如果正在练习，就刷新一下界面把空填上去
+            // 此时 renderCloze 应该在 window 作用域内是可用的
+            if (typeof renderCloze === 'function') {
+                renderCloze();
+            }
+        }
+    } catch (e) {
+        console.error("Firebase 下载失败，跳过同步:", e);
     }
 };
 </script>
@@ -310,57 +314,59 @@ function getSentenceByPunct(el) {
     return sentenceText;
 }
 window.onload = async () => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const textFromAnki = urlParams.get('text');
-    
-    // 1. 首先确保文本被填入
-    if (textFromAnki) {
-        inputArea.value = decodeURIComponent(textFromAnki);
-    } else {
-        const savedText = localStorage.getItem('cloze_single_content');
-        if (savedText) inputArea.value = savedText;
-    }
-
-    // 2. 【核心隔离逻辑】：在渲染前检查 ID
-    const currentText = inputArea.value.trim();
-    if (currentText) {
-        const currentId = getDocId(); // 生成当前文本的 ID
-        const lastId = localStorage.getItem('last_active_doc_id');
-
-        // 如果是新卡片（ID 不匹配）
-        if (currentId !== lastId) {
-            console.log("检测到新卡片，重置本地状态");
-            manualPositions = []; // 清空内存中的位置
-            boldPositions = [];
-            localStorage.removeItem('cloze_single_positions'); // 清空旧缓存
-            localStorage.removeItem('cloze_single_bold_positions');
-            localStorage.setItem('last_active_doc_id', currentId); // 更新 ID 记录
+    try {
+        const urlParams = new URLSearchParams(window.location.search);
+        const textFromAnki = urlParams.get('text');
+        
+        // 1. 填充文本
+        if (textFromAnki) {
+            inputArea.value = decodeURIComponent(textFromAnki);
+        } else {
+            const savedText = localStorage.getItem('cloze_single_content');
+            if (savedText) inputArea.value = savedText;
         }
+
+        const currentText = inputArea.value ? inputArea.value.trim() : "";
+
+        // 2. ID 隔离 (这是防止串门的关键)
+        if (currentText) {
+            const currentId = getDocId(); 
+            const lastId = localStorage.getItem('last_active_doc_id');
+
+            if (currentId !== lastId) {
+                manualPositions = []; 
+                boldPositions = [];
+                localStorage.removeItem('cloze_single_positions');
+                localStorage.removeItem('cloze_single_bold_positions');
+                localStorage.setItem('last_active_doc_id', currentId);
+            }
+        }
+
+        // 3. 字号逻辑
+        const savedSize = localStorage.getItem('cloze_user_font_size');
+        currentFontSize = savedSize ? parseInt(savedSize) : 
+                          (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent) && window.innerWidth < 500 ? 26 : 20);
+        applyFontSize(currentFontSize);
+
+        // 4. 【核心渲染】
+        if (currentText) {
+            renderCloze(); 
+            // 直接操作 DOM 确保万无一失
+            document.getElementById('app').classList.add('exercise-mode');
+        }
+
+        document.body.classList.add('app-ready');
+        
+    } catch (error) {
+        console.error("Initialization failed:", error);
     }
 
-    // 3. 字号逻辑 (保持不变)
-    const savedSize = localStorage.getItem('cloze_user_font_size');
-    if (savedSize) {
-        currentFontSize = parseInt(savedSize);
-    } else {
-        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const isNarrowScreen = window.innerWidth < 500;
-        currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
-    }
-    applyFontSize(currentFontSize);
-
-    // 4. 执行渲染并进入练习模式
-    if (currentText) {
-        renderCloze(); 
-        app.classList.add('exercise-mode');
-    }
-
-    document.body.classList.add('app-ready');
-    
-    // 5. 异步同步（由于 ID 已隔离，这里拉取的是 Firebase 上的正确位置）
+    // 5. 异步同步：放在 try-catch 外，即便同步失败也不影响界面显示
     setTimeout(() => { 
-        if(window.syncDownload) window.syncDownload(); 
-    }, 1000);
+        if (typeof window.syncDownload === 'function') {
+            window.syncDownload(); 
+        }
+    }, 800);
 };
 
 // 确保有这个统一应用函数
