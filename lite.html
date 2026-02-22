@@ -219,7 +219,7 @@ window.syncDownload = async function() {
 // 常规业务逻辑
 let currentFontSize = 26;
 let manualPositions = [];
-let boldPositions = [];
+let boldPositions = []; // 新增
 let isBoldMode = false; // 新增状态
 let answers = [];
 
@@ -272,39 +272,37 @@ function getSentenceByPunct(el) {
 
     return sentenceText;
 }
-window.onload = async () => { // 加上 async
+window.onload = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
     
     if (textFromAnki) {
         inputArea.value = decodeURIComponent(textFromAnki);
+    } else {
+        // --- 修改处：不再读取 savedText ---
+        inputArea.value = ""; 
     }
 
-    // --- 字号逻辑 ---
-    const savedSize = localStorage.getItem('cloze_user_font_size');
-    if (savedSize) {
-        currentFontSize = parseInt(savedSize);
-    } else {
-        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const isNarrowScreen = window.innerWidth < 500;
-        currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
-    }
+    // --- 修改处：字号逻辑不再读取缓存，直接使用默认值 ---
+    const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const isNarrowScreen = window.innerWidth < 500;
+    currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
+    
     applyFontSize(currentFontSize);
 
-    // --- 核心修正：立即判断并渲染，不等待异步 ---
     if (inputArea.value.trim()) {
-        // 先手动执行渲染，不依赖带延迟的 toggleMode
         renderCloze(); 
         app.classList.add('exercise-mode');
     }
 
-    // 此时逻辑已跑完，显示界面
     document.body.classList.add('app-ready');
     
-    // 异步同步放在最后，不阻塞渲染
+    // 异步同步（Firebase）如果不需要也可以一并注释
+    /*
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
     }, 1000);
+    */
 };
 
 // 确保有这个统一应用函数
