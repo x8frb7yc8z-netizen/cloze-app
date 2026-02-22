@@ -405,7 +405,20 @@ async function copyToClipboard(text) {
 // 2. 模式切换函数 (绑定到新按钮)
 window.toggleBoldMode = function() {
     isBoldMode = !isBoldMode;
-    if (isBoldMode) isDeleteMode = false; // 互斥，避免冲突
+    if (isBoldMode) {
+        isDeleteMode = false; // 互斥，避免冲突
+        
+        // --- 新增：清除文本选中状态 ---
+        if (window.getSelection) {
+            if (window.getSelection().empty) {  // Chrome
+                window.getSelection().empty();
+            } else if (window.getSelection().removeAllRanges) {  // Firefox/Others
+                window.getSelection().removeAllRanges();
+            }
+        } else if (document.selection) {  // IE 兼容 (虽然现代环境基本不用)
+            document.selection.empty();
+        }
+    }
     updateModeButtons();
 };
 
