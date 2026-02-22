@@ -184,37 +184,34 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
   const db = getDatabase(fbApp);
 
 function getDocId() {
+    // 1. 尝试从 URL 参数中获取 Anki 传入的唯一卡片 ID (cid)
+    const urlParams = new URLSearchParams(window.location.search);
+    const cid = urlParams.get('cid');
+
+    // 如果存在 cid，直接使用它作为唯一标识，确保不同卡片隔离
+    if (cid && cid !== "{{id}}") { 
+        return "card_" + cid;
+    }
+
+    // 2. 如果没有 cid（回退逻辑：按内容生成哈希）
     const text = inputArea.value.trim();
     if (!text) return null;
 
-    // 1. 简单的哈希算法 (DJB2)
     let hash = 0;
     for (let i = 0; i < text.length; i++) {
         const char = text.charCodeAt(i);
         hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // 转换为 32 位整数
+        hash = hash & hash;
     }
     
-    // 2. 结合：文本前5位 + 文本长度 + 哈希值
     try {
         const prefix = btoa(unescape(encodeURIComponent(text.substring(0, 5)))).replace(/[/+=]/g, "");
         const len = text.length;
-        // 使用 36 进制缩短哈希字符长度
         return `${prefix}_${len}_${Math.abs(hash).toString(36)}`;
     } catch(e) { 
         return "doc_" + text.length + "_" + Math.abs(hash).toString(36); 
     }
 }
-
-window.syncUpload = async function() {
-    const id = getDocId();
-    if (!id) return;
-    set(ref(db, 'clozes/' + id), { 
-        positions: manualPositions, 
-        boldPositions: boldPositions, // 同步加粗位置
-        ts: Date.now() 
-    });
-};
 
 window.syncDownload = async function() {
     const newId = getDocId();
