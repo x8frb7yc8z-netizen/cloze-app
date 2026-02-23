@@ -183,14 +183,20 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
   const fbApp = initializeApp(firebaseConfig);
   const db = getDatabase(fbApp);
 
-  function getDocId() {
+window.getDocId = function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const customId = urlParams.get('customid');
+    
+    if (customId && customId.trim() !== "") {
+        return "cid_" + customId.trim(); 
+    }
+
     const text = inputArea.value.trim();
     if (!text) return null;
-    // 使用文本前25位生成Base64 ID
     try {
         return btoa(unescape(encodeURIComponent(text.substring(0, 25)))).replace(/[/+=]/g, "");
     } catch(e) { return "default_doc"; }
-  }
+}
 
 window.syncUpload = async function() {
     const id = getDocId();
@@ -203,16 +209,33 @@ window.syncUpload = async function() {
 };
 
 window.syncDownload = async function() {
-    const id = getDocId();
-    if (!id) return;
-    const snapshot = await get(child(ref(db), 'clozes/' + id));
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasCustomId = !!urlParams.get('customid');
+    const currentInput = document.getElementById('inputText'); // 明确获取
+    
+    const id = window.getDocId();
+    if (!id || !currentInput) return;
+
+    let snapshot = await get(child(ref(db), 'clozes/' + id));
+    
+    if (!snapshot.exists() && hasCustomId) {
+        // 使用 currentInput.value 确保安全
+        const oldTextId = btoa(unescape(encodeURIComponent(currentInput.value.substring(0, 25)))).replace(/[/+=]/g, "");
+        snapshot = await get(child(ref(db), 'clozes/' + oldTextId))
+        
+        if (snapshot.exists()) {
+            console.log("检测到旧版文本 ID 数据，已成功加载。下次保存将自动同步到新 ID。");
+        }
+    }
+
     if (snapshot.exists()) {
-      const data = snapshot.val();
-      manualPositions = data.positions || [];
-      boldPositions = data.boldPositions || []; // 下载加粗位置
-      localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
-      localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions));
-      if (app.classList.contains('exercise-mode')) renderCloze();
+        const data = snapshot.val();
+        manualPositions = data.positions || [];
+        boldPositions = data.boldPositions || [];
+        // ... 后续逻辑保持不变 ...
+        localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
+        localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions));
+        if (app.classList.contains('exercise-mode')) renderCloze();
     }
 };
 </script>
