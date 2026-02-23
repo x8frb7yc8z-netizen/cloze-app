@@ -199,43 +199,61 @@ window.getDocId = function() {
 }
 
 window.syncUpload = async function() {
-    const id = getDocId();
+    const id = window.getDocId();
     if (!id) return;
     set(ref(db, 'clozes/' + id), { 
         positions: manualPositions, 
-        boldPositions: boldPositions, // 同步加粗位置
+        boldPositions: boldPositions, 
+        scrollPos: window.scrollY, // <-- 新增：直接读取实时高度
         ts: Date.now() 
     });
 };
-
 window.syncDownload = async function() {
     const urlParams = new URLSearchParams(window.location.search);
     const hasCustomId = !!urlParams.get('customid');
-    const currentInput = document.getElementById('inputText'); // 明确获取
+    const currentInput = document.getElementById('inputText'); 
     
     const id = window.getDocId();
     if (!id || !currentInput) return;
 
     let snapshot = await get(child(ref(db), 'clozes/' + id));
     
+    // 兼容逻辑：查找旧 ID
     if (!snapshot.exists() && hasCustomId) {
-        // 使用 currentInput.value 确保安全
         const oldTextId = btoa(unescape(encodeURIComponent(currentInput.value.substring(0, 25)))).replace(/[/+=]/g, "");
-        snapshot = await get(child(ref(db), 'clozes/' + oldTextId))
+        snapshot = await get(child(ref(db), 'clozes/' + oldTextId));
         
         if (snapshot.exists()) {
-            console.log("检测到旧版文本 ID 数据，已成功加载。下次保存将自动同步到新 ID。");
+            console.log("检测到旧版文本 ID 数据，已成功加载。");
         }
     }
 
+    // --- 核心修正点：确保 data 变量被定义 ---
     if (snapshot.exists()) {
-        const data = snapshot.val();
+        const data = snapshot.val(); // 获取数据对象
+        
+        // 1. 同步挖空和加粗位置
         manualPositions = data.positions || [];
         boldPositions = data.boldPositions || [];
-        // ... 后续逻辑保持不变 ...
+        
+        // 2. 更新本地缓存
         localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
         localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions));
-        if (app.classList.contains('exercise-mode')) renderCloze();
+
+        // 3. 如果在练习模式，渲染页面并恢复滚动
+        if (app.classList.contains('exercise-mode')) {
+            renderCloze(); 
+            
+            // 恢复阅读进度
+            if (data.scrollPos !== undefined) {
+                setTimeout(() => {
+                    window.scrollTo({
+                        top: data.scrollPos,
+                        behavior: 'smooth'
+                    });
+                }, 500); // 必须有延迟，等 DOM 高度撑开
+            }
+        }
     }
 };
 </script>
@@ -574,6 +592,9 @@ function getHint(w) { return w.length <= 2 ? w[0] + "_" : w[0] + "_".repeat(w.le
 
 
 function savePositions() { 
+    // 记录当前滚动高度（像素值）
+    window.currentScrollPos = window.scrollY;
+    
     if (window.syncUpload) window.syncUpload();
 }
 inputArea.oninput = savePositions;
@@ -604,6 +625,15 @@ window.copyFullText = function() {
         btn.innerText = originalText;
     }, 1000);
 };
+let scrollTimer;
+window.addEventListener('scroll', () => {
+    if (!app.classList.contains('exercise-mode')) return; // 只有在练习模式才记录
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+        console.log("检测到停止滚动，正在自动同步进度...");
+        savePositions();
+    }, 1000); // 停止滚动 1 秒后自动上传
+});
 </script>
 </body>
 </html>
