@@ -491,10 +491,9 @@ function updateModeButtons() {
 // 4. 核心事件绑定修改
 function bindEvents() {
     let lastClickTime = 0;
-    const DOUBLE_CLICK_GAP = 280; // 判定双击的时间差
+    const DOUBLE_CLICK_GAP = 300; // 稍微放宽判定范围
 
-    // 使用 mousedown 通常比 click 响应更直接
-    clozeContent.onmousedown = (e) => {
+    clozeContent.onclick = (e) => {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
         const isInput = target.tagName === 'INPUT';
@@ -503,11 +502,13 @@ function bindEvents() {
 
         if (!app.classList.contains('exercise-mode')) return;
 
-        // 1. 处理输入框和加粗（这些不需要防冲突）
+        // 1. 输入框/恢复逻辑
         if (isInput && (isCPressed || isDeleteMode)) {
             recover(target, false);
             return;
         }
+
+        // 2. 加粗模式
         if (isBoldMode && isWord) {
             boldPositions = boldPositions.includes(idx) ? 
                 boldPositions.filter(i => i !== idx) : [...boldPositions, idx];
@@ -516,21 +517,22 @@ function bindEvents() {
             return;
         }
 
-        // 2. 核心冲突解决：单词 vs 句子 复制
+        // 3. 复制逻辑（单词 vs 句子）
         if (isWord && !isDeleteMode) {
             if (now - lastClickTime < DOUBLE_CLICK_GAP) {
-                // --- 双击逻辑：复制整句 ---
-                // 注意：由于是第二次点击，剪贴板会被更新为整句
+                // --- 这是双击（第二次点击触发） ---
                 const txt = getSentenceByPunct(target);
-                if (txt) copyToClipboardSync(txt); 
-                lastClickTime = 0; // 重置
+                if (txt) {
+                    copyToClipboardSync(txt);
+                    // 视觉反馈：选中整句
+                }
+                lastClickTime = 0; // 成功复制句子后重置，防止三击干扰
             } else {
-                // --- 单击逻辑：立即复制单词 ---
-                // 不用 setTimeout，直接复制，保证 Mac Anki 权限通过
+                // --- 这是单击（第一次点击触发） ---
                 const textToCopy = target.innerText.trim();
                 copyToClipboardSync(textToCopy);
                 
-                // 视觉反馈
+                // 视觉反馈：选中单词
                 const range = document.createRange();
                 range.selectNodeContents(target);
                 const sel = window.getSelection();
@@ -542,13 +544,12 @@ function bindEvents() {
         }
     };
 
-    // 禁用原生双击行为，防止 WebKit 默认选择文本干扰
+    // 必须保留，防止系统默认双击选中文本干扰
     clozeContent.ondblclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
     };
 }
-
 // 补充：确保你有一个稳健的同步复制函数（如前所述）
 function copyToClipboardSync(text) {
     const el = document.createElement('textarea');
