@@ -261,14 +261,11 @@ if (snapshot.exists()) {
                 // 寻找具有对应 data-index 的 span 或 input
                 const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
                 if (targetEl) {
-                    targetEl.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'start' // 对齐到顶部
-                    });
-                    // 补偿导航条高度：因为 scrollIntoView 会顶到浏览器最上方
-                    // 处理方式：滚动后再向下微调
-                    window.scrollBy(0, -40); 
-                }
+    // 先瞬间定位到大概位置，取消 smooth 以防干扰
+    targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
+    // 精准补偿高度
+    window.scrollBy(0, -45); 
+}
             }, 600); // 略微增加延迟确保 DOM 渲染完毕
         }
     }
