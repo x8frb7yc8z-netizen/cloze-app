@@ -490,7 +490,10 @@ function updateModeButtons() {
 
 // 4. 核心事件绑定修改
 function bindEvents() {
-    // 1. 处理单击 (包括加粗、重置、和普通复制单词)
+    let clickTimer = null;
+    const CLICK_DELAY = 220; // Mac Anki 必须延迟
+
+    // ========== 单击 ==========
     clozeContent.onclick = (e) => {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
@@ -499,68 +502,78 @@ function bindEvents() {
 
         if (!app.classList.contains('exercise-mode')) return;
 
-        // A. 加粗逻辑
-        if (isBoldMode && isWord) {
-            if (boldPositions.includes(idx)) {
-                boldPositions = boldPositions.filter(i => i !== idx);
-            } else {
-                boldPositions.push(idx);
+        // 防止双击触发单击
+        if (clickTimer) clearTimeout(clickTimer);
+
+        clickTimer = setTimeout(() => {
+
+            // A. 加粗模式
+            if (isBoldMode && isWord) {
+                if (boldPositions.includes(idx)) {
+                    boldPositions = boldPositions.filter(i => i !== idx);
+                } else {
+                    boldPositions.push(idx);
+                }
+                isBoldMode = false;
+                updateModeButtons();
+                savePositions();
+                renderCloze();
+                return;
             }
-            isBoldMode = false; 
-            updateModeButtons(); 
-            savePositions();
-            renderCloze();
-            return; // 执行完加粗直接跳出，不触发复制
-        }
 
-        // B. 重置/恢复逻辑 (点击输入框)
-        if (isInput && (isCPressed || isDeleteMode)) {
-            recover(target, false);
-            return;
-        }
+            // B. 重置输入框
+            if (isInput && (isCPressed || isDeleteMode)) {
+                recover(target, false);
+                return;
+            }
 
-        // C. 普通模式：单击复制单词
-        // 增加逻辑：确保不是在点击输入框，且当前没有开启特殊模式
-        if (isWord && !isDeleteMode && !isBoldMode) {
-            const textToCopy = target.innerText.trim();
-            copyToClipboard(textToCopy);
-            
-            // 单词选中视觉反馈
-            const range = document.createRange();
-            range.selectNodeContents(target);
-            const sel = window.getSelection();
-            sel.removeAllRanges();
-            sel.addRange(range);
-        }
+            // C. 普通单词复制
+            if (isWord && !isDeleteMode && !isBoldMode) {
+                const textToCopy = target.innerText.trim();
+                copyToClipboard(textToCopy);
+
+                const range = document.createRange();
+                range.selectNodeContents(target);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+            }
+
+        }, CLICK_DELAY);
     };
 
-    // 2. 处理双击 (PC端复制整句)
+
+    // ========== 双击（复制整句） ==========
     clozeContent.ondblclick = (e) => {
         const target = e.target;
         if (!target.classList.contains('word-span')) return;
-        
-        // 如果处于加粗或重置模式，双击不触发复制整句，避免逻辑混乱
+
+        // 取消单击行为
+        if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+        }
+
         if (isBoldMode || isDeleteMode) return;
 
         e.preventDefault();
-        e.stopPropagation(); // 阻止冒泡
+        e.stopPropagation();
 
         const txt = getSentenceByPunct(target);
         if (txt) {
             copyToClipboard(txt);
-            // 视觉反馈：清除之前的单词选中，改为整句选中（getSentenceByPunct 内部已处理选中）
         }
     };
 
-    // --- 移动端双触支持 ---
+
+    // ========== iOS / Android 双触 ==========
     let lastTapTime = 0;
     clozeContent.addEventListener('touchend', (e) => {
         const now = performance.now();
         if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
             const target = e.target;
-            // 只有在非加粗、非重置模式下，双击才触发复制整句
             if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
-                e.preventDefault(); 
+                e.preventDefault();
                 const txt = getSentenceByPunct(target);
                 if (txt) copyToClipboard(txt);
             }
