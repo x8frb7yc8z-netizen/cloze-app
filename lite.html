@@ -490,30 +490,45 @@ function updateModeButtons() {
 
 // 4. 核心事件绑定修改
 function bindEvents() {
-    let clickTimer = null;
-    const CLICK_DELAY = 220; // Mac Anki 必须延迟
 
-    // ========== 单击 ==========
-    clozeContent.onclick = (e) => {
+    let lastClickTime = 0;
+    const DOUBLE_CLICK_GAP = 280;
+    let singleClickTimer = null;
+
+    let isTouchDevice = false; // 防止 touch 触发 mouse
+
+    // ================= PC / Mac Anki =================
+    clozeContent.onmousedown = (e) => {
+        if (isTouchDevice) return; // iOS 会触发 mouse，必须屏蔽
+
         const target = e.target;
         const isWord = target.classList.contains('word-span');
         const isInput = target.tagName === 'INPUT';
         const idx = parseInt(target.dataset.index);
-
         if (!app.classList.contains('exercise-mode')) return;
 
-        // 防止双击触发单击
-        if (clickTimer) clearTimeout(clickTimer);
+        const now = performance.now();
+        const isDoubleClick = (now - lastClickTime < DOUBLE_CLICK_GAP);
+        lastClickTime = now;
 
-        clickTimer = setTimeout(() => {
+        // ==== 双击 ====
+        if (isDoubleClick && isWord) {
+            clearTimeout(singleClickTimer);
+            if (isBoldMode || isDeleteMode) return;
+            const txt = getSentenceByPunct(target);
+            if (txt) copyToClipboard(txt);
+            return;
+        }
 
-            // A. 加粗模式
+        // ==== 单击延迟 ====
+        clearTimeout(singleClickTimer);
+        singleClickTimer = setTimeout(() => {
+
+            // A. 加粗
             if (isBoldMode && isWord) {
-                if (boldPositions.includes(idx)) {
-                    boldPositions = boldPositions.filter(i => i !== idx);
-                } else {
-                    boldPositions.push(idx);
-                }
+                boldPositions = boldPositions.includes(idx)
+                    ? boldPositions.filter(i => i !== idx)
+                    : [...boldPositions, idx];
                 isBoldMode = false;
                 updateModeButtons();
                 savePositions();
@@ -521,64 +536,50 @@ function bindEvents() {
                 return;
             }
 
-            // B. 重置输入框
+            // B. 恢复挖空
             if (isInput && (isCPressed || isDeleteMode)) {
                 recover(target, false);
                 return;
             }
 
-            // C. 普通单词复制
+            // C. 复制单词
             if (isWord && !isDeleteMode && !isBoldMode) {
-                const textToCopy = target.innerText.trim();
-                copyToClipboard(textToCopy);
-
-                const range = document.createRange();
-                range.selectNodeContents(target);
-                const sel = window.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(range);
+                copyToClipboard(target.innerText.trim());
             }
 
-        }, CLICK_DELAY);
+        }, DOUBLE_CLICK_GAP);
     };
 
 
-    // ========== 双击（复制整句） ==========
-    clozeContent.ondblclick = (e) => {
-        const target = e.target;
-        if (!target.classList.contains('word-span')) return;
 
-        // 取消单击行为
-        if (clickTimer) {
-            clearTimeout(clickTimer);
-            clickTimer = null;
-        }
-
-        if (isBoldMode || isDeleteMode) return;
-
-        e.preventDefault();
-        e.stopPropagation();
-
-        const txt = getSentenceByPunct(target);
-        if (txt) {
-            copyToClipboard(txt);
-        }
-    };
-
-
-    // ========== iOS / Android 双触 ==========
+    // ================= iOS / Android =================
     let lastTapTime = 0;
-    clozeContent.addEventListener('touchend', (e) => {
+    clozeContent.addEventListener("touchend", (e) => {
+        isTouchDevice = true; // 标记触摸设备
+
+        const target = e.target;
+        if (!target.classList.contains("word-span")) return;
+
         const now = performance.now();
-        if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
-            const target = e.target;
-            if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
-                e.preventDefault();
-                const txt = getSentenceByPunct(target);
-                if (txt) copyToClipboard(txt);
-            }
-        }
+        const isDoubleTap = (now - lastTapTime < DOUBLE_CLICK_GAP);
         lastTapTime = now;
+
+        // 双击 → 复制句子
+        if (isDoubleTap) {
+            e.preventDefault();
+            if (isBoldMode || isDeleteMode) return;
+            const txt = getSentenceByPunct(target);
+            if (txt) copyToClipboard(txt);
+        }
+        // 单击 → 延迟复制单词
+        else {
+            setTimeout(() => {
+                if (!isDeleteMode && !isBoldMode) {
+                    copyToClipboard(target.innerText.trim());
+                }
+            }, DOUBLE_CLICK_GAP);
+        }
+
     }, { passive: false });
 }
 // 5. 恢复函数
