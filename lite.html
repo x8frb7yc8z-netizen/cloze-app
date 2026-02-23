@@ -490,91 +490,83 @@ function updateModeButtons() {
 
 // 4. 核心事件绑定修改
 function bindEvents() {
-    let lastClickTime = 0;
-    const DOUBLE_CLICK_GAP = 350; // 毫秒
-
-    // 统一处理函数，支持 Mouse 和 Touch
-    const handleHit = (e) => {
+    // 1. 处理单击 (包括加粗、重置、和普通复制单词)
+    clozeContent.onclick = (e) => {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
         const isInput = target.tagName === 'INPUT';
         const idx = parseInt(target.dataset.index);
-        const now = performance.now(); // 使用更高精度的 performance.now
 
         if (!app.classList.contains('exercise-mode')) return;
 
-        // 1. 输入框逻辑（不受干扰）
+        // A. 加粗逻辑
+        if (isBoldMode && isWord) {
+            if (boldPositions.includes(idx)) {
+                boldPositions = boldPositions.filter(i => i !== idx);
+            } else {
+                boldPositions.push(idx);
+            }
+            isBoldMode = false; 
+            updateModeButtons(); 
+            savePositions();
+            renderCloze();
+            return; // 执行完加粗直接跳出，不触发复制
+        }
+
+        // B. 重置/恢复逻辑 (点击输入框)
         if (isInput && (isCPressed || isDeleteMode)) {
             recover(target, false);
             return;
         }
 
-        if (!isWord) return;
-
-        // --- 核心判定逻辑 ---
-        if (now - lastClickTime < DOUBLE_CLICK_GAP) {
-            // 【双击触发】
-            e.preventDefault();
-            e.stopPropagation();
+        // C. 普通模式：单击复制单词
+        // 增加逻辑：确保不是在点击输入框，且当前没有开启特殊模式
+        if (isWord && !isDeleteMode && !isBoldMode) {
+            const textToCopy = target.innerText.trim();
+            copyToClipboard(textToCopy);
             
-            const txt = getSentenceByPunct(target);
-            if (txt) copyToClipboardSync(txt);
-            
-            lastClickTime = 0; // 成功后复位
-        } else {
-            // 【单击触发】
-            // 如果处于加粗模式，直接加粗
-            if (isBoldMode) {
-                boldPositions = boldPositions.includes(idx) ? 
-                    boldPositions.filter(i => i !== idx) : [...boldPositions, idx];
-                isBoldMode = false;
-                updateModeButtons(); savePositions(); renderCloze();
-                return;
-            }
-
-            // 复制单词逻辑
-            if (!isDeleteMode) {
-                const word = target.innerText.trim();
-                copyToClipboardSync(word);
-                
-                // 视觉反馈
-                const range = document.createRange();
-                range.selectNodeContents(target);
-                const sel = window.getSelection();
-                sel.removeAllRanges();
-                sel.addRange(range);
-            }
-            lastClickTime = now;
+            // 单词选中视觉反馈
+            const range = document.createRange();
+            range.selectNodeContents(target);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
         }
     };
 
-    // 劫持 mousedown (PC/Mac)
-    clozeContent.onmousedown = (e) => {
-        // 只处理左键
-        if (e.button !== 0) return;
-        handleHit(e);
-    };
-
-    // 禁用所有默认的双击和选择逻辑，防止干扰
+    // 2. 处理双击 (PC端复制整句)
     clozeContent.ondblclick = (e) => {
+        const target = e.target;
+        if (!target.classList.contains('word-span')) return;
+        
+        // 如果处于加粗或重置模式，双击不触发复制整句，避免逻辑混乱
+        if (isBoldMode || isDeleteMode) return;
+
         e.preventDefault();
-        e.stopPropagation();
+        e.stopPropagation(); // 阻止冒泡
+
+        const txt = getSentenceByPunct(target);
+        if (txt) {
+            copyToClipboard(txt);
+            // 视觉反馈：清除之前的单词选中，改为整句选中（getSentenceByPunct 内部已处理选中）
+        }
     };
 
-    // 兼容移动端（Anki Mobile）
-    clozeContent.addEventListener('touchstart', (e) => {
-        // 这里的逻辑通常 Anki Mobile 比较稳，可以保留 handleHit
-        // 但为了防止触发两次，可以在 handleHit 内部加判断
-    }, { passive: true });
-}
-// 补充：确保你有一个稳健的同步复制函数（如前所述）
-function copyToClipboardSync(text) {
-    const el = document.createElement('textarea');
-    el.value = text;
-    document.body.appendChild(el);
-    el.select();
-    document.execCommand('copy');
-    document.body.removeChild(el);
+    // --- 移动端双触支持 ---
+    let lastTapTime = 0;
+    clozeContent.addEventListener('touchend', (e) => {
+        const now = performance.now();
+        if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
+            const target = e.target;
+            // 只有在非加粗、非重置模式下，双击才触发复制整句
+            if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
+                e.preventDefault(); 
+                const txt = getSentenceByPunct(target);
+                if (txt) copyToClipboard(txt);
+            }
+        }
+        lastTapTime = now;
+    }, { passive: false });
 }
 // 5. 恢复函数
 function recover(el, showConfirm = true) {
