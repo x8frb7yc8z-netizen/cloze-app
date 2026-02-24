@@ -318,7 +318,12 @@ function getSentenceByPunct(el) {
     }
 
     const sentenceNodes = children.slice(start, end);
-    const sentenceText = sentenceNodes.map(n => n.textContent).join("").trim();
+    const sentenceText = sentenceNodes
+        .map(n => n.textContent)
+        .join("")                      // 先合并
+        .replace(/\n/g, " ")           // 1. 将所有换行符替换为空格
+        .replace(/\s\s+/g, " ")        // 2. 将连续的多个空格合并为一个空格
+        .trim();                       // 3. 去掉首尾多余空白
 
     // 视觉高亮选中
     const range = document.createRange();
