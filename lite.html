@@ -294,7 +294,7 @@ function getSentenceByPunct(el) {
     
     // 定义硬性句子边界：点、感叹号、问号、冒号、分号（中文也包含）
     // 注意：这里不包含 \n，所以它会跨行寻找
-    const boundary = /[.!?。！？；;]/;
+    const boundary = /[().!?。！？；;]/;
 
     let start = index;
     let end = index;
@@ -489,57 +489,8 @@ function updateModeButtons() {
 }
 
 // 4. 核心事件绑定修改
-// 核心事件绑定修改
 function bindEvents() {
-    // --- 辅助函数：根据标点获取完整句子 ---
-    function getSentenceByPunct(el) {
-        if (!el || !el.classList.contains('word-span')) return null;
-
-        const parent = el.parentNode;
-        const children = Array.from(parent.querySelectorAll('.word-span, .cloze-display-input, span'));
-        const index = children.indexOf(el);
-        
-        // 定义句子边界
-        const boundary = /[.!?。！？；;]/;
-
-        let start = index;
-        let end = index;
-
-        // 向前寻找本句的开始
-        while (start > 0) {
-            const prevText = children[start - 1].textContent || "";
-            if (boundary.test(prevText)) break;
-            start--;
-        }
-
-        // 向后寻找本句的结束
-        while (end < children.length - 1) {
-            const currentText = children[end].textContent || "";
-            if (boundary.test(currentText)) {
-                end++; 
-                break;
-            }
-            end++;
-        }
-
-        const sentenceNodes = children.slice(start, end);
-        const sentenceText = sentenceNodes.map(n => {
-            // 如果节点是输入框，则尝试取其答案或占位符，保持句子完整性
-            return n.tagName === 'INPUT' ? (answers[n.dataset.id] || "___") : n.textContent;
-        }).join("");
-
-        // 视觉高亮选中
-        const range = document.createRange();
-        range.setStartBefore(sentenceNodes[0]);
-        range.setEndAfter(sentenceNodes[sentenceNodes.length - 1]);
-        const sel = window.getSelection();
-        sel.removeAllRanges();
-        sel.addRange(range);
-
-        return sentenceText.trim();
-    }
-
-    // 1. 处理单击 (单击单词复制，单击输入框重置)
+    // 1. 处理单击 (包括加粗、重置、和普通复制单词)
     clozeContent.onclick = (e) => {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
@@ -548,7 +499,7 @@ function bindEvents() {
 
         if (!app.classList.contains('exercise-mode')) return;
 
-        // A. 加粗模式逻辑
+        // A. 加粗逻辑
         if (isBoldMode && isWord) {
             if (boldPositions.includes(idx)) {
                 boldPositions = boldPositions.filter(i => i !== idx);
@@ -559,21 +510,22 @@ function bindEvents() {
             updateModeButtons(); 
             savePositions();
             renderCloze();
-            return; 
+            return; // 执行完加粗直接跳出，不触发复制
         }
 
-        // B. 重置模式逻辑 (点击输入框)
+        // B. 重置/恢复逻辑 (点击输入框)
         if (isInput && (isCPressed || isDeleteMode)) {
             recover(target, false);
             return;
         }
 
         // C. 普通模式：单击复制单词
+        // 增加逻辑：确保不是在点击输入框，且当前没有开启特殊模式
         if (isWord && !isDeleteMode && !isBoldMode) {
             const textToCopy = target.innerText.trim();
             copyToClipboard(textToCopy);
             
-            // 单词选中反馈
+            // 单词选中视觉反馈
             const range = document.createRange();
             range.selectNodeContents(target);
             const sel = window.getSelection();
@@ -582,27 +534,32 @@ function bindEvents() {
         }
     };
 
-    // 2. 处理双击 (复制整句)
+    // 2. 处理双击 (PC端复制整句)
     clozeContent.ondblclick = (e) => {
         const target = e.target;
-        // 如果点在单词上，且没开启特殊模式
-        if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
-            e.preventDefault();
-            e.stopPropagation();
-            const txt = getSentenceByPunct(target);
-            if (txt) copyToClipboard(txt);
+        if (!target.classList.contains('word-span')) return;
+        
+        // 如果处于加粗或重置模式，双击不触发复制整句，避免逻辑混乱
+        if (isBoldMode || isDeleteMode) return;
+
+        e.preventDefault();
+        e.stopPropagation(); // 阻止冒泡
+
+        const txt = getSentenceByPunct(target);
+        if (txt) {
+            copyToClipboard(txt);
+            // 视觉反馈：清除之前的单词选中，改为整句选中（getSentenceByPunct 内部已处理选中）
         }
     };
 
-    // 3. 移动端双击支持 (Touchend 模拟)
+    // --- 移动端双触支持 ---
     let lastTapTime = 0;
     clozeContent.addEventListener('touchend', (e) => {
         const now = performance.now();
-        const timespan = now - lastTapTime;
-        if (timespan > 0 && timespan < 300 && e.changedTouches.length === 1) {
+        if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
             const target = e.target;
+            // 只有在非加粗、非重置模式下，双击才触发复制整句
             if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
-                // 只有在非模式状态下，才拦截默认行为
                 e.preventDefault(); 
                 const txt = getSentenceByPunct(target);
                 if (txt) copyToClipboard(txt);
