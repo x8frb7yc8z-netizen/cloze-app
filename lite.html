@@ -294,7 +294,7 @@ function getSentenceByPunct(el) {
     
     // 定义硬性句子边界：点、感叹号、问号、冒号、分号（中文也包含）
     // 注意：这里不包含 \n，所以它会跨行寻找
-    const boundary = /[().!?。！？；;]/;
+    const boundary = /[.!?。！？；;]/;
 
     let start = index;
     let end = index;
@@ -500,7 +500,7 @@ function bindEvents() {
         const index = children.indexOf(el);
         
         // 定义句子边界
-        const boundary = /[().!?。！？；;]/;
+        const boundary = /[.!?。！？；;]/;
 
         let start = index;
         let end = index;
