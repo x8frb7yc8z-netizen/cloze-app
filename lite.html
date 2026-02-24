@@ -507,7 +507,7 @@ function updateModeButtons() {
 // 4. 核心事件绑定修改
 // 核心事件绑定修改
 function bindEvents() {
-    // --- 辅助函数：根据标点获取完整句子 (保持不变) ---
+    // --- 辅助函数：根据标点获取完整句子 (逻辑保持不变) ---
     function getSentenceByPunct(el) {
         if (!el || !el.classList.contains('word-span')) return null;
         const parent = el.parentNode;
@@ -545,8 +545,12 @@ function bindEvents() {
         return sentenceText.trim();
     }
 
-    // 1. 处理单击
-    clozeContent.onclick = (e) => {
+    // --- 核心修改：使用计时器手动区分单双击，适配 Mac 端 ---
+    let lastMouseDownTime = 0;
+    let clickTimer = null;
+
+    // 使用 mousedown 替代 click/dblclick，因为 mousedown 在 Mac Anki 中捕获最稳
+    clozeContent.addEventListener('mousedown', (e) => {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
         const isInput = target.tagName === 'INPUT';
@@ -554,58 +558,54 @@ function bindEvents() {
 
         if (!app.classList.contains('exercise-mode')) return;
 
-        // A. 加粗模式
+        // A. 特殊模式拦截（加粗/重置）
         if (isBoldMode && isWord) {
-            if (boldPositions.includes(idx)) {
-                boldPositions = boldPositions.filter(i => i !== idx);
-            } else {
-                boldPositions.push(idx);
-            }
-            isBoldMode = false; 
-            updateModeButtons(); 
+            boldPositions = boldPositions.includes(idx) ? boldPositions.filter(i => i !== idx) : [...boldPositions, idx];
+            isBoldMode = false;
+            updateModeButtons();
             savePositions();
             renderCloze();
-            return; 
+            return;
         }
-
-        // B. 重置逻辑
         if (isInput && (isCPressed || isDeleteMode)) {
             recover(target, false);
             return;
         }
 
-        // C. 普通模式：单击复制单词
+        // B. 复制逻辑（普通模式）
         if (isWord && !isDeleteMode && !isBoldMode) {
-            const textToCopy = target.innerText.trim();
-            copyToClipboard(textToCopy);
-            
-            const range = document.createRange();
-            range.selectNodeContents(target);
-            const sel = window.getSelection();
-            sel.removeAllRanges();
-            sel.addRange(range);
-        }
-    };
+            const now = performance.now();
+            const diff = now - lastMouseDownTime;
+            lastMouseDownTime = now;
 
-    // 2. 处理双击 (针对 Mac 端加强：捕获阶段监听)
-    clozeContent.addEventListener('dblclick', (e) => {
-        const target = e.target;
-        if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
-            // Mac 关键：阻止默认选中行为，由我们手动控制
-            e.preventDefault();
-            e.stopPropagation();
-            
-            const txt = getSentenceByPunct(target);
-            if (txt) copyToClipboard(txt);
+            if (diff < 300) {
+                // --- 检测到双击 ---
+                clearTimeout(clickTimer); // 阻止单击逻辑执行
+                e.preventDefault();
+                
+                const txt = getSentenceByPunct(target);
+                if (txt) copyToClipboard(txt);
+            } else {
+                // --- 检测到单击（延迟执行，等待确认是否会有第二次点击） ---
+                clickTimer = setTimeout(() => {
+                    const textToCopy = target.innerText.trim();
+                    copyToClipboard(textToCopy);
+                    
+                    const range = document.createRange();
+                    range.selectNodeContents(target);
+                    const sel = window.getSelection();
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }, 300);
+            }
         }
-    }, true); // 使用 true 开启事件捕获，优先级更高
+    });
 
-    // 3. 移动端双击支持 (iOS 正常可保持)
+    // --- 3. 移动端保持原样 (iOS 逻辑) ---
     let lastTapTime = 0;
     clozeContent.addEventListener('touchend', (e) => {
         const now = performance.now();
-        const timespan = now - lastTapTime;
-        if (timespan > 0 && timespan < 300 && e.changedTouches.length === 1) {
+        if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
             const target = e.target;
             if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
                 e.preventDefault(); 
