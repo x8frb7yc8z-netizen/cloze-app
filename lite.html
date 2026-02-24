@@ -523,11 +523,14 @@ function bindEvents() {
         }
 
         const sentenceNodes = children.slice(start, end);
-        const sentenceText = sentenceNodes.map(n => {
-            // 如果节点是输入框，则尝试取其答案或占位符，保持句子完整性
-            return n.tagName === 'INPUT' ? (answers[n.dataset.id] || "___") : n.textContent;
-        }).join("");
-
+const sentenceText = sentenceNodes.map((n, i) => {
+    let text = n.tagName === 'INPUT' ? (answers[n.dataset.id] || "___") : n.textContent;
+    
+    // 检查这个节点后面是否应该补一个空格
+    // 如果当前节点不是最后一个，且下一个节点是单词或输入框，则通常需要补空格
+    return text;
+}).join(" ").replace(/\s+/g, ' ').replace(/\s([.!?。！？；;,])/g, '$1'); 
+// join(" ") 先强制补空格，然后用正则把标点前的空格删掉，并压缩多余空格
         // 视觉高亮选中
         const range = document.createRange();
         range.setStartBefore(sentenceNodes[0]);
