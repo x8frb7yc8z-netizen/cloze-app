@@ -129,11 +129,13 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
     -webkit-user-select: text !important;
     user-select: text !important;
     -webkit-touch-callout: default !important;
-    
-    /* 关键：去掉 padding 防止坐标偏移 */
     padding: 0 !important;
     margin: 0 !important;
-    display: inline; /* 确保它像普通文字一样排列 */
+    display: inline;
+    
+    /* 新增：强制开启指针事件并改变手型，确保 Mac 识别到它是可点击的 */
+    pointer-events: auto !important;
+    cursor: pointer !important; 
 }
 
 .cloze-display-input {
