@@ -198,13 +198,30 @@ window.getDocId = function() {
     } catch(e) { return "default_doc"; }
 }
 
+// 获取当前屏幕顶端单词索引的函数
+function getTopWordIndex() {
+    // 偏移量：35px 是你导航条的高度，再加 10px 缓冲，避免选到被挡住的词
+    const offset = 45; 
+    const x = window.innerWidth / 2; // 取横向中间点
+    const el = document.elementFromPoint(x, offset);
+    
+    if (el && el.dataset.index) {
+        return parseInt(el.dataset.index);
+    }
+    return 0;
+}
+	
+// 修改你的 syncUpload
 window.syncUpload = async function() {
     const id = window.getDocId();
     if (!id) return;
+    
+    const topIdx = getTopWordIndex(); // 获取索引锚点
+
     set(ref(db, 'clozes/' + id), { 
         positions: manualPositions, 
         boldPositions: boldPositions, 
-        scrollPos: window.scrollY, // <-- 新增：直接读取实时高度
+        topIndex: topIdx, // 保存单词索引而非像素
         ts: Date.now() 
     });
 };
@@ -229,32 +246,30 @@ window.syncDownload = async function() {
     }
 
     // --- 核心修正点：确保 data 变量被定义 ---
-    if (snapshot.exists()) {
-        const data = snapshot.val(); // 获取数据对象
+// 修改 syncDownload 中的恢复逻辑部分
+if (snapshot.exists()) {
+    const data = snapshot.val();
+    manualPositions = data.positions || [];
+    boldPositions = data.boldPositions || [];
+    
+    if (app.classList.contains('exercise-mode')) {
+        renderCloze(); 
         
-        // 1. 同步挖空和加粗位置
-        manualPositions = data.positions || [];
-        boldPositions = data.boldPositions || [];
-        
-        // 2. 更新本地缓存
-        localStorage.setItem('cloze_single_positions', JSON.stringify(manualPositions));
-        localStorage.setItem('cloze_single_bold_positions', JSON.stringify(boldPositions));
-
-        // 3. 如果在练习模式，渲染页面并恢复滚动
-        if (app.classList.contains('exercise-mode')) {
-            renderCloze(); 
-            
-            // 恢复阅读进度
-            if (data.scrollPos !== undefined) {
-                setTimeout(() => {
-                    window.scrollTo({
-                        top: data.scrollPos,
-                        behavior: 'smooth'
-                    });
-                }, 500); // 必须有延迟，等 DOM 高度撑开
-            }
+        // 恢复阅读进度锚点
+        if (data.topIndex !== undefined) {
+            setTimeout(() => {
+                // 寻找具有对应 data-index 的 span 或 input
+                const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
+                if (targetEl) {
+    // 先瞬间定位到大概位置，取消 smooth 以防干扰
+    targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
+    // 精准补偿高度
+    window.scrollBy(0, -45); 
+}
+            }, 600); // 略微增加延迟确保 DOM 渲染完毕
         }
     }
+}
 };
 </script>
 
@@ -474,8 +489,57 @@ function updateModeButtons() {
 }
 
 // 4. 核心事件绑定修改
+// 核心事件绑定修改
 function bindEvents() {
-    // 1. 处理单击 (包括加粗、重置、和普通复制单词)
+    // --- 辅助函数：根据标点获取完整句子 ---
+    function getSentenceByPunct(el) {
+        if (!el || !el.classList.contains('word-span')) return null;
+
+        const parent = el.parentNode;
+        const children = Array.from(parent.querySelectorAll('.word-span, .cloze-display-input, span'));
+        const index = children.indexOf(el);
+        
+        // 定义句子边界
+        const boundary = /[.!?。！？；;]/;
+
+        let start = index;
+        let end = index;
+
+        // 向前寻找本句的开始
+        while (start > 0) {
+            const prevText = children[start - 1].textContent || "";
+            if (boundary.test(prevText)) break;
+            start--;
+        }
+
+        // 向后寻找本句的结束
+        while (end < children.length - 1) {
+            const currentText = children[end].textContent || "";
+            if (boundary.test(currentText)) {
+                end++; 
+                break;
+            }
+            end++;
+        }
+
+        const sentenceNodes = children.slice(start, end);
+        const sentenceText = sentenceNodes.map(n => {
+            // 如果节点是输入框，则尝试取其答案或占位符，保持句子完整性
+            return n.tagName === 'INPUT' ? (answers[n.dataset.id] || "___") : n.textContent;
+        }).join("");
+
+        // 视觉高亮选中
+        const range = document.createRange();
+        range.setStartBefore(sentenceNodes[0]);
+        range.setEndAfter(sentenceNodes[sentenceNodes.length - 1]);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        return sentenceText.trim();
+    }
+
+    // 1. 处理单击 (单击单词复制，单击输入框重置)
     clozeContent.onclick = (e) => {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
@@ -484,7 +548,7 @@ function bindEvents() {
 
         if (!app.classList.contains('exercise-mode')) return;
 
-        // A. 加粗逻辑
+        // A. 加粗模式逻辑
         if (isBoldMode && isWord) {
             if (boldPositions.includes(idx)) {
                 boldPositions = boldPositions.filter(i => i !== idx);
@@ -495,22 +559,21 @@ function bindEvents() {
             updateModeButtons(); 
             savePositions();
             renderCloze();
-            return; // 执行完加粗直接跳出，不触发复制
+            return; 
         }
 
-        // B. 重置/恢复逻辑 (点击输入框)
+        // B. 重置模式逻辑 (点击输入框)
         if (isInput && (isCPressed || isDeleteMode)) {
             recover(target, false);
             return;
         }
 
         // C. 普通模式：单击复制单词
-        // 增加逻辑：确保不是在点击输入框，且当前没有开启特殊模式
         if (isWord && !isDeleteMode && !isBoldMode) {
             const textToCopy = target.innerText.trim();
             copyToClipboard(textToCopy);
             
-            // 单词选中视觉反馈
+            // 单词选中反馈
             const range = document.createRange();
             range.selectNodeContents(target);
             const sel = window.getSelection();
@@ -519,32 +582,27 @@ function bindEvents() {
         }
     };
 
-    // 2. 处理双击 (PC端复制整句)
+    // 2. 处理双击 (复制整句)
     clozeContent.ondblclick = (e) => {
         const target = e.target;
-        if (!target.classList.contains('word-span')) return;
-        
-        // 如果处于加粗或重置模式，双击不触发复制整句，避免逻辑混乱
-        if (isBoldMode || isDeleteMode) return;
-
-        e.preventDefault();
-        e.stopPropagation(); // 阻止冒泡
-
-        const txt = getSentenceByPunct(target);
-        if (txt) {
-            copyToClipboard(txt);
-            // 视觉反馈：清除之前的单词选中，改为整句选中（getSentenceByPunct 内部已处理选中）
+        // 如果点在单词上，且没开启特殊模式
+        if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
+            e.preventDefault();
+            e.stopPropagation();
+            const txt = getSentenceByPunct(target);
+            if (txt) copyToClipboard(txt);
         }
     };
 
-    // --- 移动端双触支持 ---
+    // 3. 移动端双击支持 (Touchend 模拟)
     let lastTapTime = 0;
     clozeContent.addEventListener('touchend', (e) => {
         const now = performance.now();
-        if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
+        const timespan = now - lastTapTime;
+        if (timespan > 0 && timespan < 300 && e.changedTouches.length === 1) {
             const target = e.target;
-            // 只有在非加粗、非重置模式下，双击才触发复制整句
             if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
+                // 只有在非模式状态下，才拦截默认行为
                 e.preventDefault(); 
                 const txt = getSentenceByPunct(target);
                 if (txt) copyToClipboard(txt);
