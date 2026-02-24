@@ -129,13 +129,11 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
     -webkit-user-select: text !important;
     user-select: text !important;
     -webkit-touch-callout: default !important;
+    
+    /* 关键：去掉 padding 防止坐标偏移 */
     padding: 0 !important;
     margin: 0 !important;
-    display: inline;
-    
-    /* 新增：强制开启指针事件并改变手型，确保 Mac 识别到它是可点击的 */
-    pointer-events: auto !important;
-    cursor: pointer !important; 
+    display: inline; /* 确保它像普通文字一样排列 */
 }
 
 .cloze-display-input {
@@ -443,31 +441,17 @@ window.toggleDeleteMode = function() {
 
 async function copyToClipboard(text) {
     if (!text) return;
-    
-    // 优先尝试现代 API
     try {
-        if (navigator.clipboard && window.isSecureContext) {
-            await navigator.clipboard.writeText(text);
-            return;
-        }
-    } catch (err) {}
-
-    // 兜底方案：Mac Anki 客户端最稳的方法
-    const textArea = document.createElement("textarea");
-    textArea.value = text;
-    // 确保 textarea 不可见但存在于 DOM 中
-    textArea.style.position = "fixed";
-    textArea.style.left = "-9999px";
-    textArea.style.top = "0";
-    document.body.appendChild(textArea);
-    textArea.focus();
-    textArea.select();
-    try {
-        document.execCommand('copy');
+        await navigator.clipboard.writeText(text);
+        // 如果是在 Anki 或某些安卓环境下，可以使用以下兜底方案
     } catch (err) {
-        console.error('Fallback copy failed', err);
+        const el = document.createElement('textarea');
+        el.value = text;
+        document.body.appendChild(el);
+        el.select();
+        document.execCommand('copy');
+        document.body.removeChild(el);
     }
-    document.body.removeChild(textArea);
 }
 
 
@@ -507,16 +491,16 @@ function updateModeButtons() {
 // 4. 核心事件绑定修改
 // 核心事件绑定修改
 function bindEvents() {
-    // --- 辅助函数：根据标点获取完整句子 (逻辑保持不变) ---
+    // --- 辅助函数：根据标点获取完整句子 (保持逻辑) ---
     function getSentenceByPunct(el) {
         if (!el || !el.classList.contains('word-span')) return null;
         const parent = el.parentNode;
+        // 修正选择器，确保包含所有文本片段
         const children = Array.from(parent.querySelectorAll('.word-span, .cloze-display-input, span'));
         const index = children.indexOf(el);
         const boundary = /[.!?。！？；;]/;
-        let start = index;
-        let end = index;
 
+        let start = index, end = index;
         while (start > 0) {
             const prevText = children[start - 1].textContent || "";
             if (boundary.test(prevText)) break;
@@ -524,12 +508,10 @@ function bindEvents() {
         }
         while (end < children.length - 1) {
             const currentText = children[end].textContent || "";
-            if (boundary.test(currentText)) {
-                end++; 
-                break;
-            }
+            if (boundary.test(currentText)) { end++; break; }
             end++;
         }
+
         const sentenceNodes = children.slice(start, end);
         const sentenceText = sentenceNodes.map(n => {
             return n.tagName === 'INPUT' ? (answers[n.dataset.id] || "___") : n.textContent;
@@ -545,11 +527,12 @@ function bindEvents() {
         return sentenceText.trim();
     }
 
-    // --- 核心修改：使用计时器手动区分单双击，适配 Mac 端 ---
+    // --- 状态变量 ---
     let lastMouseDownTime = 0;
     let clickTimer = null;
 
-    // 使用 mousedown 替代 click/dblclick，因为 mousedown 在 Mac Anki 中捕获最稳
+    // --- 1. 桌面端优化：使用 mousedown 捕获 ---
+    // mousedown 在 Mac Anki 中比 click 更早触发，且不易被系统手势拦截
     clozeContent.addEventListener('mousedown', (e) => {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
@@ -558,7 +541,7 @@ function bindEvents() {
 
         if (!app.classList.contains('exercise-mode')) return;
 
-        // A. 特殊模式拦截（加粗/重置）
+        // A. 模式逻辑处理 (加粗/重置)
         if (isBoldMode && isWord) {
             boldPositions = boldPositions.includes(idx) ? boldPositions.filter(i => i !== idx) : [...boldPositions, idx];
             isBoldMode = false;
@@ -572,21 +555,21 @@ function bindEvents() {
             return;
         }
 
-        // B. 复制逻辑（普通模式）
+        // B. 复制逻辑 (普通模式)
         if (isWord && !isDeleteMode && !isBoldMode) {
             const now = performance.now();
             const diff = now - lastMouseDownTime;
             lastMouseDownTime = now;
 
             if (diff < 300) {
-                // --- 检测到双击 ---
-                clearTimeout(clickTimer); // 阻止单击逻辑执行
+                // 【双击逻辑】
+                clearTimeout(clickTimer); // 关键：取消之前的单击计时
                 e.preventDefault();
-                
                 const txt = getSentenceByPunct(target);
                 if (txt) copyToClipboard(txt);
             } else {
-                // --- 检测到单击（延迟执行，等待确认是否会有第二次点击） ---
+                // 【单击逻辑】
+                // 延迟 300ms 执行，确保用户不是在进行双击操作
                 clickTimer = setTimeout(() => {
                     const textToCopy = target.innerText.trim();
                     copyToClipboard(textToCopy);
@@ -601,13 +584,15 @@ function bindEvents() {
         }
     });
 
-    // --- 3. 移动端保持原样 (iOS 逻辑) ---
+    // --- 2. 移动端优化：保持 touchend 逻辑 ---
     let lastTapTime = 0;
     clozeContent.addEventListener('touchend', (e) => {
         const now = performance.now();
-        if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
+        const timespan = now - lastTapTime;
+        if (timespan > 0 && timespan < 300 && e.changedTouches.length === 1) {
             const target = e.target;
             if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
+                // 移动端双击复制整句
                 e.preventDefault(); 
                 const txt = getSentenceByPunct(target);
                 if (txt) copyToClipboard(txt);
