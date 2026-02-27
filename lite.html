@@ -230,50 +230,50 @@ window.syncUpload = async function() {
 window.syncDownload = async function() {
     const urlParams = new URLSearchParams(window.location.search);
     const hasCustomId = !!urlParams.get('customid');
-    const currentInput = document.getElementById('inputText'); 
     
     const id = window.getDocId();
-    if (!id || !currentInput) return;
+    // 统一使用全局定义的 inputArea，并确保 db 引用正常
+    if (!id || !inputArea) return;
 
     let snapshot = await get(child(ref(db), 'clozes/' + id));
     
-    // 兼容逻辑：查找旧 ID（基于文本前25位生成的 ID）
-    if (!snapshot.exists() && hasCustomId && currentInput.value.trim()) {
-        const oldTextId = btoa(unescape(encodeURIComponent(currentInput.value.substring(0, 25)))).replace(/[/+=]/g, "");
+    // 兼容逻辑：如果 cid 没有数据，尝试查找根据文本生成的旧版 MD5/Base64 ID
+    if (!snapshot.exists() && hasCustomId && inputArea.value.trim()) {
+        const oldTextId = btoa(unescape(encodeURIComponent(inputArea.value.substring(0, 25)))).replace(/[/+=]/g, "");
         snapshot = await get(child(ref(db), 'clozes/' + oldTextId));
     }
 
     if (snapshot.exists()) {
         const data = snapshot.val();
         
-        // --- 核心修正：懒加载文本 ---
-        // 如果当前没有文本（即 URL 参数过长加载失败），则从 Firebase 恢复
-        if (!currentInput.value.trim() && data.content) {
-            currentInput.value = data.content;
-            console.log("从云端恢复了文章内容");
+        // --- 核心逻辑：懒加载文本 ---
+        // 场景：URL Fragment 失败或二次打开，从云端恢复文章内容
+        if (!inputArea.value.trim() && data.content) {
+            inputArea.value = data.content;
+            console.log("Firebase: Content lazy-loaded successfully.");
         }
 
-        // 恢复数据状态
-        manualPositions = data.positions || [];
-        boldPositions = data.boldPositions || [];
-        
-        // 只有在有文本的情况下才进行渲染
-        if (currentInput.value.trim()) {
-            // 强制进入练习模式
+        // 只有当本地现在“有”内容了（传过来的或拉回来的），才执行状态恢复
+        if (inputArea.value.trim()) {
+            manualPositions = data.positions || [];
+            boldPositions = data.boldPositions || [];
+            
+            // 自动切换到练习视图
             app.classList.add('exercise-mode');
             renderCloze(); 
             
-            // 恢复阅读进度锚点
+            // 恢复阅读进度锚点（跨设备同步进度的关键）
             if (data.topIndex !== undefined) {
                 setTimeout(() => {
+                    // 寻找对应的 data-index 单词节点
                     const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
                     if (targetEl) {
-                        // 先瞬间定位
+                        // behavior: 'auto' 比 'smooth' 在初始化定位时更稳定
                         targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
-                        // 精准补偿高度（导航栏高度）
+                        // 补偿固定的顶部导航条高度 (35px + 10px 缓冲)
                         window.scrollBy(0, -45); 
                     }
-                }, 600); 
+                }, 600); // 延迟 600ms 确保 renderCloze 后的 DOM 已插入
             }
         }
     }
