@@ -216,13 +216,21 @@ window.syncUpload = async function() {
     const id = window.getDocId();
     if (!id) return;
     
-    const topIdx = getTopWordIndex(); // 获取索引锚点
+    const topIdx = getTopWordIndex();
+    const content = inputArea.value; // 获取全文
 
+    // 存储进度和样式
     set(ref(db, 'clozes/' + id), { 
         positions: manualPositions, 
         boldPositions: boldPositions, 
-        topIndex: topIdx, // 保存单词索引而非像素
+        topIndex: topIdx,
         ts: Date.now() 
+    });
+
+    // 存储文本内容 (只有内容变化时存一次即可，或者每次都存)
+    set(ref(db, 'texts/' + id), {
+        content: content,
+        ts: Date.now()
     });
 };
 window.syncDownload = async function() {
@@ -335,12 +343,17 @@ function getSentenceByPunct(el) {
 
     return sentenceText;
 }
-window.onload = async () => { // 加上 async
+window.onload = async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const textFromAnki = urlParams.get('text');
+    const textFromUrl = urlParams.get('text');
+    const customId = urlParams.get('customid');
+    const dbId = customId ? "cid_" + customId.trim() : null;
     
-    if (textFromAnki) {
-        inputArea.value = decodeURIComponent(textFromAnki);
+    if (textFromUrl) {
+        inputArea.value = decodeURIComponent(textFromUrl);
+    } else if (dbId) {
+        // 如果 URL 太长没传文本，则从 DB 抓取
+        await window.fetchTextFromDB(dbId);
     }
 
     // --- 字号逻辑 ---
@@ -370,6 +383,17 @@ window.onload = async () => { // 加上 async
     }, 1000);
 };
 
+// 在你的 syncDownload 逻辑附近增加或修改
+window.fetchTextFromDB = async function(id) {
+    if (!id) return;
+    // 假设你在 Firebase 中存储文本的路径是 'texts/cid_xxx'
+    // 你需要在上传端(syncUpload)同步把 inputArea.value 也存进去
+    const snapshot = await get(child(ref(db), 'texts/' + id));
+    if (snapshot.exists()) {
+        inputArea.value = snapshot.val().content;
+        renderCloze(); // 抓取到文本后立即渲染
+    }
+};
 // 确保有这个统一应用函数
 function applyFontSize(size) {
     inputArea.style.fontSize = clozeContent.style.fontSize = size + "px";
