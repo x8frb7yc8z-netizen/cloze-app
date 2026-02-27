@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>极简完形填空 Pro Sync</title>
 <style>
+
+/* 按钮抖动动画 */
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-4px); }
+    75% { transform: translateX(4px); }
+}
+
+.btn-error-shake {
+    animation: shake 0.2s ease-in-out 0s 2; /* 快速抖动两次 */
+    background-color: #ffcdd2 !important; /* 变成淡红色 */
+    transition: background-color 0.2s;
+}
 #image-preview-container {
     position: fixed;
     top: 100%; /* 初始完全隐藏在屏幕下方 */
@@ -190,8 +203,8 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
     <nav class="footer-actions">
         <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
 	<button class="exercise-only" onclick="copyFullText()" style="background:#f3e5f5;">复制</button>
-	<button id="searchModeBtn" class="exercise-only" onclick="toggleSearchMode()" style="background:#e1f5fe;">图片: 关</button>
-	<button id="boldModeBtn" class="exercise-only" onclick="toggleBoldMode()" style="background:#e8f5e9;">加粗: 关</button>
+	<button id="searchModeBtn" class="exercise-only" onclick="toggleSearchMode()" style="background:#e1f5fe;">图片</button>
+	<button id="boldModeBtn" class="exercise-only" onclick="toggleBoldMode()" style="background:#e8f5e9;">粗体</button>
         <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">挖空: 关</button>
         <div class="font-ctrl edit-only">
              <button class="font-btn" onclick="changeFontSize(-2)">A-</button>
@@ -536,45 +549,64 @@ async function copyToClipboard(text) {
 }
 
 
-// 2. 模式切换函数 (绑定到新按钮)
-window.toggleBoldMode = function() {
-    isBoldMode = !isBoldMode;
-    if (isBoldMode) {
-        isDeleteMode = false; // 互斥，避免冲突
-        
-        // --- 新增：清除文本选中状态 ---
-        if (window.getSelection) {
-            if (window.getSelection().empty) {  // Chrome
-                window.getSelection().empty();
-            } else if (window.getSelection().removeAllRanges) {  // Firefox/Others
-                window.getSelection().removeAllRanges();
-            }
-        } else if (document.selection) {  // IE 兼容 (虽然现代环境基本不用)
-            document.selection.empty();
-        }
+// 获取当前选中的单词节点
+function getSelectedWordElement() {
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return null;
+    
+    let node = selection.anchorNode;
+    // 如果选中的是文本节点，向上找 span
+    if (node.nodeType === 3) node = node.parentNode;
+    
+    if (node && node.classList.contains('word-span')) {
+        return node;
     }
-    updateModeButtons();
+    return null;
+}
+// 统一的错误反馈函数
+function triggerButtonError(btnId) {
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    btn.classList.add('btn-error-shake');
+    setTimeout(() => {
+        btn.classList.remove('btn-error-shake');
+    }, 400); // 动画结束后移除类名
+}
+// 修改后的加粗函数
+window.toggleBoldMode = function() {
+    const target = getSelectedWordElement();
+    if (!target) {
+        triggerButtonError('boldModeBtn'); // 触发按钮动一下
+        return;
+    }
+
+    const idx = parseInt(target.dataset.index);
+    if (boldPositions.includes(idx)) {
+        boldPositions = boldPositions.filter(i => i !== idx);
+    } else {
+        boldPositions.push(idx);
+    }
+    
+    savePositions();
+    renderCloze();
 };
 
 function updateModeButtons() {
-    const sBtn = document.getElementById('searchModeBtn'); // 搜索按钮
-    const bBtn = document.getElementById('boldModeBtn');   // 加粗按钮
-    const dBtn = document.getElementById('delModeBtn');    // 重置按钮
+    const sBtn = document.getElementById('searchModeBtn');
+    const bBtn = document.getElementById('boldModeBtn');
+    const dBtn = document.getElementById('delModeBtn');
     
-    // 更新搜索按钮状态
+    // 搜索按钮：固定文字
     if(sBtn) {
-        sBtn.innerText = isSearchMode ? "搜索: 开" : "搜索: 关";
-        sBtn.style.backgroundColor = isSearchMode ? "#81d4fa" : "#e1f5fe";
-        sBtn.style.color = isSearchMode ? "#fff" : "#000";
+        sBtn.innerText = "图片搜索";
+        sBtn.style.backgroundColor = "#e1f5fe";
     }
-    
-    // 更新加粗按钮状态
+    // 加粗按钮：固定文字
     if(bBtn) {
-        bBtn.innerText = isBoldMode ? "加粗: 开" : "加粗: 关";
-        bBtn.style.backgroundColor = isBoldMode ? "#a5d6a7" : "#e8f5e9";
+        bBtn.innerText = "单词加粗";
+        bBtn.style.backgroundColor = "#e8f5e9";
     }
-    
-    // 更新重置按钮状态
+    // 只有“挖空重置”保留开关逻辑，因为它需要长效开启
     if(dBtn) {
         dBtn.innerText = isDeleteMode ? "重置: 开" : "重置: 关";
         dBtn.style.backgroundColor = isDeleteMode ? "#ffe0b2" : "#fff";
@@ -583,56 +615,25 @@ function updateModeButtons() {
 
 // 4. 核心事件绑定修改
 function bindEvents() {
-    // 1. 处理单击 (包括加粗、重置、和普通复制单词)
     clozeContent.onclick = (e) => {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
         const isInput = target.tagName === 'INPUT';
-        const idx = parseInt(target.dataset.index);
 
         if (!app.classList.contains('exercise-mode')) return;
-		if (isSearchMode && isWord) {
-    const word = target.innerText.trim().replace(/[^\w]/g, ""); // 提取纯单词
-    if (word) {
-        // 1. 设置标题和 URL 并打开弹窗
-        document.getElementById('preview-word-title').innerText = "Bing图片: " + word;
-        const searchUrl = `https://www.bing.com/images/search?q=${word}&form=HDRSC2&adlt=strict`;
-        document.getElementById('preview-iframe').src = searchUrl;
-        document.getElementById('image-preview-container').classList.add('active');
-    }
-    
-    // 2. 关键：执行完立即重置状态，像加粗功能一样
-    isSearchMode = false; 
-    updateModeButtons(); 
-    return; // 拦截后续的复制逻辑
-}
-        // A. 加粗逻辑
-        if (isBoldMode && isWord) {
-            if (boldPositions.includes(idx)) {
-                boldPositions = boldPositions.filter(i => i !== idx);
-            } else {
-                boldPositions.push(idx);
-            }
-            isBoldMode = false; 
-            updateModeButtons(); 
-            savePositions();
-            renderCloze();
-            return; // 执行完加粗直接跳出，不触发复制
-        }
 
-        // B. 重置/恢复逻辑 (点击输入框)
+        // A. 重置/恢复逻辑 (针对输入框，保留原逻辑)
         if (isInput && (isCPressed || isDeleteMode)) {
             recover(target, false);
             return;
         }
 
-        // C. 普通模式：单击复制单词
-        // 增加逻辑：确保不是在点击输入框，且当前没有开启特殊模式
-        if (isWord && !isDeleteMode && !isBoldMode) {
+        // B. 点击单词：核心变为选中并复制
+        if (isWord) {
             const textToCopy = target.innerText.trim();
             copyToClipboard(textToCopy);
             
-            // 单词选中视觉反馈
+            // 关键：强制视觉选中该单词，作为后续按钮的操作目标
             const range = document.createRange();
             range.selectNodeContents(target);
             const sel = window.getSelection();
@@ -640,7 +641,6 @@ function bindEvents() {
             sel.addRange(range);
         }
     };
-
     // 2. 处理双击 (PC端复制整句)
     clozeContent.ondblclick = (e) => {
         const target = e.target;
@@ -676,12 +676,19 @@ function bindEvents() {
     }, { passive: false });
 }
 window.toggleSearchMode = function() {
-    isSearchMode = !isSearchMode;
-    if (isSearchMode) {
-        isBoldMode = false; // 互斥
-        isDeleteMode = false;
+    const target = getSelectedWordElement();
+    if (!target) {
+        triggerButtonError('searchModeBtn'); // 触发按钮动一下
+        return;
     }
-    updateModeButtons();
+
+    const word = target.innerText.trim().replace(/[^\w]/g, "");
+    if (word) {
+        document.getElementById('preview-word-title').innerText = "Bing图片: " + word;
+        const searchUrl = `https://www.bing.com/images/search?q=${word}&form=HDRSC2&adlt=strict`;
+        document.getElementById('preview-iframe').src = searchUrl;
+        document.getElementById('image-preview-container').classList.add('active');
+    }
 };
 
 window.closeImagePreview = function() {
