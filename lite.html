@@ -216,16 +216,22 @@ window.syncUpload = async function() {
     const id = window.getDocId();
     if (!id) return;
     
-    const topIdx = getTopWordIndex(); // 获取索引锚点
+    // 确保能拿到最新的 inputArea 引用
+    const currentInput = document.getElementById('inputText');
+    const topIdx = getTopWordIndex(); 
 
-    // 核心改进：添加 content 字段
-    set(ref(db, 'clozes/' + id), { 
-        content: inputArea.value,       // 保存文章原文，这是“懒加载”的基础
-        positions: manualPositions,    // 挖空索引
-        boldPositions: boldPositions,  // 加粗索引
-        topIndex: topIdx,              // 阅读进度
-        ts: Date.now() 
-    });
+    try {
+        await set(ref(db, 'clozes/' + id), { 
+            content: currentInput.value,    
+            positions: manualPositions,    
+            boldPositions: boldPositions,  
+            topIndex: topIdx,              
+            ts: Date.now() 
+        });
+        console.log("云端同步成功");
+    } catch (e) {
+        console.error("同步失败:", e);
+    }
 };
 window.syncDownload = async function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -630,11 +636,16 @@ function changeFontSize(delta) {
 function getHint(w) { return w.length <= 2 ? w[0] + "_" : w[0] + "_".repeat(w.length - 2) + w[w.length-1]; }
 
 
+// 修改原本的 savePositions 函数
 function savePositions() { 
-    // 记录当前滚动高度（像素值）
     window.currentScrollPos = window.scrollY;
     
-    if (window.syncUpload) window.syncUpload();
+    // 增加防御检查：确保模块已加载完成
+    if (typeof window.syncUpload === 'function') {
+        window.syncUpload();
+    } else {
+        console.warn("Firebase 模块尚未就绪，暂存本地...");
+    }
 }
 inputArea.oninput = savePositions;
 function handleClear() {
