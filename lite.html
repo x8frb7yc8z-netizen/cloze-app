@@ -342,69 +342,82 @@ function getSentenceByPunct(el) {
 window.onload = async () => {
     const urlParams = new URLSearchParams(window.location.search);
     const customId = urlParams.get('customid');
-    const textFromQuery = urlParams.get('text'); // 兼容旧版 ?text=
+    const textFromQuery = urlParams.get('text'); // 兼容旧版 ?text= 传参
     
-    // --- 1. 获取文本内容 (Hash > Query > Firebase) ---
     let textToLoad = "";
-    
-    // A. 优先从 Hash (#text=) 获取，解决 URI Too Long
+
+    // --- 1. 获取文本优先级：Hash (#text=) > Query (?text=) ---
     const hash = window.location.hash;
     if (hash && hash.startsWith('#text=')) {
+        // 解码从 Anki # 传过来的长文本
         textToLoad = decodeURIComponent(hash.substring(6));
-    } 
-    // B. 其次从 Query (?text=) 获取
-    else if (textFromQuery) {
+    } else if (textFromQuery) {
         textToLoad = decodeURIComponent(textFromQuery);
     }
 
-    // --- 2. 处理 ID 和 Firebase 加载 ---
-    if (customId) {
-        const id = "cid_" + customId.trim();
+    // --- 2. 核心：如果 URL 已经带了文本（快路径） ---
+    if (textToLoad && textToLoad.trim() !== "") {
+        inputArea.value = textToLoad;
         
-        if (textToLoad) {
-            // 如果拿到了文本，直接赋值并“静默备份”到云端
-            inputArea.value = textToLoad;
-            // 使用 set 而不是 await，不阻塞首屏渲染
-            set(ref(db, 'texts/' + id), textToLoad); 
-        } else {
-            // 如果 URL 没带文本，说明可能是第二次打开，去 Firebase 取全文
+        // 关键点：立即执行渲染，不等待任何网络请求
+        executeInitialRender(); 
+
+        // 异步静默备份到云端 texts 节点，方便下次通过 ID 访问
+        if (customId) {
+            const id = "cid_" + customId.trim();
+            // 不使用 await，让它在后台慢慢传
+            set(ref(db, 'texts/' + id), textToLoad).catch(e => {
+                console.warn("Cloud backup failed, but local session is active.");
+            });
+        }
+    } 
+    // --- 3. 如果 URL 只有 ID（慢路径：第二次打开或多端同步） ---
+    else if (customId) {
+        const id = "cid_" + customId.trim();
+        try {
+            // 这里需要等待云端数据
             const contentSnapshot = await get(child(ref(db), 'texts/' + id));
             if (contentSnapshot.exists()) {
                 inputArea.value = contentSnapshot.val();
+                executeInitialRender();
             }
+        } catch (e) {
+            console.error("Firebase download error:", e);
         }
-    } else if (textToLoad) {
-        inputArea.value = textToLoad;
     }
 
-    // --- 3. 字号逻辑 ---
+    // --- 4. 字号逻辑：优先读取用户偏好 ---
     const savedSize = localStorage.getItem('cloze_user_font_size');
     if (savedSize) {
         currentFontSize = parseInt(savedSize);
     } else {
+        // 默认适配：移动端 26px，桌面端 20px
         const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         const isNarrowScreen = window.innerWidth < 500;
         currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
     }
     applyFontSize(currentFontSize);
 
-    // --- 4. 核心渲染判断 ---
-    // 确保在执行 syncDownload 前，文本已经渲染成 DOM
-    if (inputArea.value.trim()) {
-        renderCloze(); 
-        app.classList.add('exercise-mode');
-        window.scrollTo(0, 0); 
-    }
-
-    // 此时主逻辑跑完，显示界面
+    // --- 5. 显示界面并启动状态同步 ---
     document.body.classList.add('app-ready');
     
-    // --- 5. 异步同步状态 (挖空、加粗、位置) ---
-    // 延迟缩短到 500ms，因为文本加载已经提前处理了
+    // 异步加载挖空、加粗记录和滚动位置
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
     }, 500);
 };
+
+/**
+ * 辅助渲染函数：确保文本被正确转化为挖空练习模式
+ * 增加防止重复渲染的保护逻辑
+ */
+function executeInitialRender() {
+    if (inputArea.value && inputArea.value.trim() && !app.classList.contains('exercise-mode')) {
+        renderCloze(); // 调用你原有的渲染函数
+        app.classList.add('exercise-mode'); // 切换到练习界面
+        window.scrollTo(0, 0); // 回到顶部
+    }
+}
 
 // 确保有这个统一应用函数
 function applyFontSize(size) {
