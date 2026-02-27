@@ -12,12 +12,30 @@
         html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-apple-system, sans-serif; background:#fff; }
         .app-container { display: flex; flex-direction: column; padding-top: 35px; }
         .main-area { flex: 1; position: relative; overflow-y: auto; -webkit-overflow-scrolling: touch; }
-        #inputText, #clozeContent {
-            width: 100%; min-height: calc(100vh - 35px); text-align: center;
-            padding: 20px 0px; border: none; outline: none; font-size: 26px !important; 
-            line-height: 1.2; font-family: inherit; white-space: pre-wrap; 
-            word-break: break-word; position: relative; display: block;
-        }
+#inputText, #clozeContent {
+    width: 100%; 
+    min-height: calc(100vh - 35px); 
+    text-align: center;
+    padding: 20px 0px; 
+    border: none; 
+    outline: none;
+    line-height: 1.2; 
+    font-family: inherit; 
+    white-space: pre-wrap; 
+    word-break: break-word; 
+    position: relative; 
+    display: block;
+    
+    /* 默认：电脑/宽屏使用 20px */
+    font-size: 20px; 
+}
+
+        /* 适配：iOS Anki / 手机 (屏幕宽度小于 500px) 使用 26px */
+@media screen and (max-width: 500px) {
+    #inputText, #clozeContent {
+        font-size: 26px;
+    }
+}
         #clozeContent { display: none; -webkit-user-select: text; user-select: text; }
         .exercise-mode #inputText { display: none !important; }
         .exercise-mode #clozeContent { display: block !important; }
@@ -147,17 +165,30 @@
         }
     };
 
-    // --- 业务逻辑 ---
-    window.toggleMode = function(isExercise) {
-        if (isExercise) {
-            if (!inputArea.value.trim()) return alert("内容为空");
-            renderCloze();
-            app.classList.add('exercise-mode');
-        } else {
-            app.classList.remove('exercise-mode');
-        }
-    };
+// --- 模式切换函数 ---
+window.toggleMode = function(isExercise) {
+    const app = document.getElementById('app');
+    if (isExercise) {
+        if (!inputArea.value.trim()) return;
+        renderCloze();
+        app.classList.add('exercise-mode');
+        window.scrollTo(0, 0); 
+    } else {
+        app.classList.remove('exercise-mode');
+    }
+};
 
+    // --- 进度定位函数 (供 syncDownload 调用) ---
+window.scrollToAnchor = function(topIndex) {
+    if (topIndex === undefined) return;
+    setTimeout(() => {
+        const targetEl = document.querySelector(`[data-index="${topIndex}"]`);
+        if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
+            window.scrollBy(0, -45); // 补偿导航栏高度
+        }
+    }, 400);
+};
     window.renderCloze = function() {
         const segments = inputArea.value.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
         answers = [];
@@ -220,34 +251,42 @@
 
     window.handleClear = () => { if(confirm("清空？")) { inputArea.value = ""; window.manualPositions = []; window.boldPositions = []; renderCloze(); } };
 
-    // --- 初始化入口 ---
-    window.onload = async () => {
-        const urlParams = new URLSearchParams(window.location.search);
-        const hash = window.location.hash;
-        const customId = urlParams.get('customid');
-        let textToLoad = "";
+// --- 初始化入口：处理文本加载与模式切换 ---
+window.onload = async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const customId = urlParams.get('customid');
+    const hash = window.location.hash;
+    let textToLoad = "";
 
-        if (hash && hash.startsWith('#text=')) {
-            textToLoad = decodeURIComponent(hash.substring(6));
-        } else if (urlParams.get('text')) {
-            textToLoad = decodeURIComponent(urlParams.get('text'));
-        }
+    // 1. 获取文本优先级：URL Hash > URL Params
+    if (hash && hash.startsWith('#text=')) {
+        textToLoad = decodeURIComponent(hash.substring(6));
+    } else if (urlParams.get('text')) {
+        textToLoad = decodeURIComponent(urlParams.get('text'));
+    }
 
-        if (textToLoad) {
-            inputArea.value = textToLoad;
+    // 2. 逻辑执行：加载文本或从数据库拉取
+    if (textToLoad) {
+        inputArea.value = textToLoad;
+        window.toggleMode(true); // 自动进入练习模式
+        if (customId) set(ref(db, 'texts/cid_' + customId.trim()), textToLoad);
+    } else if (customId) {
+        // 如果只有 ID，去 Firebase 拉取原始文本
+        const snap = await get(child(ref(db), 'texts/cid_' + customId.trim()));
+        if (snap.exists()) {
+            inputArea.value = snap.val();
             window.toggleMode(true);
-            if (customId) set(ref(db, 'texts/cid_' + customId.trim()), textToLoad);
-        } else if (customId) {
-            const snap = await get(child(ref(db), 'texts/cid_' + customId.trim()));
-            if (snap.exists()) {
-                inputArea.value = snap.val();
-                window.toggleMode(true);
-            }
         }
-        
-        document.body.classList.add('app-ready');
-        setTimeout(() => { window.syncDownload(); }, 600);
-    };
+    }
+
+    // 3. 界面就绪反馈
+    document.body.classList.add('app-ready');
+    
+    // 4. 延迟下载进度（等待 DOM 渲染完成）
+    setTimeout(() => { 
+        if (window.syncDownload) window.syncDownload(); 
+    }, 600);
+};
 
     // 滚动自动同步
     let scrollTimer;
