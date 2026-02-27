@@ -5,7 +5,55 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>极简完形填空 Pro Sync</title>
 <style>
+/* 图片预览窗口：改为全屏/近全屏高度 */
+#image-preview-container {
+    position: fixed;
+    top: 100%; /* 初始位置在屏幕最下方以外 */
+    left: 0;
+    width: 100%;
+    /* 关键修改：高度占满屏幕，减去顶部导航条的一点空间，或者直接 100% */
+    height: calc(100% - 35px); 
+    background: #fff;
+    box-shadow: 0 -5px 20px rgba(0,0,0,0.3);
+    z-index: 2000;
+    transition: top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    display: flex;
+    flex-direction: column;
+}
 
+/* 激活状态：拉到顶部 */
+#image-preview-container.active {
+    top: 35px; /* 紧贴顶部导航栏下方 */
+}
+
+/* 头部样式微调，增加高度方便点击关闭 */
+.preview-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    background: #f1f3f4;
+    border-bottom: 1px solid #ddd;
+    flex-shrink: 0;
+}
+
+/* 内部 iframe 容器 */
+.preview-content {
+    flex: 1;
+    overflow: hidden;
+    -webkit-overflow-scrolling: touch;
+}
+
+.preview-iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* 确保内容区域底部有足够空间，不被预览框永久遮挡 */
+#clozeContent {
+    padding-bottom: 320px !important;
+}
 /* 加粗单词的样式 */
 .word-bold {
     font-weight: 800;
@@ -149,6 +197,7 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
     <nav class="footer-actions">
         <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
 	<button class="exercise-only" onclick="copyFullText()" style="background:#f3e5f5;">复制</button>
+	<button id="searchModeBtn" class="exercise-only" onclick="toggleSearchMode()" style="background:#e1f5fe;">搜索: 关</button>
 	<button id="boldModeBtn" class="exercise-only" onclick="toggleBoldMode()" style="background:#e8f5e9;">加粗: 关</button>
         <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">挖空: 关</button>
         <div class="font-ctrl edit-only">
@@ -165,7 +214,15 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
         <div id="clozeContent"></div>
     </main>
 </div>
-
+<div id="image-preview-container">
+    <div class="preview-header">
+        <span id="preview-word-title" style="font-weight:bold; color:#0288d1; font-size:14px;">图片搜索</span>
+        <button onclick="closeImagePreview()" style="border:none; background:#eee; border-radius:4px; padding:4px 12px; font-size:12px;">关闭预览</button>
+    </div>
+    <div class="preview-content">
+        <iframe id="preview-iframe" class="preview-iframe" src=""></iframe>
+    </div>
+</div>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -305,6 +362,7 @@ let manualPositions = [];
 let boldPositions = [];
 let isBoldMode = false; // 新增状态
 let answers = [];
+let isSearchMode = false;
 
 const app = document.getElementById('app');
 const inputArea = document.getElementById('inputText');
@@ -506,12 +564,24 @@ window.toggleBoldMode = function() {
 };
 
 function updateModeButtons() {
-    const bBtn = document.getElementById('boldModeBtn');
-    const dBtn = document.getElementById('delModeBtn');
+    const sBtn = document.getElementById('searchModeBtn'); // 搜索按钮
+    const bBtn = document.getElementById('boldModeBtn');   // 加粗按钮
+    const dBtn = document.getElementById('delModeBtn');    // 重置按钮
+    
+    // 更新搜索按钮状态
+    if(sBtn) {
+        sBtn.innerText = isSearchMode ? "搜索: 开" : "搜索: 关";
+        sBtn.style.backgroundColor = isSearchMode ? "#81d4fa" : "#e1f5fe";
+        sBtn.style.color = isSearchMode ? "#fff" : "#000";
+    }
+    
+    // 更新加粗按钮状态
     if(bBtn) {
         bBtn.innerText = isBoldMode ? "加粗: 开" : "加粗: 关";
-        bBtn.style.backgroundColor = isBoldMode ? "#a5d6a7" : "#fff";
+        bBtn.style.backgroundColor = isBoldMode ? "#a5d6a7" : "#e8f5e9";
     }
+    
+    // 更新重置按钮状态
     if(dBtn) {
         dBtn.innerText = isDeleteMode ? "重置: 开" : "重置: 关";
         dBtn.style.backgroundColor = isDeleteMode ? "#ffe0b2" : "#fff";
@@ -528,6 +598,23 @@ function bindEvents() {
         const idx = parseInt(target.dataset.index);
 
         if (!app.classList.contains('exercise-mode')) return;
+
+    // --- 搜索模式：逻辑同步加粗模式 ---
+    if (isSearchMode && isWord) {
+        const word = target.innerText.trim().replace(/[^\w]/g, "");
+        if (word) {
+            // 执行搜索：弹出底部预览
+            document.getElementById('preview-word-title').innerText = "Bing图片: " + word;
+            const searchUrl = `https://www.bing.com/images/search?q=${word}&form=HDRSC2&adlt=strict`;
+            document.getElementById('preview-iframe').src = searchUrl;
+            document.getElementById('image-preview-container').classList.add('active');
+        }
+        
+        // 关键点：点击后立即关闭搜索模式，回到普通状态
+        isSearchMode = false; 
+        updateModeButtons(); 
+        return; // 结束逻辑，不触发复制
+    }
 
         // A. 加粗逻辑
         if (isBoldMode && isWord) {
@@ -598,6 +685,22 @@ function bindEvents() {
         lastTapTime = now;
     }, { passive: false });
 }
+
+window.toggleSearchMode = function() {
+    isSearchMode = !isSearchMode;
+    if (isSearchMode) {
+        isBoldMode = false;
+        isDeleteMode = false;
+        // 清除页面现有的文字选中，防止干扰
+        window.getSelection().removeAllRanges();
+    }
+    updateModeButtons(); // 必须调用这个函数，按钮才会变色
+};
+
+window.closeImagePreview = function() {
+    document.getElementById('image-preview-container').classList.remove('active');
+    document.getElementById('preview-iframe').src = ""; // 及时清空减轻内存负担
+};
 // 5. 恢复函数
 function recover(el, showConfirm = true) {
     const doRecover = () => {
