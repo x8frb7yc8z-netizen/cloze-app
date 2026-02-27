@@ -233,43 +233,47 @@ window.syncDownload = async function() {
     const id = window.getDocId();
     if (!id || !currentInput) return;
 
+    // 1. 获取该 ID 对应的挖空/加粗状态
     let snapshot = await get(child(ref(db), 'clozes/' + id));
     
-    // 兼容逻辑：查找旧 ID
+    // 2. 兼容逻辑：如果没有 customid 对应的数据，尝试查找基于文本生成的旧版 ID
     if (!snapshot.exists() && hasCustomId) {
-        const oldTextId = btoa(unescape(encodeURIComponent(currentInput.value.substring(0, 25)))).replace(/[/+=]/g, "");
-        snapshot = await get(child(ref(db), 'clozes/' + oldTextId));
-        
-        if (snapshot.exists()) {
-            console.log("检测到旧版文本 ID 数据，已成功加载。");
+        // 注意：这里需要确保 currentInput 已经有值了（onload 已经处理完文本加载）
+        if (currentInput.value.trim()) {
+            const oldTextId = btoa(unescape(encodeURIComponent(currentInput.value.substring(0, 25)))).replace(/[/+=]/g, "");
+            snapshot = await get(child(ref(db), 'clozes/' + oldTextId));
+            
+            if (snapshot.exists()) {
+                console.log("检测到旧版文本 ID 数据，正在应用状态...");
+            }
         }
     }
 
-    // --- 核心修正点：确保 data 变量被定义 ---
-// 修改 syncDownload 中的恢复逻辑部分
-if (snapshot.exists()) {
-    const data = snapshot.val();
-    manualPositions = data.positions || [];
-    boldPositions = data.boldPositions || [];
-    
-    if (app.classList.contains('exercise-mode')) {
-        renderCloze(); 
+    // 3. 应用数据
+    if (snapshot.exists()) {
+        const data = snapshot.val();
+        manualPositions = data.positions || [];
+        boldPositions = data.boldPositions || [];
         
-        // 恢复阅读进度锚点
-        if (data.topIndex !== undefined) {
-            setTimeout(() => {
-                // 寻找具有对应 data-index 的 span 或 input
-                const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
-                if (targetEl) {
-    // 先瞬间定位到大概位置，取消 smooth 以防干扰
-    targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
-    // 精准补偿高度
-    window.scrollBy(0, -45); 
-}
-            }, 600); // 略微增加延迟确保 DOM 渲染完毕
+        // 只有在练习模式下才执行渲染和滚动
+        if (app.classList.contains('exercise-mode')) {
+            renderCloze(); 
+            
+            // 恢复阅读进度锚点
+            if (data.topIndex !== undefined) {
+                // 增加一点延迟，确保 renderCloze 产生的 DOM 已经插入文档
+                setTimeout(() => {
+                    const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
+                    if (targetEl) {
+                        // 瞬间定位
+                        targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
+                        // 补偿顶部导航栏高度 (35px + 10px 缓冲)
+                        window.scrollBy(0, -45); 
+                    }
+                }, 400); 
+            }
         }
     }
-}
 };
 </script>
 
@@ -335,15 +339,45 @@ function getSentenceByPunct(el) {
 
     return sentenceText;
 }
-window.onload = async () => { // 加上 async
+window.onload = async () => {
     const urlParams = new URLSearchParams(window.location.search);
-    const textFromAnki = urlParams.get('text');
+    const customId = urlParams.get('customid');
+    const textFromQuery = urlParams.get('text'); // 兼容旧版 ?text=
     
-    if (textFromAnki) {
-        inputArea.value = decodeURIComponent(textFromAnki);
+    // --- 1. 获取文本内容 (Hash > Query > Firebase) ---
+    let textToLoad = "";
+    
+    // A. 优先从 Hash (#text=) 获取，解决 URI Too Long
+    const hash = window.location.hash;
+    if (hash && hash.startsWith('#text=')) {
+        textToLoad = decodeURIComponent(hash.substring(6));
+    } 
+    // B. 其次从 Query (?text=) 获取
+    else if (textFromQuery) {
+        textToLoad = decodeURIComponent(textFromQuery);
     }
 
-    // --- 字号逻辑 ---
+    // --- 2. 处理 ID 和 Firebase 加载 ---
+    if (customId) {
+        const id = "cid_" + customId.trim();
+        
+        if (textToLoad) {
+            // 如果拿到了文本，直接赋值并“静默备份”到云端
+            inputArea.value = textToLoad;
+            // 使用 set 而不是 await，不阻塞首屏渲染
+            set(ref(db, 'texts/' + id), textToLoad); 
+        } else {
+            // 如果 URL 没带文本，说明可能是第二次打开，去 Firebase 取全文
+            const contentSnapshot = await get(child(ref(db), 'texts/' + id));
+            if (contentSnapshot.exists()) {
+                inputArea.value = contentSnapshot.val();
+            }
+        }
+    } else if (textToLoad) {
+        inputArea.value = textToLoad;
+    }
+
+    // --- 3. 字号逻辑 ---
     const savedSize = localStorage.getItem('cloze_user_font_size');
     if (savedSize) {
         currentFontSize = parseInt(savedSize);
@@ -354,20 +388,22 @@ window.onload = async () => { // 加上 async
     }
     applyFontSize(currentFontSize);
 
-    // --- 核心修正：立即判断并渲染，不等待异步 ---
+    // --- 4. 核心渲染判断 ---
+    // 确保在执行 syncDownload 前，文本已经渲染成 DOM
     if (inputArea.value.trim()) {
-        // 先手动执行渲染，不依赖带延迟的 toggleMode
         renderCloze(); 
         app.classList.add('exercise-mode');
+        window.scrollTo(0, 0); 
     }
 
-    // 此时逻辑已跑完，显示界面
+    // 此时主逻辑跑完，显示界面
     document.body.classList.add('app-ready');
     
-    // 异步同步放在最后，不阻塞渲染
+    // --- 5. 异步同步状态 (挖空、加粗、位置) ---
+    // 延迟缩短到 500ms，因为文本加载已经提前处理了
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
-    }, 1000);
+    }, 500);
 };
 
 // 确保有这个统一应用函数
