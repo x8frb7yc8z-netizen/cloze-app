@@ -217,20 +217,13 @@ window.syncUpload = async function() {
     if (!id) return;
     
     const topIdx = getTopWordIndex();
-    const content = inputArea.value; // 获取全文
 
-    // 存储进度和样式
     set(ref(db, 'clozes/' + id), { 
+        content: inputArea.value,       // 新增：保存全文正文
         positions: manualPositions, 
         boldPositions: boldPositions, 
         topIndex: topIdx,
         ts: Date.now() 
-    });
-
-    // 存储文本内容 (只有内容变化时存一次即可，或者每次都存)
-    set(ref(db, 'texts/' + id), {
-        content: content,
-        ts: Date.now()
     });
 };
 window.syncDownload = async function() {
@@ -243,42 +236,66 @@ window.syncDownload = async function() {
 
     let snapshot = await get(child(ref(db), 'clozes/' + id));
     
-    // 兼容逻辑：查找旧 ID
-    if (!snapshot.exists() && hasCustomId) {
+    // 兼容逻辑：查找旧 ID（基于文本前25位生成的 ID）
+    if (!snapshot.exists() && hasCustomId && currentInput.value.trim()) {
         const oldTextId = btoa(unescape(encodeURIComponent(currentInput.value.substring(0, 25)))).replace(/[/+=]/g, "");
         snapshot = await get(child(ref(db), 'clozes/' + oldTextId));
-        
-        if (snapshot.exists()) {
-            console.log("检测到旧版文本 ID 数据，已成功加载。");
-        }
+        if (snapshot.exists()) console.log("检测到旧版文本 ID 数据。");
     }
 
-    // --- 核心修正点：确保 data 变量被定义 ---
-// 修改 syncDownload 中的恢复逻辑部分
-if (snapshot.exists()) {
-    const data = snapshot.val();
-    manualPositions = data.positions || [];
-    boldPositions = data.boldPositions || [];
-    
-    if (app.classList.contains('exercise-mode')) {
-        renderCloze(); 
+    if (snapshot.exists()) {
+        const data = snapshot.val();
+
+        // --- 核心逻辑：正文恢复 ---
+        // 如果当前输入框是空的，且数据库里存有正文，则填充正文并渲染
+        if (!currentInput.value.trim() && data.content) {
+            currentInput.value = data.content;
+            renderCloze();
+            app.classList.add('exercise-mode'); // 自动进入练习模式
+        }
+
+        manualPositions = data.positions || [];
+        boldPositions = data.boldPositions || [];
         
-        // 恢复阅读进度锚点
-        if (data.topIndex !== undefined) {
-            setTimeout(() => {
-                // 寻找具有对应 data-index 的 span 或 input
-                const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
-                if (targetEl) {
-    // 先瞬间定位到大概位置，取消 smooth 以防干扰
-    targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
-    // 精准补偿高度
-    window.scrollBy(0, -45); 
-}
-            }, 600); // 略微增加延迟确保 DOM 渲染完毕
+        // 只有在练习模式下才执行渲染和定位
+        if (app.classList.contains('exercise-mode')) {
+            renderCloze(); 
+            
+            // 恢复阅读进度锚点
+            if (data.topIndex !== undefined) {
+                setTimeout(() => {
+                    const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
+                    if (targetEl) {
+                        targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
+                        window.scrollBy(0, -45); // 补偿导航条高度
+                    }
+                }, 600); 
+            }
         }
     }
-}
 };
+window.addEventListener('message', async (event) => {
+    // 确保消息来自可靠源（或检查类型）
+    if (event.data.type === 'ANKI_SYNC_DATA') {
+        const { text } = event.data;
+        if (!text) return;
+
+        // 如果目前没内容，填充并渲染
+        if (!inputArea.value.trim()) {
+            inputArea.value = text;
+            renderCloze();
+            app.classList.add('exercise-mode');
+            
+            // 自动检查云端是否有备份，没有则存一份
+            const id = window.getDocId();
+            const snapshot = await get(child(ref(db), 'clozes/' + id));
+            if (!snapshot.exists()) {
+                console.log("云端无此文章，正在自动创建备份...");
+                window.syncUpload();
+            }
+        }
+    }
+});
 </script>
 
 <script>
@@ -343,17 +360,12 @@ function getSentenceByPunct(el) {
 
     return sentenceText;
 }
-window.onload = async () => {
+window.onload = async () => { // 加上 async
     const urlParams = new URLSearchParams(window.location.search);
-    const textFromUrl = urlParams.get('text');
-    const customId = urlParams.get('customid');
-    const dbId = customId ? "cid_" + customId.trim() : null;
+    const textFromAnki = urlParams.get('text');
     
-    if (textFromUrl) {
-        inputArea.value = decodeURIComponent(textFromUrl);
-    } else if (dbId) {
-        // 如果 URL 太长没传文本，则从 DB 抓取
-        await window.fetchTextFromDB(dbId);
+    if (textFromAnki) {
+        inputArea.value = decodeURIComponent(textFromAnki);
     }
 
     // --- 字号逻辑 ---
@@ -383,17 +395,6 @@ window.onload = async () => {
     }, 1000);
 };
 
-// 在你的 syncDownload 逻辑附近增加或修改
-window.fetchTextFromDB = async function(id) {
-    if (!id) return;
-    // 假设你在 Firebase 中存储文本的路径是 'texts/cid_xxx'
-    // 你需要在上传端(syncUpload)同步把 inputArea.value 也存进去
-    const snapshot = await get(child(ref(db), 'texts/' + id));
-    if (snapshot.exists()) {
-        inputArea.value = snapshot.val().content;
-        renderCloze(); // 抓取到文本后立即渲染
-    }
-};
 // 确保有这个统一应用函数
 function applyFontSize(size) {
     inputArea.style.fontSize = clozeContent.style.fontSize = size + "px";
