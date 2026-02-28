@@ -5,7 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>极简完形填空 Pro Sync</title>
 <style>
-
+/* 句子高亮样式 - 淡黄色背景 */
+.sentence-highlight {
+    background-color: #fdf6e3 !important; /* 极淡的黄色 */
+    border-radius: 2px;
+}
 /* 按钮抖动动画 */
 @keyframes shake {
     0%, 100% { transform: translateX(0); }
@@ -204,7 +208,7 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
         <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
 	<button class="exercise-only" onclick="copyFullText()" style="background:#f3e5f5;">复制</button>
 	<button id="searchModeBtn" class="exercise-only" onclick="toggleSearchMode()" style="background:#e1f5fe;">图片</button>
-	<button id="boldModeBtn" class="exercise-only" onclick="toggleBoldMode()" style="background:#e8f5e9;">粗体</button>
+	<button id="highlightModeBtn" class="exercise-only" onclick="toggleHighlightMode()" style="background:#fffde7;">背景</button> <button id="boldModeBtn" class="exercise-only" onclick="toggleBoldMode()" style="background:#e8f5e9;">粗体</button>
         <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">挖空: 关</button>
         <div class="font-ctrl edit-only">
              <button class="font-btn" onclick="changeFontSize(-2)">A-</button>
@@ -338,6 +342,7 @@ window.syncUpload = async function() {
         content: inputArea.value,       // 新增：保存全文正文
         positions: manualPositions, 
         boldPositions: boldPositions, 
+	highlightPositions: highlightPositions, // 新增
         topIndex: topIdx,
         ts: Date.now() 
     });
@@ -372,6 +377,7 @@ window.syncDownload = async function() {
 
         manualPositions = data.positions || [];
         boldPositions = data.boldPositions || [];
+	highlightPositions = data.highlightPositions || []; // 新增
         
         // 只有在练习模式下才执行渲染和定位
         if (app.classList.contains('exercise-mode')) {
@@ -422,6 +428,7 @@ let boldPositions = [];
 let isBoldMode = false; // 新增状态
 let answers = [];
 let isSearchMode = false;
+let highlightPositions = []; // 存储高亮单词的索引
 
 const app = document.getElementById('app');
 const inputArea = document.getElementById('inputText');
@@ -546,16 +553,18 @@ async function toggleMode(isExercise) {
 }
 
 function renderCloze() {
+    // 关键修改：调整正则，保留空格作为一个独立的 segment 进行处理
     const segments = inputArea.value.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
     answers = [];
     let unitCount = 0;
 
     clozeContent.innerHTML = segments.map(seg => {
-        if (!seg || !seg.trim()) return seg;
+        if (!seg) return ""; // 过滤空字符串
+        
         const idx = unitCount++;
         const isChinese = /[\u4e00-\u9fa5]/.test(seg);
+        const isWhitespace = /^\s+$/.test(seg); // 判断是否为纯空格/换行
 
-        // 优先判断挖空
         if (manualPositions.includes(idx)) {
             answers.push(seg);
             const boxWidth = isChinese ? 2 : (seg.length + 0.1); 
@@ -565,10 +574,16 @@ function renderCloze() {
                     placeholder="${isChinese ? '?' : getHint(seg)}">`;
         }
         
-        // 判断是否加粗
-        const boldClass = boldPositions.includes(idx) ? 'word-bold' : '';
-        return `<span class="word-span ${boldClass}" data-index="${idx}">${seg}</span>`;
+        // 判断样式：加粗 和 高亮
+        const classes = ["word-span"]; // 统一添加 word-span 类，确保点击和索引逻辑一致
+        if (boldPositions.includes(idx)) classes.push('word-bold');
+        if (highlightPositions.includes(idx)) classes.push('sentence-highlight');
+
+        // 如果是空格且具有高亮/加粗属性，包裹 span 渲染；
+        // 如果是普通空格，也包裹 span 以保证索引连续性，但样式为空
+        return `<span class="${classes.join(' ')}" data-index="${idx}">${seg}</span>`;
     }).join("");
+    
     bindEvents();
 }
 
@@ -869,6 +884,30 @@ window.addEventListener('scroll', () => {
         savePositions();
     }, 1000); // 停止滚动 1 秒后自动上传
 });
+
+window.toggleHighlightMode = function() {
+    const indices = getTargetIndices();
+    if (indices.length === 0) {
+        triggerButtonError('highlightModeBtn');
+        return;
+    }
+
+    // 逻辑：如果选中的索引里，有一个没高亮，那就全部高亮；否则全部取消
+    const anyNotHighlighted = indices.some(idx => !highlightPositions.includes(idx));
+
+    if (anyNotHighlighted) {
+        // 批量加入高亮列表
+        indices.forEach(idx => {
+            if (!highlightPositions.includes(idx)) highlightPositions.push(idx);
+        });
+    } else {
+        // 全部取消高亮
+        highlightPositions = highlightPositions.filter(idx => !indices.includes(idx));
+    }
+
+    savePositions();
+    renderCloze();
+};
 </script>
 </body>
 </html>
