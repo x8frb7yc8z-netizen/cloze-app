@@ -247,39 +247,36 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
   const db = getDatabase(fbApp);
 
 // --- 核心修改：定义实时同步函数 ---
-  window.startRealtimeSync = function() {
+window.startRealtimeSync = function() {
     const id = window.getDocId();
     if (!id) return;
 
     const dbRef = ref(db, 'clozes/' + id);
     
-    // 使用 onValue 监听，只要云端数据一变，这个回调函数就会执行
     onValue(dbRef, (snapshot) => {
+        // [关键] 如果本地正在执行初始恢复，忽略云端的推送，防止定位冲突
+        if (isRestoring) return; 
+
         if (snapshot.exists()) {
             const data = snapshot.val();
             const currentInput = document.getElementById('inputText');
 
-            // 关键判断：只有当云端内容和本地内容【不一致】时，才更新本地
-            // 这样可以避免你自己输入时，光标被云端同步强行重置
             if (data.content !== undefined && data.content !== currentInput.value) {
                 currentInput.value = data.content;
-                // 如果在练习模式，数据变了就重新渲染界面
-                if (document.getElementById('app').classList.contains('exercise-mode')) {
+                if (app.classList.contains('exercise-mode')) {
                     renderCloze(); 
                 }
             }
 
-            // 同步挖空和加粗位置
             manualPositions = data.positions || [];
             boldPositions = data.boldPositions || [];
             
-            // 如果已经在练习模式，实时刷新挖空状态
-            if (document.getElementById('app').classList.contains('exercise-mode')) {
+            if (app.classList.contains('exercise-mode')) {
                 renderCloze();
             }
         }
     });
-  };
+};
 
 window.getDocId = function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -325,52 +322,45 @@ window.syncUpload = async function() {
     });
 };
 window.syncDownload = async function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasCustomId = !!urlParams.get('customid');
-    const currentInput = document.getElementById('inputText'); 
-    
     const id = window.getDocId();
-    if (!id || !currentInput) return;
+    if (!id) { isRestoring = false; return; }
 
+    const currentInput = document.getElementById('inputText'); 
     let snapshot = await get(child(ref(db), 'clozes/' + id));
     
-    // 兼容逻辑：查找旧 ID（基于文本前25位生成的 ID）
-    if (!snapshot.exists() && hasCustomId && currentInput.value.trim()) {
-        const oldTextId = btoa(unescape(encodeURIComponent(currentInput.value.substring(0, 25)))).replace(/[/+=]/g, "");
-        snapshot = await get(child(ref(db), 'clozes/' + oldTextId));
-        if (snapshot.exists()) console.log("检测到旧版文本 ID 数据。");
-    }
-
     if (snapshot.exists()) {
         const data = snapshot.val();
 
-        // --- 核心逻辑：正文恢复 ---
-        // 如果当前输入框是空的，且数据库里存有正文，则填充正文并渲染
+        // 恢复正文
         if (!currentInput.value.trim() && data.content) {
             currentInput.value = data.content;
             renderCloze();
-            app.classList.add('exercise-mode'); // 自动进入练习模式
+            app.classList.add('exercise-mode');
         }
 
         manualPositions = data.positions || [];
         boldPositions = data.boldPositions || [];
         
-        // 只有在练习模式下才执行渲染和定位
         if (app.classList.contains('exercise-mode')) {
             renderCloze(); 
             
-            // 恢复阅读进度锚点
+            // 恢复阅读进度
             if (data.topIndex !== undefined) {
-                setTimeout(() => {
-                    const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
-                    if (targetEl) {
-                        targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
-                        window.scrollBy(0, -45); // 补偿导航条高度
-                    }
-                }, 600); 
+                const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
+                if (targetEl) {
+                    // 跳转动作会触发 scroll 事件，但因为 isRestoring 为 true，不会触发上传
+                    targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
+                    window.scrollBy(0, -45); 
+                }
             }
         }
     }
+
+    // [关键] 延迟 1 秒解除锁定，确保所有因跳转产生的滚动事件已处理完毕
+    setTimeout(() => {
+        isRestoring = false;
+        console.log(">>> 进度恢复完毕，实时同步功能已激活");
+    }, 1000);
 };
 window.addEventListener('message', async (event) => {
     // 确保消息来自可靠源（或检查类型）
@@ -398,6 +388,7 @@ window.addEventListener('message', async (event) => {
 
 <script>
 // 常规业务逻辑
+let isRestoring = false;
 let currentFontSize = 26;
 let manualPositions = [];
 let boldPositions = [];
@@ -405,9 +396,11 @@ let isBoldMode = false; // 新增状态
 let answers = [];
 let isSearchMode = false;
 
+	
 const app = document.getElementById('app');
 const inputArea = document.getElementById('inputText');
 const clozeContent = document.getElementById('clozeContent');
+	
 
 function getSentenceByPunct(el) {
     if (!el || !el.classList.contains('word-span')) return null;
@@ -459,7 +452,9 @@ function getSentenceByPunct(el) {
 
     return sentenceText;
 }
-window.onload = async () => { // 加上 async
+window.onload = async () => {
+    isRestoring = true; // [关键] 开启锁定，防止初始化渲染引起的滚动触发上传
+
     const urlParams = new URLSearchParams(window.location.search);
     const textFromAnki = urlParams.get('text');
     
@@ -467,7 +462,7 @@ window.onload = async () => { // 加上 async
         inputArea.value = decodeURIComponent(textFromAnki);
     }
 
-    // --- 字号逻辑 ---
+    // 字号逻辑
     const savedSize = localStorage.getItem('cloze_user_font_size');
     if (savedSize) {
         currentFontSize = parseInt(savedSize);
@@ -476,27 +471,25 @@ window.onload = async () => { // 加上 async
         const isNarrowScreen = window.innerWidth < 500;
         currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
     }
-	const id = window.getDocId();
+    
+    const id = window.getDocId();
     if (id && window.startRealtimeSync) {
         window.startRealtimeSync(); 
     }
-	
-    applyFontSize(currentFontSize);
 
-    // --- 核心修正：立即判断并渲染，不等待异步 ---
+    // 初始渲染
     if (inputArea.value.trim()) {
-        // 先手动执行渲染，不依赖带延迟的 toggleMode
         renderCloze(); 
         app.classList.add('exercise-mode');
     }
-
-    // 此时逻辑已跑完，显示界面
+    
+    applyFontSize(currentFontSize);
     document.body.classList.add('app-ready');
     
-    // 异步同步放在最后，不阻塞渲染
+    // 延迟触发下载，确保 DOM 已经渲染完毕
     setTimeout(() => { 
         if(window.syncDownload) window.syncDownload(); 
-    }, 1000);
+    }, 500);
 };
 
 // 确保有这个统一应用函数
@@ -774,18 +767,13 @@ function getHint(w) { return w.length <= 2 ? w[0] + "_" : w[0] + "_".repeat(w.le
 
 
 function savePositions() { 
-    // 记录当前滚动高度（像素值）
+    // 如果正在恢复中，直接拦截，不执行任何上传操作
+    if (isRestoring) return; 
+    
     window.currentScrollPos = window.scrollY;
     
-    if (window.syncUpload) window.syncUpload();
-}
-inputArea.oninput = savePositions;
-function handleClear() {
-    if(confirm("确定清空吗？")) {
-        inputArea.value = "";
-        manualPositions = [];
-        savePositions();
-        renderCloze();
+    if (window.syncUpload) {
+        window.syncUpload();
     }
 }
 // 新增：复制全文函数
