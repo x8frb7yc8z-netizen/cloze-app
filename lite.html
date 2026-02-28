@@ -911,63 +911,6 @@ window.toggleHighlightMode = function() {
     savePositions();
     renderCloze();
 };
-function initAnkiVideoPlayer() {
-    const video = document.querySelector("video");
-    if (!video) return;
-
-    // 关闭默认控制条
-    video.removeAttribute("controls");
-
-    // 创建播放器区域
-    const playerBar = document.createElement("div");
-    playerBar.style.display = "flex";
-    playerBar.style.gap = "8px";
-    playerBar.style.padding = "8px";
-    playerBar.style.background = "#f5f5f5";
-    playerBar.style.borderRadius = "6px";
-    playerBar.style.marginTop = "6px";
-
-    playerBar.innerHTML = `
-        <button id="v-play">▶</button>
-        <button id="v-back">⏪5s</button>
-        <button id="v-forward">5s⏩</button>
-        <button id="v-speed">1x</button>
-    `;
-
-    video.parentNode.insertBefore(playerBar, video.nextSibling);
-
-    bindVideoControls(video);
-}
-function bindVideoControls(video) {
-    const playBtn = document.getElementById("v-play");
-    const backBtn = document.getElementById("v-back");
-    const forwardBtn = document.getElementById("v-forward");
-    const speedBtn = document.getElementById("v-speed");
-
-    playBtn.onclick = () => {
-        if (video.paused) {
-            video.play();
-            playBtn.innerText = "⏸";
-        } else {
-            video.pause();
-            playBtn.innerText = "▶";
-        }
-    };
-
-    backBtn.onclick = () => video.currentTime -= 5;
-    forwardBtn.onclick = () => video.currentTime += 5;
-
-    const speeds = [1, 1.25, 1.5, 2];
-    speedBtn.onclick = () => {
-        let i = speeds.indexOf(video.playbackRate);
-        i = (i + 1) % speeds.length;
-        video.playbackRate = speeds[i];
-        speedBtn.innerText = speeds[i] + "x";
-    };
-}
-setTimeout(() => {
-    initAnkiVideoPlayer();
-}, 400);
 </script>
 </body>
 </html>
