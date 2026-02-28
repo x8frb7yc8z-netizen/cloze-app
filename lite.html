@@ -231,7 +231,7 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
 </div>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";;
 
   const firebaseConfig = {
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
@@ -245,6 +245,41 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
 
   const fbApp = initializeApp(firebaseConfig);
   const db = getDatabase(fbApp);
+
+// --- 核心修改：定义实时同步函数 ---
+  window.startRealtimeSync = function() {
+    const id = window.getDocId();
+    if (!id) return;
+
+    const dbRef = ref(db, 'clozes/' + id);
+    
+    // 使用 onValue 监听，只要云端数据一变，这个回调函数就会执行
+    onValue(dbRef, (snapshot) => {
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            const currentInput = document.getElementById('inputText');
+
+            // 关键判断：只有当云端内容和本地内容【不一致】时，才更新本地
+            // 这样可以避免你自己输入时，光标被云端同步强行重置
+            if (data.content !== undefined && data.content !== currentInput.value) {
+                currentInput.value = data.content;
+                // 如果在练习模式，数据变了就重新渲染界面
+                if (document.getElementById('app').classList.contains('exercise-mode')) {
+                    renderCloze(); 
+                }
+            }
+
+            // 同步挖空和加粗位置
+            manualPositions = data.positions || [];
+            boldPositions = data.boldPositions || [];
+            
+            // 如果已经在练习模式，实时刷新挖空状态
+            if (document.getElementById('app').classList.contains('exercise-mode')) {
+                renderCloze();
+            }
+        }
+    });
+  };
 
 window.getDocId = function() {
     const urlParams = new URLSearchParams(window.location.search);
@@ -276,23 +311,19 @@ function getTopWordIndex() {
 	
 // 修改你的 syncUpload
 window.syncUpload = async function() {
-    if (isDownloading) return; // 如果正在恢复进度，严禁上传！
-    
     const id = window.getDocId();
     if (!id) return;
     
     const topIdx = getTopWordIndex();
+
     set(ref(db, 'clozes/' + id), { 
-        content: inputArea.value,
+        content: inputArea.value,       // 新增：保存全文正文
         positions: manualPositions, 
         boldPositions: boldPositions, 
         topIndex: topIdx,
         ts: Date.now() 
     });
 };
-/ 1. 在脚本开头定义一个全局锁
-let isDownloading = false; 
-
 window.syncDownload = async function() {
     const urlParams = new URLSearchParams(window.location.search);
     const hasCustomId = !!urlParams.get('customid');
@@ -301,55 +332,44 @@ window.syncDownload = async function() {
     const id = window.getDocId();
     if (!id || !currentInput) return;
 
-    // --- 开启下载锁定 ---
-    isDownloading = true; 
-
     let snapshot = await get(child(ref(db), 'clozes/' + id));
     
+    // 兼容逻辑：查找旧 ID（基于文本前25位生成的 ID）
     if (!snapshot.exists() && hasCustomId && currentInput.value.trim()) {
         const oldTextId = btoa(unescape(encodeURIComponent(currentInput.value.substring(0, 25)))).replace(/[/+=]/g, "");
         snapshot = await get(child(ref(db), 'clozes/' + oldTextId));
+        if (snapshot.exists()) console.log("检测到旧版文本 ID 数据。");
     }
 
     if (snapshot.exists()) {
         const data = snapshot.val();
 
-        // 恢复数据到变量
+        // --- 核心逻辑：正文恢复 ---
+        // 如果当前输入框是空的，且数据库里存有正文，则填充正文并渲染
         if (!currentInput.value.trim() && data.content) {
             currentInput.value = data.content;
+            renderCloze();
+            app.classList.add('exercise-mode'); // 自动进入练习模式
         }
+
         manualPositions = data.positions || [];
         boldPositions = data.boldPositions || [];
         
-        if (currentInput.value.trim()) {
+        // 只有在练习模式下才执行渲染和定位
+        if (app.classList.contains('exercise-mode')) {
             renderCloze(); 
-            app.classList.add('exercise-mode');
-
+            
             // 恢复阅读进度锚点
             if (data.topIndex !== undefined) {
-                let retryCount = 0;
-                const scrollInterval = setInterval(() => {
+                setTimeout(() => {
                     const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
                     if (targetEl) {
-                        clearInterval(scrollInterval);
                         targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
-                        window.scrollBy(0, -45); 
-                        // 定位成功后，延迟 1.5 秒再解锁，确保滚动彻底静止
-                        setTimeout(() => { isDownloading = false; }, 1500);
-                    } else if (retryCount > 20) { 
-                        clearInterval(scrollInterval);
-                        isDownloading = false; // 失败也要解锁
+                        window.scrollBy(0, -45); // 补偿导航条高度
                     }
-                    retryCount++;
-                }, 100);
-            } else {
-                isDownloading = false; // 无进度数据则直接解锁
+                }, 600); 
             }
-        } else {
-            isDownloading = false;
         }
-    } else {
-        isDownloading = false; // 无快照则解锁
     }
 };
 window.addEventListener('message', async (event) => {
@@ -456,6 +476,11 @@ window.onload = async () => { // 加上 async
         const isNarrowScreen = window.innerWidth < 500;
         currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
     }
+	const id = window.getDocId();
+    if (id && window.startRealtimeSync) {
+        window.startRealtimeSync(); 
+    }
+	
     applyFontSize(currentFontSize);
 
     // --- 核心修正：立即判断并渲染，不等待异步 ---
