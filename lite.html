@@ -296,17 +296,35 @@ window.getDocId = function() {
     } catch(e) { return "default_doc"; }
 }
 
-// 获取当前屏幕顶端单词索引的函数
+let lastValidIndex = 0; // 全局缓存，防止意外
+
 function getTopWordIndex() {
-    // 偏移量：35px 是你导航条的高度，再加 10px 缓冲，避免选到被挡住的词
-    const offset = 45; 
-    const x = window.innerWidth / 2; // 取横向中间点
-    const el = document.elementFromPoint(x, offset);
+    const x = window.innerWidth / 2;
+    const baseOffset = 60; // 探测基准线
     
-    if (el && el.dataset.index) {
-        return parseInt(el.dataset.index);
+    // 探测点序列：基准线、向上10px、向下10px、向下20px
+    const offsets = [baseOffset, baseOffset - 10, baseOffset + 10, baseOffset + 20, baseOffset + 30];
+    
+    for (let y of offsets) {
+        const el = document.elementFromPoint(x, y);
+        // 必须是 word-span 且 必须有 index
+        if (el && el.classList.contains('word-span') && el.dataset.index) {
+            const idx = parseInt(el.dataset.index);
+            if (idx > 0) {
+                lastValidIndex = idx; // 更新缓存
+                return idx;
+            }
+        }
     }
-    return 0;
+
+    // --- 兜底逻辑 ---
+    // 如果所有探测点都落在了空白处（比如剧本的超长换行）
+    if (window.scrollY > 100) {
+        console.log("检测到剧本间隙，维持最后有效位置:", lastValidIndex);
+        return lastValidIndex; 
+    }
+    
+    return 0; // 只有在真正的页面顶部才返回 0
 }
 	
 // 修改你的 syncUpload
