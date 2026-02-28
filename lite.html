@@ -218,11 +218,7 @@ html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-appl
         <button class="btn-primary edit-only" onclick="toggleMode(true)">开始练习</button>
         <button class="btn-primary exercise-only" onclick="toggleMode(false)">← 返回修改</button>
     </nav>
-    <div id="video-container" style="display:none; width:100%; background:#000; position:sticky; top:35px; z-index:100;">
-    <video id="main-video" controls style="width:100%; max-height:40vh;">
-        您的浏览器不支持视频播放。
-    </video>
-</div>
+
     <main class="main-area">
         <textarea id="inputText" placeholder="在此粘贴文章内容..."></textarea>
         <div id="clozeContent"></div>
@@ -405,15 +401,7 @@ window.addEventListener('message', async (event) => {
     if (event.data.type === 'ANKI_SYNC_DATA') {
         const { text } = event.data;
         if (!text) return;
-		// --- 新增视频处理逻辑 ---
-        if (videoSrc) {
-            const videoEl = document.getElementById('main-video');
-            const videoContainer = document.getElementById('video-container');
-            
-            videoEl.src = videoSrc; // videoSrc 应该是文件名，如 "lesson1.mp4"
-            videoContainer.style.display = 'block';
-            videoEl.load(); // 重新加载视频源
-        }
+
         // 如果目前没内容，填充并渲染
         if (!inputArea.value.trim()) {
             inputArea.value = text;
