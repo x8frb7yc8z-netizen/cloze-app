@@ -263,15 +263,20 @@ window.getDocId = function() {
 
 // 获取当前屏幕顶端单词索引的函数
 function getTopWordIndex() {
-    // 偏移量：35px 是你导航条的高度，再加 10px 缓冲，避免选到被挡住的词
-    const offset = 45; 
-    const x = window.innerWidth / 2; // 取横向中间点
-    const el = document.elementFromPoint(x, offset);
+    const offset = 50; 
+    const x = window.innerWidth / 2;
+    let el = document.elementFromPoint(x, offset);
     
+    // 如果没点到单词，尝试向下偏移一点再点一次
+    if (!el || !el.dataset.index) {
+        el = document.elementFromPoint(x, offset + 20);
+    }
+
     if (el && el.dataset.index) {
         return parseInt(el.dataset.index);
     }
-    return 0;
+    // 如果还是没点到，说明可能在空白处，保持上一次已知的 topIndex 或不做更新
+    return window.lastKnownTopIdx || 0; 
 }
 	
 // 修改你的 syncUpload
@@ -280,9 +285,12 @@ window.syncUpload = async function() {
     if (!id) return;
     
     const topIdx = getTopWordIndex();
+    
+    // 保护：如果 topIdx 为 0 且当前滚动高度明明很大，说明获取失败，不予覆盖
+    if (topIdx === 0 && window.scrollY > 100) return;
 
     set(ref(db, 'clozes/' + id), { 
-        content: inputArea.value,       // 新增：保存全文正文
+        content: inputArea.value,
         positions: manualPositions, 
         boldPositions: boldPositions, 
         topIndex: topIdx,
@@ -321,19 +329,23 @@ window.syncDownload = async function() {
         boldPositions = data.boldPositions || [];
         
         // 只有在练习模式下才执行渲染和定位
-        if (app.classList.contains('exercise-mode')) {
-            renderCloze(); 
-            
-            // 恢复阅读进度锚点
-            if (data.topIndex !== undefined) {
-                setTimeout(() => {
-                    const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
-                    if (targetEl) {
-                        targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
-                        window.scrollBy(0, -45); // 补偿导航条高度
-                    }
-                }, 600); 
-            }
+        if (data.topIndex !== undefined) {
+    let retryCount = 0;
+    const performScroll = () => {
+        const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
+        if (targetEl) {
+            targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
+            window.scrollBy(0, -45);
+            console.log("进度恢复成功:", data.topIndex);
+        }
+        // Anki 渲染有时会抖动，执行两次定位更稳
+        if (retryCount < 2) {
+            retryCount++;
+            setTimeout(performScroll, 300);
+        }
+    };
+    setTimeout(performScroll, 400); 
+}
         }
     }
 };
