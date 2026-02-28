@@ -434,40 +434,50 @@ function getSentenceByPunct(el) {
     const children = Array.from(parent.childNodes);
     const index = children.indexOf(el);
     
-    // 定义硬性句子边界：点、感叹号、问号、冒号、分号（中文也包含）
-    // 注意：这里不包含 \n，所以它会跨行寻找
-    const boundary = /[().!?。！？；;]/;
+    // 1. 定义边界：增加了对中括号 [ ] 的转义支持
+    const boundary = /[\[\]().!?。！？；;]/;
 
     let start = index;
     let end = index;
 
-    // 向前寻找上一个句子的结尾（即本句的开始）
+    // 2. 向前寻找：直到撞到标点边界
     while (start > 0) {
         const prevText = children[start - 1].textContent;
-        // 如果前一个节点包含标点，说明本句从这里开始
         if (boundary.test(prevText)) break;
         start--;
     }
 
-    // 向后寻找本句的结尾（即撞到下一个标点）
+    // 3. 向后寻找：直到撞到下一个标点
     while (end < children.length - 1) {
         const currentText = children[end].textContent;
         if (boundary.test(currentText)) {
-            end++; // 包含这个标点符号
+            end++; 
             break;
         }
         end++;
     }
 
-    const sentenceNodes = children.slice(start, end);
+    // 4. 核心优化：去除选区两端的纯空白节点
+    // 这样可以防止高亮区域（蓝色背景）包含大段的换行空白
+    let sentenceNodes = children.slice(start, end);
+    while (sentenceNodes.length > 0 && !sentenceNodes[0].textContent.trim()) {
+        sentenceNodes.shift();
+    }
+    while (sentenceNodes.length > 0 && !sentenceNodes[sentenceNodes.length - 1].textContent.trim()) {
+        sentenceNodes.pop();
+    }
+
+    if (sentenceNodes.length === 0) return null;
+
+    // 5. 格式化提取的文本
     const sentenceText = sentenceNodes
         .map(n => n.textContent)
-        .join("")                      // 先合并
-        .replace(/\n/g, " ")           // 1. 将所有换行符替换为空格
-        .replace(/\s\s+/g, " ")        // 2. 将连续的多个空格合并为一个空格
-        .trim();                       // 3. 去掉首尾多余空白
+        .join("")
+        .replace(/\n/g, " ")       // 将换行转为空格
+        .replace(/\s\s+/g, " ")    // 合并连续空格
+        .trim();
 
-    // 视觉高亮选中
+    // 6. 视觉高亮：只选中过滤后的文字节点
     const range = document.createRange();
     range.setStartBefore(sentenceNodes[0]);
     range.setEndAfter(sentenceNodes[sentenceNodes.length - 1]);
@@ -696,21 +706,30 @@ function bindEvents() {
         const target = e.target;
         const isWord = target.classList.contains('word-span');
         const isInput = target.tagName === 'INPUT';
-
+        
         if (!app.classList.contains('exercise-mode')) return;
 
-        // A. 重置/恢复逻辑 (针对输入框，保留原逻辑)
-        if (isInput && (isCPressed || isDeleteMode)) {
-            recover(target, false);
-            return;
+        // --- 核心：重置模式 (编辑模式) ---
+        if (isDeleteMode) {
+            const idx = parseInt(target.dataset.index);
+            if (isWord) {
+                // 如果没挖，就挖掉
+                if (!manualPositions.includes(idx)) manualPositions.push(idx);
+            } else if (isInput) {
+                // 如果已挖，点击输入框就还原
+                manualPositions = manualPositions.filter(i => i !== idx);
+            }
+            savePositions();
+            renderCloze();
+            return; // 拦截，不触发复制
         }
 
-        // B. 点击单词：核心变为选中并复制
+        // --- 核心：正常模式 (学习模式) ---
         if (isWord) {
-            const textToCopy = target.innerText.trim();
-            copyToClipboard(textToCopy);
+            // 单击复制单词
+            copyToClipboard(target.innerText.trim());
             
-            // 关键：强制视觉选中该单词，作为后续按钮的操作目标
+            // 视觉选中 (方便你看图或查词)
             const range = document.createRange();
             range.selectNodeContents(target);
             const sel = window.getSelection();
@@ -718,39 +737,15 @@ function bindEvents() {
             sel.addRange(range);
         }
     };
-    // 2. 处理双击 (PC端复制整句)
+
+    // 保留双击仅用于：非重置模式下复制整句
     clozeContent.ondblclick = (e) => {
         const target = e.target;
-        if (!target.classList.contains('word-span')) return;
-        
-        // 如果处于加粗或重置模式，双击不触发复制整句，避免逻辑混乱
-        if (isBoldMode || isDeleteMode) return;
-
-        e.preventDefault();
-        e.stopPropagation(); // 阻止冒泡
-
-        const txt = getSentenceByPunct(target);
-        if (txt) {
-            copyToClipboard(txt);
-            // 视觉反馈：清除之前的单词选中，改为整句选中（getSentenceByPunct 内部已处理选中）
+        if (!isDeleteMode && target.classList.contains('word-span')) {
+            const txt = getSentenceByPunct(target);
+            if (txt) copyToClipboard(txt);
         }
     };
-
-    // --- 移动端双触支持 ---
-    let lastTapTime = 0;
-    clozeContent.addEventListener('touchend', (e) => {
-        const now = performance.now();
-        if (now - lastTapTime < 300 && e.changedTouches.length === 1) {
-            const target = e.target;
-            // 只有在非加粗、非重置模式下，双击才触发复制整句
-            if (target.classList.contains('word-span') && !isDeleteMode && !isBoldMode) {
-                e.preventDefault(); 
-                const txt = getSentenceByPunct(target);
-                if (txt) copyToClipboard(txt);
-            }
-        }
-        lastTapTime = now;
-    }, { passive: false });
 }
 window.toggleSearchMode = function() {
     const selection = window.getSelection();
