@@ -607,19 +607,33 @@ async function copyToClipboard(text) {
 }
 
 
-// 获取当前选中的单词节点
-function getSelectedWordElement() {
+// 获取当前选区覆盖的所有 word-span 的索引数组
+function getSelectedIndices() {
     const selection = window.getSelection();
-    if (!selection.rangeCount) return null;
-    
-    let node = selection.anchorNode;
-    // 如果选中的是文本节点，向上找 span
-    if (node.nodeType === 3) node = node.parentNode;
-    
-    if (node && node.classList.contains('word-span')) {
-        return node;
-    }
-    return null;
+    if (!selection.rangeCount || selection.isCollapsed) return [];
+
+    const range = selection.getRangeAt(0);
+    const container = document.getElementById('clozeContent');
+    const allSpans = container.querySelectorAll('.word-span');
+    const selectedIndices = [];
+
+    allSpans.forEach(span => {
+        // 检查这个 span 是否与用户的选区重叠
+        if (selection.containsNode(span, true)) {
+            selectedIndices.push(parseInt(span.dataset.index));
+        }
+    });
+
+    return selectedIndices;
+}
+// 兼容旧逻辑：如果没选范围，就按之前的方法找单个单词
+function getTargetIndices() {
+    const indices = getSelectedIndices();
+    if (indices.length > 0) return indices;
+
+    // 兜底：如果没有选区（只是点了一下），尝试获取单个单词
+    const single = getSelectedWordElement();
+    return single ? [parseInt(single.dataset.index)] : [];
 }
 // 统一的错误反馈函数
 function triggerButtonError(btnId) {
@@ -630,21 +644,26 @@ function triggerButtonError(btnId) {
         btn.classList.remove('btn-error-shake');
     }, 400); // 动画结束后移除类名
 }
-// 修改后的加粗函数
 window.toggleBoldMode = function() {
-    const target = getSelectedWordElement();
-    if (!target) {
-        triggerButtonError('boldModeBtn'); // 触发按钮动一下
+    const indices = getTargetIndices();
+    if (indices.length === 0) {
+        triggerButtonError('boldModeBtn');
         return;
     }
 
-    const idx = parseInt(target.dataset.index);
-    if (boldPositions.includes(idx)) {
-        boldPositions = boldPositions.filter(i => i !== idx);
+    // 逻辑：如果选中的索引里，有一个没加粗，那就全部加粗；否则全部取消
+    const allBold = indices.every(idx => boldPositions.includes(idx));
+
+    if (allBold) {
+        // 全部取消加粗
+        boldPositions = boldPositions.filter(idx => !indices.includes(idx));
     } else {
-        boldPositions.push(idx);
+        // 批量加入加粗列表（去重）
+        indices.forEach(idx => {
+            if (!boldPositions.includes(idx)) boldPositions.push(idx);
+        });
     }
-    
+
     savePositions();
     renderCloze();
 };
@@ -734,24 +753,45 @@ function bindEvents() {
     }, { passive: false });
 }
 window.toggleSearchMode = function() {
-    const target = getSelectedWordElement();
-    if (!target) {
-        triggerButtonError('searchModeBtn'); // 触发按钮动一下
+    const selection = window.getSelection();
+    let query = "";
+
+    if (!selection.isCollapsed) {
+        // 如果有选区，直接拿选中的文本（去空格和换行）
+        query = selection.toString().trim().replace(/\s+/g, " ");
+    } else {
+        // 没选区，尝试抓单个单词
+        const target = getSelectedWordElement();
+        if (target) query = target.innerText.trim();
+    }
+
+    if (!query) {
+        triggerButtonError('searchModeBtn');
         return;
     }
 
-    const word = target.innerText.trim().replace(/[^\w]/g, "");
-    if (word) {
-        document.getElementById('preview-word-title').innerText = "Bing图片: " + word;
-        const searchUrl = `https://www.bing.com/images/search?q=${word}&form=HDRSC2&adlt=strict`;
-        document.getElementById('preview-iframe').src = searchUrl;
-        document.getElementById('image-preview-container').classList.add('active');
-    }
+    // 限制一下搜索长度，防止误选整篇文档导致 URL 过长
+    const displayTitle = query.length > 15 ? query.substring(0, 15) + "..." : query;
+    document.getElementById('preview-word-title').innerText = "搜索: " + displayTitle;
+    
+    const searchUrl = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&form=HDRSC2&adlt=strict`;
+    document.getElementById('preview-iframe').src = searchUrl;
+    document.getElementById('image-preview-container').classList.add('active');
 };
 
+// 新增：关闭图片预览函数
 window.closeImagePreview = function() {
-    document.getElementById('image-preview-container').classList.remove('active');
-    document.getElementById('preview-iframe').src = ""; // 及时清空减轻内存负担
+    const container = document.getElementById('image-preview-container');
+    const iframe = document.getElementById('preview-iframe');
+    
+    // 1. 移除 active 类，触发 CSS 过渡动画滑出屏幕
+    container.classList.remove('active');
+    
+    // 2. 关键：清空 iframe 地址
+    // 这样做可以停止后台网页运行，并确保下次打开时不会看到上一个单词的残留
+    setTimeout(() => {
+        iframe.src = "";
+    }, 300); 
 };
 // 5. 恢复函数
 function recover(el, showConfirm = true) {
