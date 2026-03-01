@@ -144,13 +144,23 @@ document.getElementById('videoInput').addEventListener('change', (e) => {
 });
 
 window.addEventListener('message', (event) => {
-    // 强制弹窗测试，看 Anki 是否把数据塞进来了
-    alert("收到消息，来源: " + event.origin + " 类型: " + event.data.type);
-    
+    // 调试用，确认数据内容
+    console.log("收到数据:", event.data);
+
     if (event.data.type === 'LOAD_SUBTITLES') {
-        currentNoteId = String(event.data.noteId).trim();
-        // ... 原有逻辑
-        statusBar.innerText = "成功加载 ID: " + currentNoteId;
+        // 1. 强制转为字符串，并移除 Firebase 不允许的字符
+        const rawId = String(event.data.noteId || "default_note");
+        currentNoteId = rawId.replace(/[.#$[\]]/g, '_'); 
+        
+        // 2. 解析并渲染
+        const cues = parseSubtitle(event.data.data);
+        renderSubtitles(cues);
+        
+        // 3. 启动同步
+        startRealtimeSync(currentNoteId);
+        
+        statusBar.innerText = "卡片已激活: " + currentNoteId;
+        console.log("✅ 实时同步已就绪，ID:", currentNoteId);
     }
 });
 
