@@ -4,203 +4,133 @@
     <meta charset="UTF-8">
     <title>AI 意群同步播放器 - White Edition</title>
     <style>
-/* --- 1. 彻底锁定全局横向溢出 --- */
-html, body {
-    width: 100%;
-    margin: 0;
-    padding: 0;
-    overflow-x: hidden; /* 禁止横向滚动 */
-    position: relative;
-    -webkit-overflow-scrolling: touch; /* 优化 iOS 滚动流畅度 */
-}
+        /* --- 1. 全局布局锁定 --- */
+        html, body {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #ffffff;
+            -webkit-overflow-scrolling: touch;
+        }
 
-/* 隐藏顶部状态提示和状态点 */
-#status, .status-dot {
-    display: none !important;
-}
-
-/* --- 1. 移除容器左右留白 --- */
-.transcript-container {
-    flex: 1;
-    overflow-y: auto;
-    /* 修改：上下保留间距，左右设为 0 */
-    padding: 40px 0px !important; 
-    background: #ffffff; 
-}
         :root {
-            --primary: #00a1d6;
-            --primary-light: rgba(0, 161, 214, 0.08);
-            --bg: #ffffff;
-            --header-bg: rgba(255, 255, 255, 0.9);
-            --panel: #f5f5f7;
+            --primary: #007aff; 
             --text-main: #1d1d1f;
             --text-dim: #86868b;
-            --border: #d2d2d7;
-            --line-hover: #f0f0f2;
+            --bg: #ffffff;
+            --active-bg: #f5f5f7;
         }
 
         body {
             font-family: -apple-system, "SF Pro Display", "PingFang SC", sans-serif;
-            background: var(--bg);
-            color: var(--text-main);
-            margin: 0;
             display: flex;
             flex-direction: column;
             height: 100vh;
-            overflow: hidden;
         }
 
-/* 彻底删除 header 高度占位 */
-.header {
-    height: 0;
-    padding: 0;
-    border: none;
-}
+        /* 隐藏顶部冗余状态栏 */
+        .header { height: 0; padding: 0; border: none; overflow: hidden; }
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #d2d2d7;
-            display: inline-block;
-        }
-        .status-dot.active { background: #34c759; box-shadow: 0 0 6px rgba(52, 199, 89, 0.5); }
-
-        #status { font-size: 13px; color: var(--text-dim); flex-grow: 1; }
-
-        /* 按钮样式 - 浅色精致化 */
-.btn-upload {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 200;
-    background: rgba(255, 255, 255, 0.2) !important; /* 半透明 */
-    color: white !important;
-    border: none !important;
-    backdrop-filter: blur(5px);
-    opacity: 0.3;
-    transition: opacity 0.3s;
-}
-.btn-upload:hover {
-    opacity: 1;
-    background: rgba(255, 255, 255, 0.4) !important;
-}
-
-        input[type="file"] { display: none; }
-
-        .main-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        /* 视频容器 */
+        /* --- 2. 视频区域 --- */
         .video-wrapper {
             flex: 0 0 auto;
-            background: #000; /* 视频区域保持黑色以防漏光干扰 */
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: #000;
+            width: 100%;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
         }
         video {
-            max-height: 45vh;
             width: 100%;
+            max-height: 40vh;
             display: block;
         }
 
-        /* 字幕列表区 */
+        /* --- 3. 字幕容器 --- */
         .transcript-container {
             flex: 1;
             overflow-y: auto;
-            padding: 20px;
-            background: var(--bg);
-        }
-        
-/* --- 字幕行样式：去掉卡片框，改为居中纯文本 --- */
-.line {
-    padding: 10px 0;
-    cursor: pointer;
-    margin-bottom: 15px; /* 行与行之间留白 */
-    border: none !important; /* 彻底去掉边框 */
-    background: transparent !important; /* 去掉背景色 */
-    transition: all 0.3s ease;
-    text-align: center; /* 核心：文字居中 */
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-        .line:hover {
-            background: var(--line-hover);
-            border-color: var(--border);
+            padding: 40px 0; /* 上下留白，左右 0 确保文字贴边 */
+            scroll-behavior: smooth;
         }
 
-/* --- 激活态：仅通过颜色和粗细变化，不改变背景 --- */
-.line.active {
-    background: transparent !important; 
-    color: var(--primary);
-    box-shadow: none !important; /* 去掉阴影 */
-    transform: scale(1.05); /* 轻微放大突出 */
-}
-/* --- 时间戳：如图 2 般精简，放在文本上方或隐藏 --- */
-.time-box {
-    display: none !important; /* 强制不显示 */
-    font-family: "SF Mono", monospace;
-    font-size: 10px;
-    color: #ccc; /* 颜色浅淡 */
-    background: #f0f0f2;
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-bottom: 8px;
-    display: inline-block;
-    opacity: 0.6;
-}
+        /* --- 4. 意群样式：原文与翻译分层 --- */
         .line {
-    width: 100%;
-    padding: 10px 0;
-            color: var(--primary);
-            background: var(--primary-light);
-        }
-
-/* --- 2. 移除内容宽度限制 --- */
-.content {
-    line-height: 1.6;
-    font-size: 26px;
-    font-weight: 400;
-    color: #1d1d1f;
-    /* 修改：设为 100%，确保文字可以贴到屏幕边缘 */
-    max-width: 100% !important; 
-    /* 如果有 margin: 0 auto 也请确保左右为 0 */
-    margin: 0 !important; 
-}
-
-.line.active .content {
-    font-weight: 600; /* 激活时加粗 */
-    color: #000;
-}
-
-        .empty-state {
+            padding: 20px 25px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: center;
-            height: 100%;
+            border-bottom: 1px solid #f9f9f9;
+        }
+
+        .content-en {
+            font-size: 24px;
+            line-height: 1.4;
+            font-weight: 400;
+            color: var(--text-main);
+            margin-bottom: 6px;
+            max-width: 100%;
+            word-wrap: break-word;
+        }
+
+        .content-zh {
+            font-size: 16px;
             color: var(--text-dim);
+            font-weight: 400;
+        }
+
+        /* 激活态 */
+        .line.active {
+            background: var(--active-bg);
+        }
+        .line.active .content-en {
+            color: var(--primary);
+            font-weight: 600;
+            transform: scale(1.02);
+        }
+        .line.active .content-zh {
+            color: #424245;
+        }
+
+        /* 上传按钮 - 悬浮半透明 */
+        .btn-upload {
+            position: fixed;
+            top: 15px;
+            right: 15px;
+            z-index: 200;
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(8px);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            opacity: 0.5;
+            transition: opacity 0.3s;
+        }
+        .btn-upload:hover { opacity: 1; }
+        input[type="file"] { display: none; }
+
+        .empty-state {
+            padding: 60px 20px;
             text-align: center;
+            color: var(--text-dim);
         }
     </style>
 </head>
 <body>
 
-<div class="header">
-    <div class="status-dot" id="dot"></div>
-    <span id="status">等待加载...</span>
-    <label class="btn-upload">📁<input type="file" id="videoInput" accept="video/*"></label>
-</div>
+<label class="btn-upload">📁<input type="file" id="videoInput" accept="video/*"></label>
 
 <div class="main-content">
     <div class="video-wrapper">
-    <video id="videoPlayer" controls playsinline webkit-playsinline></video>
-</div>
+        <video id="videoPlayer" controls playsinline></video>
+    </div>
 
     <div class="transcript-container" id="transcript">
         <div class="empty-state">
@@ -209,200 +139,157 @@ html, body {
     </div>
 </div>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+<script>
+    const video = document.getElementById('videoPlayer');
+    const transcript = document.getElementById('transcript');
+    const noteId = "{{Note ID}}"; // 核心：绑定 Anki 卡片 ID
 
-// ---------------- Firebase 配置 ----------------
-const firebaseConfig = {
-    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
-    authDomain: "cloze-master-pro.firebaseapp.com",
-    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "cloze-master-pro",
-    storageBucket: "cloze-master-pro.firebasestorage.app",
-    messagingSenderId: "697808901954",
-    appId: "1:697808901954:web:32455d94bf67e522e01adb"
-};
-const fbApp = initializeApp(firebaseConfig);
-const db = getDatabase(fbApp);
-
-// ---------------- 页面元素 ----------------
-const video = document.getElementById('videoPlayer');
-const transcript = document.getElementById('transcript');
-const status = document.getElementById('status');
-const dot = document.getElementById('dot');
-
-function updateStatus(msg, active=false){
-    status.innerText = msg;
-    dot.className = active ? 'status-dot active' : 'status-dot';
-}
-
-// ---------------- Note ID 作为文档 ID ----------------
-let currentNoteId = null;
-window.addEventListener('message', (event)=>{
-    if(event.data.type === 'NOTE_ID'){
-        currentNoteId = event.data.id;
-        console.log('当前 Note ID:', currentNoteId);
-        syncDownload();
-        listenRemoteUpdates();
+    // --- 1. 进度记录逻辑 ---
+    function getStorageKey() {
+        return `anki_reader_pos_${noteId}`;
     }
-});
-function getDocId(){ return currentNoteId ? "note_" + currentNoteId : null; }
 
-// ---------------- Firebase 上传 ----------------
-let lastUploadTime = 0;
-function syncUpload(){
-    const id = getDocId();
-    if(!id) return;
-    const activeLine = document.querySelector('.line.active');
-    const activeIndex = activeLine ? Array.from(transcript.children).indexOf(activeLine) : 0;
-    lastUploadTime = Date.now();
-    set(ref(db, 'players/' + id), {
-        currentTime: video.currentTime,
-        activeIndex: activeIndex,
-        ts: lastUploadTime
+    function saveProgress() {
+        const activeLine = document.querySelector('.line.active');
+        const progress = {
+            scrollPos: transcript.scrollTop,
+            activeTime: activeLine ? activeLine.dataset.time : null,
+            timestamp: Date.now()
+        };
+        localStorage.setItem(getStorageKey(), JSON.stringify(progress));
+    }
+
+    function restoreProgress() {
+        const data = localStorage.getItem(getStorageKey());
+        if (!data) return;
+        
+        const progress = JSON.parse(data);
+        
+        // 恢复高亮
+        if (progress.activeTime) {
+            const target = document.querySelector(`.line[data-time="${progress.activeTime}"]`);
+            if (target) target.classList.add('active');
+        }
+        
+        // 恢复滚动位置
+        setTimeout(() => {
+            transcript.scrollTop = progress.scrollPos;
+        }, 100);
+    }
+
+    // --- 2. 视频与文件处理 ---
+    document.getElementById('videoInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            video.src = URL.createObjectURL(file);
+        }
     });
-}
 
-// ---------------- Firebase 下载 ----------------
-async function syncDownload(){
-    const id = getDocId();
-    if(!id) return;
-    const snapshot = await get(child(ref(db), 'players/' + id));
-    if(snapshot.exists()){
-        const data = snapshot.val();
-        if(data.currentTime) video.currentTime = data.currentTime;
-        if(data.activeIndex !== undefined){
-            const line = transcript.children[data.activeIndex];
-            if(line){
+    // --- 3. 字幕解析逻辑 (支持 意群 / 翻译 格式) ---
+    function parseSubtitle(data) {
+        let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
+                            .replace(/<\/p>|<\/div>/gi, "\n")
+                            .replace(/<\/?[^>]+(>|$)/g, "");
+
+        const doc = new DOMParser().parseFromString(cleanData, 'text/html');
+        cleanData = doc.documentElement.textContent;
+
+        const cues = [];
+        const lines = cleanData.split('\n').map(l => l.trim()).filter(l => l !== "");
+
+        for (let i = 0; i < lines.length; i++) {
+            const timeMatch = lines[i].match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
+            if (timeMatch) {
+                const start = timeToSeconds(timeMatch[1]);
+                let textParts = [];
+                let j = i + 1;
+                while (j < lines.length && !lines[j].match(/-->/)) {
+                    textParts.push(lines[j]);
+                    j++;
+                }
+                
+                const fullText = textParts.join(' ');
+                let en = fullText, zh = "";
+                
+                // 自动识别分隔符（兼容 / 或 换行）
+                if (fullText.includes(' / ')) {
+                    [en, zh] = fullText.split(' / ');
+                } else if (textParts.length >= 2) {
+                    en = textParts[0];
+                    zh = textParts.slice(1).join(' ');
+                }
+
+                if (en) cues.push({ start, en, zh });
+                i = j - 1;
+            }
+        }
+        return cues;
+    }
+
+    function timeToSeconds(timeStr) {
+        const parts = timeStr.trim().replace(',', '.').split(':');
+        return (+parts[0]) * 3600 + (+parts[1]) * 60 + (+parts[2]);
+    }
+
+    function renderSubtitles(cues) {
+        transcript.innerHTML = '';
+        cues.forEach(cue => {
+            const div = document.createElement('div');
+            div.className = 'line';
+            div.dataset.time = cue.start;
+            div.innerHTML = `
+                <div class="content-en">${cue.en}</div>
+                ${cue.zh ? `<div class="content-zh">${cue.zh}</div>` : ''}
+            `;
+            
+            div.onclick = () => {
+                video.currentTime = cue.start;
+                video.play();
                 document.querySelector('.line.active')?.classList.remove('active');
-                line.classList.add('active');
-                line.scrollIntoView({block:'center'});
-            }
-        }
-        updateStatus("已恢复播放进度", true);
+                div.classList.add('active');
+                saveProgress();
+            };
+            transcript.appendChild(div);
+        });
+        restoreProgress(); // 渲染后恢复进度
     }
-}
 
-// ---------------- 监听远程更新 ----------------
-function listenRemoteUpdates(){
-    const id = getDocId();
-    if(!id) return;
-    onValue(ref(db, 'players/' + id), (snapshot)=>{
-        const data = snapshot.val();
-        if(!data) return;
-        const now = Date.now();
-        if(now - lastUploadTime < 1000) return; // 防止覆盖自己上传
-        if(data.currentTime !== undefined && Math.abs(video.currentTime - data.currentTime) > 1){
-            video.currentTime = data.currentTime;
-        }
-        if(data.activeIndex !== undefined){
-            const line = transcript.children[data.activeIndex];
-            if(line && !line.classList.contains('active')){
-                document.querySelector('.line.active')?.classList.remove('active');
-                line.classList.add('active');
-                line.scrollIntoView({behavior:'smooth', block:'center'});
+    // --- 4. 监听与同步 ---
+    // 监听滚动保存位置
+    let scrollTimeout;
+    transcript.addEventListener('scroll', () => {
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(saveProgress, 500);
+    });
+
+    // 视频同步高亮
+    video.addEventListener('timeupdate', () => {
+        const currentTime = video.currentTime;
+        const lines = document.querySelectorAll('.line');
+        lines.forEach((line, i) => {
+            const start = parseFloat(line.dataset.time);
+            const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
+            if (currentTime >= start && currentTime < next) {
+                if (!line.classList.contains('active')) {
+                    document.querySelector('.line.active')?.classList.remove('active');
+                    line.classList.add('active');
+                    line.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    saveProgress();
+                }
             }
+        });
+    });
+
+    // 处理来自 Anki 的消息
+    window.addEventListener('message', (event) => {
+        if (event.data.type === 'LOAD_SUBTITLES') {
+            const cues = parseSubtitle(event.data.data);
+            renderSubtitles(cues);
         }
     });
-}
 
-// ---------------- 自动上传播放进度 & 激活行 ----------------
-video.addEventListener('timeupdate', ()=>{
-    const currentTime = video.currentTime;
-    const lines = transcript.querySelectorAll('.line');
-    lines.forEach((line, i)=>{
-        const start = parseFloat(line.dataset.time);
-        const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
-        if(currentTime >= start && currentTime < next){
-            if(!line.classList.contains('active')){
-                document.querySelector('.line.active')?.classList.remove('active');
-                line.classList.add('active');
-                line.scrollIntoView({behavior:'smooth', block:'center'});
-                // --- 滚动同步上传 ---
-                syncUpload();
-            }
-        }
-    });
-});
-
-// ---------------- 点击字幕也同步滚动 ----------------
-transcript.addEventListener('click', (e)=>{
-    const line = e.target.closest('.line');
-    if(line){
-        video.currentTime = parseFloat(line.dataset.time);
-        video.play();
-        document.querySelector('.line.active')?.classList.remove('active');
-        line.classList.add('active');
-        line.scrollIntoView({behavior:'smooth', block:'center'});
-        syncUpload(); // 点击滚动也上传
-    }
-});
-
-// ---------------- 视频元数据加载完成后尝试同步 ----------------
-video.addEventListener('loadedmetadata', ()=>{
-    syncDownload();
-    listenRemoteUpdates();
-});
-
-// ---------------- 字幕处理接口 ----------------
-function processSubtitleContent(content){
-    const cues = parseSubtitle(content);
-    renderSubtitles(cues);
-    updateStatus("字幕已从 Anki 同步", true);
-}
-function parseSubtitle(data){
-    let cleanData = data.replace(/<br\s*\/?>/gi,"\n")
-                        .replace(/<\/p>|<\/div>/gi,"\n")
-                        .replace(/<\/?[^>]+(>|$)/g,"");
-    const doc = new DOMParser().parseFromString(cleanData,'text/html');
-    cleanData = doc.documentElement.textContent;
-    const lines = cleanData.split('\n').map(l=>l.trim()).filter(l=>l!=="");
-    const cues = [];
-    for(let i=0;i<lines.length;i++){
-        const line = lines[i];
-        const timeMatch = line.match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
-        if(timeMatch){
-            const start = timeToSeconds(timeMatch[1]);
-            let textParts = [];
-            let j=i+1;
-            while(j<lines.length && !lines[j].match(/-->/)){
-                textParts.push(lines[j]);
-                j++;
-            }
-            const text = textParts.join(' ');
-            if(text) cues.push({start,text});
-            i=j-1;
-        }
-    }
-    return cues;
-}
-function renderSubtitles(cues){
-    transcript.innerHTML = '';
-    cues.forEach(cue=>{
-        const div = document.createElement('div');
-        div.className='line';
-        div.dataset.time=cue.start;
-        div.innerHTML = `<span class="time-box">${formatTime(cue.start)}</span>
-                         <div class="content">${cue.text}</div>`;
-        div.onclick = ()=>{ video.currentTime=cue.start; video.play(); };
-        transcript.appendChild(div);
-    });
-}
-function timeToSeconds(timeStr){
-    const parts = timeStr.trim().replace(',','.').split(':');
-    if(parts.length===3) return (+parts[0])*3600 + (+parts[1])*60 + (+parts[2]);
-    return (+parts[0])*60 + (+parts[1]);
-}
-function formatTime(s){ return new Date(s*1000).toISOString().substr(14,5); }
-
-// ---------------- 监听父页面传输字幕 ----------------
-window.addEventListener('message', (event)=>{
-    if(event.data.type==='LOAD_SUBTITLES'){
-        processSubtitleContent(event.data.data);
-    }
-});
-window.parent.postMessage({type:'PLAYER_READY'},'*');
+    // 通知 Anki 已就绪
+    window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
 </script>
 </body>
 </html>
