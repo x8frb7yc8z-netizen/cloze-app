@@ -673,6 +673,15 @@ function triggerButtonError(btnId) {
     }, 400); // 动画结束后移除类名
 }
 window.toggleBoldMode = function() {
+    // 1. 获取当前选区对象
+    const selection = window.getSelection();
+    let savedRange = null;
+    
+    // 2. 如果有选区，先备份 Range
+    if (selection.rangeCount > 0) {
+        savedRange = selection.getRangeAt(0).cloneRange();
+    }
+
     const indices = getTargetIndices();
     if (indices.length === 0) {
         triggerButtonError('boldModeBtn');
@@ -681,7 +690,7 @@ window.toggleBoldMode = function() {
 
     const allBold = indices.every(idx => boldPositions.includes(idx));
 
-    // 1. 更新数据状态
+    // 数据处理
     if (allBold) {
         boldPositions = boldPositions.filter(idx => !indices.includes(idx));
     } else {
@@ -690,7 +699,7 @@ window.toggleBoldMode = function() {
         });
     }
 
-    // 2. 【核心优化】直接操作 DOM，不重绘
+    // DOM 操作：切换类名
     indices.forEach(idx => {
         const el = clozeContent.querySelector(`.word-span[data-index="${idx}"]`);
         if (el) {
@@ -699,7 +708,13 @@ window.toggleBoldMode = function() {
         }
     });
 
-    // 3. 异步保存，不阻塞主线程
+    // 3. 【核心修复】恢复选区状态
+    if (savedRange) {
+        selection.removeAllRanges();
+        selection.addRange(savedRange);
+    }
+
+    // 异步保存
     setTimeout(savePositions, 10);
 };
 
