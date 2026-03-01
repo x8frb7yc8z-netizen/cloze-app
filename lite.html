@@ -209,132 +209,11 @@ html, body {
     </div>
 </div>
 
-<script>
-    const video = document.getElementById('videoPlayer');
-    const transcript = document.getElementById('transcript');
-    const status = document.getElementById('status');
-    const dot = document.getElementById('dot');
-
-    function updateStatus(msg, active = false) {
-        status.innerText = msg;
-        dot.className = active ? 'status-dot active' : 'status-dot';
-    }
-
-    document.getElementById('videoInput').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            video.src = URL.createObjectURL(file);
-            updateStatus("视频已加载", true);
-        }
-    });
-
-    function processSubtitleContent(content) {
-        const cues = parseSubtitle(content);
-        renderSubtitles(cues);
-        updateStatus("字幕已从 Anki 同步", true);
-    }
-
-    function parseSubtitle(data) {
-    // 1. 彻底清除 HTML 标签并将常见标签转为换行，防止 Anki 的 <div> 等干扰分割
-    let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
-                        .replace(/<\/p>|<\/div>/gi, "\n")
-                        .replace(/<\/?[^>]+(>|$)/g, "");
-
-    // 2. 处理 HTML 转义字符（&rarr; 等）
-    const doc = new DOMParser().parseFromString(cleanData, 'text/html');
-    cleanData = doc.documentElement.textContent;
-
-    // 3. 使用正则全局匹配时间轴：支持 00:00:00,000 或 00:00.000
-    // 该正则会匹配类似 "00:00:12,500 --> 00:00:15,000" 这样的行
-    const timeRegex = /(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/g;
-    
-    const cues = [];
-    let match;
-
-    // 将内容按行拆分，更精确地定位时间轴及其下方的文本
-    const lines = cleanData.split('\n').map(l => l.trim()).filter(l => l !== "");
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const timeMatch = line.match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
-        
-        if (timeMatch) {
-            const start = timeToSeconds(timeMatch[1]);
-            // 收集时间轴之后、下一个时间轴之前的所有行作为文本
-            let textParts = [];
-            let j = i + 1;
-            while (j < lines.length && !lines[j].match(/-->/)) {
-                textParts.push(lines[j]);
-                j++;
-            }
-            const text = textParts.join(' ');
-            if (text) {
-                cues.push({ start, text });
-            }
-            i = j - 1; // 跳过已处理的行
-        }
-    }
-
-    console.log("解析成功，条数:", cues.length);
-    return cues;
-}
-    function timeToSeconds(timeStr) {
-        const parts = timeStr.trim().replace(',', '.').split(':');
-        if (parts.length === 3) return (+parts[0]) * 3600 + (+parts[1]) * 60 + (+parts[2]);
-        return (+parts[0]) * 60 + (+parts[1]);
-    }
-
-    function renderSubtitles(cues) {
-        transcript.innerHTML = '';
-        cues.forEach(cue => {
-            const div = document.createElement('div');
-            div.className = 'line';
-            div.dataset.time = cue.start;
-            div.innerHTML = `
-                <span class="time-box">${formatTime(cue.start)}</span>
-                <div class="content">${cue.text}</div>
-            `;
-            div.onclick = () => {
-                video.currentTime = cue.start;
-                video.play();
-            };
-            transcript.appendChild(div);
-        });
-    }
-
-    function formatTime(s) {
-        return new Date(s * 1000).toISOString().substr(14, 5);
-    }
-
-    video.addEventListener('timeupdate', () => {
-        const currentTime = video.currentTime;
-        const lines = document.querySelectorAll('.line');
-        lines.forEach((line, i) => {
-            const start = parseFloat(line.dataset.time);
-            const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
-            if (currentTime >= start && currentTime < next) {
-                if (!line.classList.contains('active')) {
-                    document.querySelector('.line.active')?.classList.remove('active');
-                    line.classList.add('active');
-                    line.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }
-        });
-    });
-
-    window.addEventListener('message', (event) => {
-        if (event.data.type === 'LOAD_SUBTITLES') {
-            processSubtitleContent(event.data.data);
-        }
-    });
-    window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
-</script>
-
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
 import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-// --- Firebase 配置 ---
+// ---------------- Firebase 配置 ----------------
 const firebaseConfig = {
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
     authDomain: "cloze-master-pro.firebaseapp.com",
@@ -347,7 +226,7 @@ const firebaseConfig = {
 const fbApp = initializeApp(firebaseConfig);
 const db = getDatabase(fbApp);
 
-// --- 页面元素 ---
+// ---------------- 页面元素 ----------------
 const video = document.getElementById('videoPlayer');
 const transcript = document.getElementById('transcript');
 const status = document.getElementById('status');
@@ -358,31 +237,34 @@ function updateStatus(msg, active=false){
     dot.className = active ? 'status-dot active' : 'status-dot';
 }
 
-// --- 上传/下载文档ID ---
-// 可用视频名或自定义 ID
-function getDocId() {
-    if(video.src){
-        const name = video.src.split('/').pop().split('.').shift();
-        return 'vid_' + name;
+// ---------------- Note ID 作为文档 ID ----------------
+let currentNoteId = null;
+window.addEventListener('message', (event)=>{
+    if(event.data.type === 'NOTE_ID'){
+        currentNoteId = event.data.id;
+        console.log('当前 Note ID:', currentNoteId);
+        syncDownload();
+        listenRemoteUpdates();
     }
-    return 'default_video';
-}
+});
+function getDocId(){ return currentNoteId ? "note_" + currentNoteId : null; }
 
-// --- Firebase 上传 ---
+// ---------------- Firebase 上传 ----------------
 let lastUploadTime = 0;
 function syncUpload(){
     const id = getDocId();
     if(!id) return;
     const activeLine = document.querySelector('.line.active');
     const activeIndex = activeLine ? Array.from(transcript.children).indexOf(activeLine) : 0;
+    lastUploadTime = Date.now();
     set(ref(db, 'players/' + id), {
         currentTime: video.currentTime,
         activeIndex: activeIndex,
-        ts: Date.now()
+        ts: lastUploadTime
     });
 }
 
-// --- Firebase 下载 ---
+// ---------------- Firebase 下载 ----------------
 async function syncDownload(){
     const id = getDocId();
     if(!id) return;
@@ -392,7 +274,7 @@ async function syncDownload(){
         if(data.currentTime) video.currentTime = data.currentTime;
         if(data.activeIndex !== undefined){
             const line = transcript.children[data.activeIndex];
-            if(line) {
+            if(line){
                 document.querySelector('.line.active')?.classList.remove('active');
                 line.classList.add('active');
                 line.scrollIntoView({block:'center'});
@@ -402,16 +284,15 @@ async function syncDownload(){
     }
 }
 
-// --- 监听远程更新 ---
+// ---------------- 监听远程更新 ----------------
 function listenRemoteUpdates(){
     const id = getDocId();
     if(!id) return;
     onValue(ref(db, 'players/' + id), (snapshot)=>{
         const data = snapshot.val();
         if(!data) return;
-        // 防止自己上传覆盖
         const now = Date.now();
-        if(now - lastUploadTime < 1000) return;
+        if(now - lastUploadTime < 1000) return; // 防止覆盖自己上传
         if(data.currentTime !== undefined && Math.abs(video.currentTime - data.currentTime) > 1){
             video.currentTime = data.currentTime;
         }
@@ -420,17 +301,14 @@ function listenRemoteUpdates(){
             if(line && !line.classList.contains('active')){
                 document.querySelector('.line.active')?.classList.remove('active');
                 line.classList.add('active');
-                line.scrollIntoView({block:'center'});
+                line.scrollIntoView({behavior:'smooth', block:'center'});
             }
         }
     });
 }
 
-// --- 自动上传播放进度 ---
+// ---------------- 自动上传播放进度 & 激活行 ----------------
 video.addEventListener('timeupdate', ()=>{
-    lastUploadTime = Date.now();
-    syncUpload();
-    // 激活行同步
     const currentTime = video.currentTime;
     const lines = transcript.querySelectorAll('.line');
     lines.forEach((line, i)=>{
@@ -441,35 +319,90 @@ video.addEventListener('timeupdate', ()=>{
                 document.querySelector('.line.active')?.classList.remove('active');
                 line.classList.add('active');
                 line.scrollIntoView({behavior:'smooth', block:'center'});
+                // --- 滚动同步上传 ---
+                syncUpload();
             }
         }
     });
 });
 
-// --- 初始化 ---
+// ---------------- 点击字幕也同步滚动 ----------------
+transcript.addEventListener('click', (e)=>{
+    const line = e.target.closest('.line');
+    if(line){
+        video.currentTime = parseFloat(line.dataset.time);
+        video.play();
+        document.querySelector('.line.active')?.classList.remove('active');
+        line.classList.add('active');
+        line.scrollIntoView({behavior:'smooth', block:'center'});
+        syncUpload(); // 点击滚动也上传
+    }
+});
+
+// ---------------- 视频元数据加载完成后尝试同步 ----------------
 video.addEventListener('loadedmetadata', ()=>{
     syncDownload();
     listenRemoteUpdates();
 });
 
-// --- 原有字幕上传接口 ---
+// ---------------- 字幕处理接口 ----------------
 function processSubtitleContent(content){
     const cues = parseSubtitle(content);
     renderSubtitles(cues);
     updateStatus("字幕已从 Anki 同步", true);
 }
-function parseSubtitle(data){ /* 保持你原先 parseSubtitle 逻辑 */ }
-function renderSubtitles(cues){ /* 保持你原先 renderSubtitles 逻辑 */ }
-function timeToSeconds(timeStr){ /* 保持你原先 timeToSeconds 逻辑 */ }
-function formatTime(s){ /* 保持你原先 formatTime 逻辑 */ }
+function parseSubtitle(data){
+    let cleanData = data.replace(/<br\s*\/?>/gi,"\n")
+                        .replace(/<\/p>|<\/div>/gi,"\n")
+                        .replace(/<\/?[^>]+(>|$)/g,"");
+    const doc = new DOMParser().parseFromString(cleanData,'text/html');
+    cleanData = doc.documentElement.textContent;
+    const lines = cleanData.split('\n').map(l=>l.trim()).filter(l=>l!=="");
+    const cues = [];
+    for(let i=0;i<lines.length;i++){
+        const line = lines[i];
+        const timeMatch = line.match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
+        if(timeMatch){
+            const start = timeToSeconds(timeMatch[1]);
+            let textParts = [];
+            let j=i+1;
+            while(j<lines.length && !lines[j].match(/-->/)){
+                textParts.push(lines[j]);
+                j++;
+            }
+            const text = textParts.join(' ');
+            if(text) cues.push({start,text});
+            i=j-1;
+        }
+    }
+    return cues;
+}
+function renderSubtitles(cues){
+    transcript.innerHTML = '';
+    cues.forEach(cue=>{
+        const div = document.createElement('div');
+        div.className='line';
+        div.dataset.time=cue.start;
+        div.innerHTML = `<span class="time-box">${formatTime(cue.start)}</span>
+                         <div class="content">${cue.text}</div>`;
+        div.onclick = ()=>{ video.currentTime=cue.start; video.play(); };
+        transcript.appendChild(div);
+    });
+}
+function timeToSeconds(timeStr){
+    const parts = timeStr.trim().replace(',','.').split(':');
+    if(parts.length===3) return (+parts[0])*3600 + (+parts[1])*60 + (+parts[2]);
+    return (+parts[0])*60 + (+parts[1]);
+}
+function formatTime(s){ return new Date(s*1000).toISOString().substr(14,5); }
 
-// --- 监听消息从父页面传字幕 ---
+// ---------------- 监听父页面传输字幕 ----------------
 window.addEventListener('message', (event)=>{
-    if(event.data.type === 'LOAD_SUBTITLES'){
+    if(event.data.type==='LOAD_SUBTITLES'){
         processSubtitleContent(event.data.data);
     }
 });
-window.parent.postMessage({type:'PLAYER_READY'}, '*');
+window.parent.postMessage({type:'PLAYER_READY'},'*');
 </script>
 </body>
 </html>
