@@ -1,971 +1,333 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>极简完形填空 Pro Sync</title>
-<style>
-/* 句子高亮样式 - 淡黄色背景 */
-.sentence-highlight {
-    background-color: #fdf6e3 !important; /* 极淡的黄色 */
-    border-radius: 2px;
-}
-/* 按钮抖动动画 */
-@keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-4px); }
-    75% { transform: translateX(4px); }
-}
-
-.btn-error-shake {
-    animation: shake 0.2s ease-in-out 0s 2; /* 快速抖动两次 */
-    background-color: #ffcdd2 !important; /* 变成淡红色 */
-    transition: background-color 0.2s;
-}
-#image-preview-container {
-    position: fixed;
-    top: 100%; /* 初始完全隐藏在屏幕下方 */
-    left: 0;
+    <meta charset="UTF-8">
+    <title>AI 意群同步播放器 - White Edition</title>
+    <style>
+/* --- 1. 彻底锁定全局横向溢出 --- */
+html, body {
     width: 100%;
-    height: 100%; /* 全屏高度 */
-    background: #fff;
-    /* 核心修改：删除 box-shadow: 0 -5px 20px rgba(0,0,0,0.3); */
-    box-shadow: none; 
-    z-index: 2000;
-    transition: top 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    display: flex;
-    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden; /* 禁止横向滚动 */
+    position: relative;
+    -webkit-overflow-scrolling: touch; /* 优化 iOS 滚动流畅度 */
 }
 
-/* 激活状态：拉到顶部 */
-#image-preview-container.active {
-    top: 35px; /* 紧贴顶部导航栏下方 */
+/* 隐藏顶部状态提示和状态点 */
+#status, .status-dot {
+    display: none !important;
 }
 
-/* 头部样式微调，增加高度方便点击关闭 */
-.preview-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 15px;
-    background: #f1f3f4;
-    border-bottom: 1px solid #ddd;
-    flex-shrink: 0;
-}
-
-/* 内部 iframe 确保撑满剩余空间 */
-.preview-content {
+/* --- 1. 移除容器左右留白 --- */
+.transcript-container {
     flex: 1;
-    overflow: hidden;
+    overflow-y: auto;
+    /* 修改：上下保留间距，左右设为 0 */
+    padding: 40px 0px !important; 
+    background: #ffffff; 
 }
+        :root {
+            --primary: #00a1d6;
+            --primary-light: rgba(0, 161, 214, 0.08);
+            --bg: #ffffff;
+            --header-bg: rgba(255, 255, 255, 0.9);
+            --panel: #f5f5f7;
+            --text-main: #1d1d1f;
+            --text-dim: #86868b;
+            --border: #d2d2d7;
+            --line-hover: #f0f0f2;
+        }
 
-.preview-iframe {
-    width: 100%;
-    height: 100%;
+        body {
+            font-family: -apple-system, "SF Pro Display", "PingFang SC", sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+/* 彻底删除 header 高度占位 */
+.header {
+    height: 0;
+    padding: 0;
     border: none;
 }
-/* 加粗单词的样式 */
-.word-bold {
-    font-weight: 800;
-    color: #000;
-    /* 可以加个底色或者下划线增加辨识度 */
 
-}
-:root { --primary: #43a047; --bg: #f8f9fa; --danger: #ff5252; --input-bg: #fffde7; }
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin:0; padding:0; width:100%; min-height:100%; font-family:-apple-system, sans-serif; background:#fff; }
-
-/* 1. 修正容器和导航条 */
-.app-container { 
-    display: flex; 
-    flex-direction: column; 
-
-    padding-top: 35px; /* 略大于导航条高度 */
-}
-.btn-group { display:flex; align-items:center; gap:8px; }
-
-.main-area { 
-    flex: 1; 
-    position: relative; 
-    overflow-y: auto; 
-    -webkit-overflow-scrolling: touch;
-}
-/* 2. 核心修正：取消绝对定位，改用相对定位 */
-#inputText, #clozeContent {
-    width: 100%; 
-    min-height: calc(100vh - 35px);
-    text-align: center;
-    padding: 20px 0px; /* 增加顶部间距防止被挡 */
-    border: none; 
-    outline: none;
-    font-size: 20px !important; 
-    line-height: 1; 
-    font-family: inherit;
-    white-space: pre-wrap; 
-    word-break: break-word;
-    position: relative; /* 改为 relative */
-    display: block;
-}
-/* 2. 只有当屏幕真的很窄（手机竖屏）时才切换 */
-@media screen and (max-width: 500px) {
-    #inputText, #clozeContent {
-        font-size: 26px !important;
-    }
-}
-#inputText { resize: none; }
-#clozeContent { display: none; } /* 默认隐藏 */
-
-.exercise-mode #inputText { display: none !important; }
-.exercise-mode #clozeContent { display: block !important; }
-.exercise-mode .edit-only { display: none; }
-.exercise-mode .exercise-only { display: flex !important; flex: 1; }
-
-/* 核心：输入框样式 */
-.cloze-display-input {
-    font-size: 0.9em; 
-    min-width: 2.2ch; 
-    height: 1.2em;
-    margin: 0 2px;
-    border: none; 
-    border-bottom: 2px solid #666;
-    background: var(--input-bg);
-    text-align: center;
-    border-radius: 0;
-    -webkit-appearance: none; /* 移除 iOS 默认阴影 */
-    vertical-align: middle;
-}
-
-/* 1. 导航条改为顶部固定 */
-.footer-actions { 
-    display: flex; 
-    background: #fff; 
-    position: fixed; 
-    top: 0; 
-    left: 0; 
-    width: 100%; 
-    z-index: 1000; /* 确保在最顶层 */
-    height: 30px; 
-    border-bottom: 1px solid #ddd;
-}
-/* 2. 按钮文字和间距调整 */
-.footer-actions button { 
-    flex: 1; 
-    padding: 0; /* 移除内边距，让文字垂直居中 */
-    border: none; 
-    font-weight: bold; 
-    cursor: pointer; 
-    /* 核心修改：字号稍微缩小一点以配合矮窄的导航条 */
-    font-size: 14px; 
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-/* 3. 字体调节区域的高度同步 */
-.font-ctrl {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 0 10px;
-    font-size: 14px;
-}
-.btn-primary { background:var(--primary); color:white; }
-.btn-danger { color:var(--danger); background:#fff8f8; }
-
-#clozeContent {
-    /* 允许容器内的文本正常响应系统手势 */
-    -webkit-user-select: text;
-    user-select: text;
-    
-    /* 解决部分浏览器在滚动中长按失效的问题 */
-    pointer-events: auto; 
-    
-    /* 增加行高，减少手指点击时的误差 */
-    line-height: 1.2;
-}
-
-.word-span {
-    -webkit-user-select: text !important;
-    user-select: text !important;
-    -webkit-touch-callout: default !important;
-    
-    /* 关键：去掉 padding 防止坐标偏移 */
-    padding: 0 !important;
-    margin: 0 !important;
-    display: inline; /* 确保它像普通文字一样排列 */
-}
-
-.cloze-display-input {
-    /* 输入框通常长按会弹出全选/粘贴，保持默认即可 */
-    -webkit-user-select: auto;
-}
-.exercise-only { display: none !important; }
-</style>
-</head>
-
-<body>
-<div class="app-container" id="app">
-    <nav class="footer-actions">
-        <button class="btn-danger edit-only" onclick="handleClear()">清空</button>
-	<button class="exercise-only" onclick="copyFullText()" style="background:#f3e5f5;">复制</button>
-	<button id="searchModeBtn" class="exercise-only" onclick="toggleSearchMode()" style="background:#e1f5fe;">图片</button>
-	<button id="highlightModeBtn" class="exercise-only" onclick="toggleHighlightMode()" style="background:#fffde7;">背景</button> <button id="boldModeBtn" class="exercise-only" onclick="toggleBoldMode()" style="background:#e8f5e9;">粗体</button>
-        <button id="delModeBtn" class="exercise-only" onclick="toggleDeleteMode()">挖空: 关</button>
-        <div class="font-ctrl edit-only">
-             <button class="font-btn" onclick="changeFontSize(-2)">A-</button>
-             <span id="fontSizeLabel">26</span>
-             <button class="font-btn" onclick="changeFontSize(2)">A+</button>
-        </div>
-        <button class="btn-primary edit-only" onclick="toggleMode(true)">开始练习</button>
-        <button class="btn-primary exercise-only" onclick="toggleMode(false)">← 返回修改</button>
-    </nav>
-
-    <main class="main-area">
-        <textarea id="inputText" placeholder="在此粘贴文章内容..."></textarea>
-        <div id="clozeContent"></div>
-    </main>
-</div>
-<div id="image-preview-container">
-    <div class="preview-header">
-        <span id="preview-word-title" style="font-weight:bold; color:#0288d1; font-size:14px;">图片搜索</span>
-        <button onclick="closeImagePreview()" style="border:none; background:#eee; border-radius:4px; padding:4px 12px; font-size:12px;">关闭预览</button>
-    </div>
-    <div class="preview-content">
-        <iframe id="preview-iframe" class="preview-iframe" src=""></iframe>
-    </div>
-</div>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";;
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
-    authDomain: "cloze-master-pro.firebaseapp.com",
-    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "cloze-master-pro",
-    storageBucket: "cloze-master-pro.firebasestorage.app",
-    messagingSenderId: "697808901954",
-    appId: "1:697808901954:web:32455d94bf67e522e01adb"
-  };
-
-  const fbApp = initializeApp(firebaseConfig);
-  const db = getDatabase(fbApp);
-
-// --- 核心修改：定义实时同步函数 ---
-  window.startRealtimeSync = function() {
-    const id = window.getDocId();
-    if (!id) return;
-
-    const dbRef = ref(db, 'clozes/' + id);
-    
-    // 使用 onValue 监听，只要云端数据一变，这个回调函数就会执行
-    onValue(dbRef, (snapshot) => {
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            const currentInput = document.getElementById('inputText');
-
-            // 关键判断：只有当云端内容和本地内容【不一致】时，才更新本地
-            // 这样可以避免你自己输入时，光标被云端同步强行重置
-            if (data.content !== undefined && data.content !== currentInput.value) {
-                currentInput.value = data.content;
-                // 如果在练习模式，数据变了就重新渲染界面
-                if (document.getElementById('app').classList.contains('exercise-mode')) {
-                    renderCloze(); 
-                }
-            }
-
-            // 同步挖空和加粗位置
-            manualPositions = data.positions || [];
-            boldPositions = data.boldPositions || [];
-            
-            // 如果已经在练习模式，实时刷新挖空状态
-            if (document.getElementById('app').classList.contains('exercise-mode')) {
-                renderCloze();
-            }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #d2d2d7;
+            display: inline-block;
         }
-    });
-  };
+        .status-dot.active { background: #34c759; box-shadow: 0 0 6px rgba(52, 199, 89, 0.5); }
 
-window.getDocId = function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const customId = urlParams.get('customid');
-    
-    if (customId && customId.trim() !== "") {
-        return "cid_" + customId.trim(); 
-    }
+        #status { font-size: 13px; color: var(--text-dim); flex-grow: 1; }
 
-    const text = inputArea.value.trim();
-    if (!text) return null;
-    try {
-        return btoa(unescape(encodeURIComponent(text.substring(0, 25)))).replace(/[/+=]/g, "");
-    } catch(e) { return "default_doc"; }
+        /* 按钮样式 - 浅色精致化 */
+.btn-upload {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 200;
+    background: rgba(255, 255, 255, 0.2) !important; /* 半透明 */
+    color: white !important;
+    border: none !important;
+    backdrop-filter: blur(5px);
+    opacity: 0.3;
+    transition: opacity 0.3s;
+}
+.btn-upload:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.4) !important;
 }
 
-let lastValidIndex = 0; // 全局缓存，防止意外
+        input[type="file"] { display: none; }
 
-function getTopWordIndex() {
-    const x = window.innerWidth / 2;
-    const baseOffset = 60; // 探测基准线
-    
-    // 探测点序列：基准线、向上10px、向下10px、向下20px
-    const offsets = [baseOffset, baseOffset - 10, baseOffset + 10, baseOffset + 20, baseOffset + 30];
-    
-    for (let y of offsets) {
-        const el = document.elementFromPoint(x, y);
-        // 必须是 word-span 且 必须有 index
-        if (el && el.classList.contains('word-span') && el.dataset.index) {
-            const idx = parseInt(el.dataset.index);
-            if (idx > 0) {
-                lastValidIndex = idx; // 更新缓存
-                return idx;
-            }
-        }
-    }
-
-    // --- 兜底逻辑 ---
-    // 如果所有探测点都落在了空白处（比如剧本的超长换行）
-    if (window.scrollY > 100) {
-        console.log("检测到剧本间隙，维持最后有效位置:", lastValidIndex);
-        return lastValidIndex; 
-    }
-    
-    return 0; // 只有在真正的页面顶部才返回 0
-}
-	
-// 修改你的 syncUpload
-window.syncUpload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-    
-    const topIdx = getTopWordIndex();
-
-    set(ref(db, 'clozes/' + id), { 
-        content: inputArea.value,       // 新增：保存全文正文
-        positions: manualPositions, 
-        boldPositions: boldPositions, 
-	highlightPositions: highlightPositions, // 新增
-        topIndex: topIdx,
-        ts: Date.now() 
-    });
-};
-window.syncDownload = async function() {
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasCustomId = !!urlParams.get('customid');
-    const currentInput = document.getElementById('inputText'); 
-    
-    const id = window.getDocId();
-    if (!id || !currentInput) return;
-
-    let snapshot = await get(child(ref(db), 'clozes/' + id));
-    
-    // 兼容逻辑：查找旧 ID（基于文本前25位生成的 ID）
-    if (!snapshot.exists() && hasCustomId && currentInput.value.trim()) {
-        const oldTextId = btoa(unescape(encodeURIComponent(currentInput.value.substring(0, 25)))).replace(/[/+=]/g, "");
-        snapshot = await get(child(ref(db), 'clozes/' + oldTextId));
-        if (snapshot.exists()) console.log("检测到旧版文本 ID 数据。");
-    }
-
-    if (snapshot.exists()) {
-        const data = snapshot.val();
-
-        // --- 核心逻辑：正文恢复 ---
-        // 如果当前输入框是空的，且数据库里存有正文，则填充正文并渲染
-        if (!currentInput.value.trim() && data.content) {
-            currentInput.value = data.content;
-            renderCloze();
-            app.classList.add('exercise-mode'); // 自动进入练习模式
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
-        manualPositions = data.positions || [];
-        boldPositions = data.boldPositions || [];
-	highlightPositions = data.highlightPositions || []; // 新增
+        /* 视频容器 */
+        .video-wrapper {
+            flex: 0 0 auto;
+            background: #000; /* 视频区域保持黑色以防漏光干扰 */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        video {
+            max-height: 45vh;
+            width: 100%;
+            display: block;
+        }
+
+        /* 字幕列表区 */
+        .transcript-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--bg);
+        }
         
-        // 只有在练习模式下才执行渲染和定位
-        if (app.classList.contains('exercise-mode')) {
-            renderCloze(); 
-            
-            // 恢复阅读进度锚点
-            if (data.topIndex !== undefined) {
-                setTimeout(() => {
-                    const targetEl = document.querySelector(`[data-index="${data.topIndex}"]`);
-                    if (targetEl) {
-                        targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
-                        window.scrollBy(0, -45); // 补偿导航条高度
-                    }
-                }, 600); 
-            }
-        }
-    }
-};
-window.addEventListener('message', async (event) => {
-    // 确保消息来自可靠源（或检查类型）
-    if (event.data.type === 'ANKI_SYNC_DATA') {
-        const { text } = event.data;
-        if (!text) return;
+/* --- 字幕行样式：去掉卡片框，改为居中纯文本 --- */
+.line {
+    padding: 10px 0;
+    cursor: pointer;
+    margin-bottom: 15px; /* 行与行之间留白 */
+    border: none !important; /* 彻底去掉边框 */
+    background: transparent !important; /* 去掉背景色 */
+    transition: all 0.3s ease;
+    text-align: center; /* 核心：文字居中 */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
 
-        // 如果目前没内容，填充并渲染
-        if (!inputArea.value.trim()) {
-            inputArea.value = text;
-            renderCloze();
-            app.classList.add('exercise-mode');
-            
-            // 自动检查云端是否有备份，没有则存一份
-            const id = window.getDocId();
-            const snapshot = await get(child(ref(db), 'clozes/' + id));
-            if (!snapshot.exists()) {
-                console.log("云端无此文章，正在自动创建备份...");
-                window.syncUpload();
-            }
+        .line:hover {
+            background: var(--line-hover);
+            border-color: var(--border);
         }
-    }
-});
-</script>
+
+/* --- 激活态：仅通过颜色和粗细变化，不改变背景 --- */
+.line.active {
+    background: transparent !important; 
+    color: var(--primary);
+    box-shadow: none !important; /* 去掉阴影 */
+    transform: scale(1.05); /* 轻微放大突出 */
+}
+/* --- 时间戳：如图 2 般精简，放在文本上方或隐藏 --- */
+.time-box {
+    display: none !important; /* 强制不显示 */
+    font-family: "SF Mono", monospace;
+    font-size: 10px;
+    color: #ccc; /* 颜色浅淡 */
+    background: #f0f0f2;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    display: inline-block;
+    opacity: 0.6;
+}
+        .line {
+    width: 100%;
+    padding: 10px 0;
+            color: var(--primary);
+            background: var(--primary-light);
+        }
+
+/* --- 2. 移除内容宽度限制 --- */
+.content {
+    line-height: 1.6;
+    font-size: 26px;
+    font-weight: 400;
+    color: #1d1d1f;
+    /* 修改：设为 100%，确保文字可以贴到屏幕边缘 */
+    max-width: 100% !important; 
+    /* 如果有 margin: 0 auto 也请确保左右为 0 */
+    margin: 0 !important; 
+}
+
+.line.active .content {
+    font-weight: 600; /* 激活时加粗 */
+    color: #000;
+}
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-dim);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <div class="status-dot" id="dot"></div>
+    <span id="status">等待加载...</span>
+    <label class="btn-upload">📁<input type="file" id="videoInput" accept="video/*"></label>
+</div>
+
+<div class="main-content">
+    <div class="video-wrapper">
+    <video id="videoPlayer" controls playsinline webkit-playsinline></video>
+</div>
+
+    <div class="transcript-container" id="transcript">
+        <div class="empty-state">
+            <p>请在 Anki 中填写“字幕内容”<br>或手动上传视频</p>
+        </div>
+    </div>
+</div>
 
 <script>
-// 常规业务逻辑
-let currentFontSize = 26;
-let manualPositions = [];
-let boldPositions = [];
-let isBoldMode = false; // 新增状态
-let answers = [];
-let isSearchMode = false;
-let highlightPositions = []; // 存储高亮单词的索引
+    const video = document.getElementById('videoPlayer');
+    const transcript = document.getElementById('transcript');
+    const status = document.getElementById('status');
+    const dot = document.getElementById('dot');
 
-const app = document.getElementById('app');
-const inputArea = document.getElementById('inputText');
-const clozeContent = document.getElementById('clozeContent');
-
-function getSentenceByPunct(el) {
-    if (!el || !el.classList.contains('word-span')) return null;
-
-    const parent = el.parentNode;
-    const children = Array.from(parent.childNodes);
-    const index = children.indexOf(el);
-    
-    // 1. 定义边界：增加了对中括号 [ ] 的转义支持
-    const boundary = /[\[\]().!?。！？；;]/;
-
-    let start = index;
-    let end = index;
-
-    // 2. 向前寻找：直到撞到标点边界
-    while (start > 0) {
-        const prevText = children[start - 1].textContent;
-        if (boundary.test(prevText)) break;
-        start--;
+    function updateStatus(msg, active = false) {
+        status.innerText = msg;
+        dot.className = active ? 'status-dot active' : 'status-dot';
     }
 
-    // 3. 向后寻找：直到撞到下一个标点
-    while (end < children.length - 1) {
-        const currentText = children[end].textContent;
-        if (boundary.test(currentText)) {
-            end++; 
-            break;
-        }
-        end++;
-    }
-
-    // 4. 核心优化：去除选区两端的纯空白节点
-    // 这样可以防止高亮区域（蓝色背景）包含大段的换行空白
-    let sentenceNodes = children.slice(start, end);
-    while (sentenceNodes.length > 0 && !sentenceNodes[0].textContent.trim()) {
-        sentenceNodes.shift();
-    }
-    while (sentenceNodes.length > 0 && !sentenceNodes[sentenceNodes.length - 1].textContent.trim()) {
-        sentenceNodes.pop();
-    }
-
-    if (sentenceNodes.length === 0) return null;
-
-    // 5. 格式化提取的文本
-    const sentenceText = sentenceNodes
-        .map(n => n.textContent)
-        .join("")
-        .replace(/\n/g, " ")       // 将换行转为空格
-        .replace(/\s\s+/g, " ")    // 合并连续空格
-        .trim();
-
-    // 6. 视觉高亮：只选中过滤后的文字节点
-    const range = document.createRange();
-    range.setStartBefore(sentenceNodes[0]);
-    range.setEndAfter(sentenceNodes[sentenceNodes.length - 1]);
-    const sel = window.getSelection();
-    sel.removeAllRanges();
-    sel.addRange(range);
-
-    return sentenceText;
-}
-window.onload = async () => { // 加上 async
-    const urlParams = new URLSearchParams(window.location.search);
-    const textFromAnki = urlParams.get('text');
-    
-    if (textFromAnki) {
-        inputArea.value = decodeURIComponent(textFromAnki);
-    }
-
-    // --- 字号逻辑 ---
-    const savedSize = localStorage.getItem('cloze_user_font_size');
-    if (savedSize) {
-        currentFontSize = parseInt(savedSize);
-    } else {
-        const isMobileUA = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-        const isNarrowScreen = window.innerWidth < 500;
-        currentFontSize = (isMobileUA && isNarrowScreen) ? 26 : 20;
-    }
-	const id = window.getDocId();
-    if (id && window.startRealtimeSync) {
-        window.startRealtimeSync(); 
-    }
-	
-    applyFontSize(currentFontSize);
-
-    // --- 核心修正：立即判断并渲染，不等待异步 ---
-    if (inputArea.value.trim()) {
-        // 先手动执行渲染，不依赖带延迟的 toggleMode
-        renderCloze(); 
-        app.classList.add('exercise-mode');
-    }
-
-    // 此时逻辑已跑完，显示界面
-    document.body.classList.add('app-ready');
-    
-    // 异步同步放在最后，不阻塞渲染
-    setTimeout(() => { 
-        if(window.syncDownload) window.syncDownload(); 
-    }, 1000);
-};
-
-// 确保有这个统一应用函数
-function applyFontSize(size) {
-    inputArea.style.fontSize = clozeContent.style.fontSize = size + "px";
-    const label = document.getElementById('fontSizeLabel');
-    if(label) label.innerText = size;
-}
-
-async function toggleMode(isExercise) {
-    if (isExercise) {
-        if (!inputArea.value.trim()) return alert("请先输入内容");
-        renderCloze();
-        document.getElementById('app').classList.add('exercise-mode');
-        window.scrollTo(0, 0); // 修正 iOS 滚动偏离
-    } else {
-        document.getElementById('app').classList.remove('exercise-mode');
-    }
-}
-
-function renderCloze() {
-    // 依然使用同样的正则
-    const segments = inputArea.value.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
-    answers = [];
-    let unitCount = 0; // 这里的 unitCount 决定了索引
-
-    clozeContent.innerHTML = segments.map(seg => {
-        if (!seg) return "";
-        
-        const isWhitespace = /^\s+$/.test(seg);
-        
-        // --- 关键逻辑：如果是空格，它不消耗索引，但它“借用”前一个索引的样式 ---
-        // 这样可以保证您以前标记的单词位置（如第10个词）依然是第10个词
-        let idx = isWhitespace ? Math.max(0, unitCount - 1) : unitCount++;
-
-        const isChinese = /[\u4e00-\u9fa5]/.test(seg);
-
-        if (!isWhitespace && manualPositions.includes(idx)) {
-            answers.push(seg);
-            const boxWidth = isChinese ? 2 : (seg.length + 0.1); 
-            return `<input class="cloze-display-input" data-id="${answers.length - 1}" data-index="${idx}" 
-                    style="width:${boxWidth}ch;" 
-                    oninput="validateInput(this)" onkeydown="handleSpaceKey(event, this)"
-                    placeholder="${isChinese ? '?' : getHint(seg)}">`;
-        }
-        
-        const classes = ["word-span"];
-        if (boldPositions.includes(idx)) classes.push('word-bold');
-        if (highlightPositions.includes(idx)) classes.push('sentence-highlight');
-
-        // 给空格也加上 word-span，但它的 data-index 与前一个单词相同
-        // 这样你高亮单词时，后面的空格会因为 idx 相同而一起变色
-        return `<span class="${classes.join(' ')}" data-index="${idx}">${seg}</span>`;
-    }).join("");
-    
-    bindEvents();
-}
-
-function validateInput(el) {
-    const ans = answers[el.dataset.id];
-    const val = el.value.trim();
-    const isMatch = ans.toLowerCase().startsWith(val.toLowerCase());
-    el.style.backgroundColor = (val.toLowerCase() === ans.toLowerCase()) ? "#c8f7c5" : (isMatch ? "var(--input-bg)" : "#f7c5c5");
-    el.style.color = isMatch ? "#000" : "var(--danger)";
-}
-
-// 1. 状态变量
-let isCPressed = false;
-let isDeleteMode = false; // 手机端删除模式开关
-
-// 2. 键盘监听 (保留 PC 端的极速体验)
-window.addEventListener('keydown', (e) => { if (e.key.toLowerCase() === 'c') isCPressed = true; });
-window.addEventListener('keyup', (e) => { if (e.key.toLowerCase() === 'c') isCPressed = false; });
-
-// 3. 模式切换函数
-window.toggleDeleteMode = function() {
-    isDeleteMode = !isDeleteMode;
-    const btn = document.getElementById('delModeBtn');
-    if (isDeleteMode) {
-        btn.innerText = "重置: 开";
-        btn.style.backgroundColor = "#ffe0b2";
-    } else {
-        btn.innerText = "重置: 关";
-        btn.style.backgroundColor = "#fff3e0";
-    }
-};
-
-async function copyToClipboard(text) {
-    if (!text) return;
-    try {
-        await navigator.clipboard.writeText(text);
-        // 如果是在 Anki 或某些安卓环境下，可以使用以下兜底方案
-    } catch (err) {
-        const el = document.createElement('textarea');
-        el.value = text;
-        document.body.appendChild(el);
-        el.select();
-        document.execCommand('copy');
-        document.body.removeChild(el);
-    }
-}
-
-
-// 获取当前选区覆盖的所有 word-span 的索引数组
-function getSelectedIndices() {
-    const selection = window.getSelection();
-    if (!selection.rangeCount || selection.isCollapsed) return [];
-
-    const range = selection.getRangeAt(0);
-    const container = document.getElementById('clozeContent');
-    const allSpans = container.querySelectorAll('.word-span');
-    const selectedIndices = [];
-
-    allSpans.forEach(span => {
-        // 检查这个 span 是否与用户的选区重叠
-        if (selection.containsNode(span, true)) {
-            selectedIndices.push(parseInt(span.dataset.index));
+    document.getElementById('videoInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            video.src = URL.createObjectURL(file);
+            updateStatus("视频已加载", true);
         }
     });
 
-    return selectedIndices;
-}
-// 兼容旧逻辑：如果没选范围，就按之前的方法找单个单词
-function getTargetIndices() {
-    const indices = getSelectedIndices();
-    if (indices.length > 0) return indices;
-
-    // 兜底：如果没有选区（只是点了一下），尝试获取单个单词
-    const single = getSelectedWordElement();
-    return single ? [parseInt(single.dataset.index)] : [];
-}
-// 统一的错误反馈函数
-function triggerButtonError(btnId) {
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-    btn.classList.add('btn-error-shake');
-    setTimeout(() => {
-        btn.classList.remove('btn-error-shake');
-    }, 400); // 动画结束后移除类名
-}
-window.toggleBoldMode = function() {
-
-    const selection = window.getSelection();
-    if (!selection.rangeCount) {
-        triggerButtonError('boldModeBtn');
-        return;
+    function processSubtitleContent(content) {
+        const cues = parseSubtitle(content);
+        renderSubtitles(cues);
+        updateStatus("字幕已从 Anki 同步", true);
     }
 
-    const range = selection.getRangeAt(0);
-    const startContainer = range.startContainer;
-    const endContainer = range.endContainer;
+    function parseSubtitle(data) {
+    // 1. 彻底清除 HTML 标签并将常见标签转为换行，防止 Anki 的 <div> 等干扰分割
+    let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
+                        .replace(/<\/p>|<\/div>/gi, "\n")
+                        .replace(/<\/?[^>]+(>|$)/g, "");
 
-    // 记录选区所在的 data-index
-    const startSpan = startContainer.nodeType === 3 
-        ? startContainer.parentElement.closest('.word-span')
-        : startContainer.closest?.('.word-span');
+    // 2. 处理 HTML 转义字符（&rarr; 等）
+    const doc = new DOMParser().parseFromString(cleanData, 'text/html');
+    cleanData = doc.documentElement.textContent;
 
-    const endSpan = endContainer.nodeType === 3
-        ? endContainer.parentElement.closest('.word-span')
-        : endContainer.closest?.('.word-span');
-
-    if (!startSpan || !endSpan) {
-        triggerButtonError('boldModeBtn');
-        return;
-    }
-
-    const startIdx = parseInt(startSpan.dataset.index);
-    const endIdx = parseInt(endSpan.dataset.index);
-
-    const indices = [];
-    for (let i = startIdx; i <= endIdx; i++) {
-        indices.push(i);
-    }
-
-    const allBold = indices.every(idx => boldPositions.includes(idx));
-
-    // 更新数据
-    if (allBold) {
-        boldPositions = boldPositions.filter(idx => !indices.includes(idx));
-    } else {
-        indices.forEach(idx => {
-            if (!boldPositions.includes(idx)) boldPositions.push(idx);
-        });
-    }
-
-    // 不直接 render，避免闪烁
-    indices.forEach(idx => {
-        const el = clozeContent.querySelector(`.word-span[data-index="${idx}"]`);
-        if (el) {
-            if (allBold) el.classList.remove('word-bold');
-            else el.classList.add('word-bold');
-        }
-    });
-
-    // ⭐ 关键：重新恢复选区
-    setTimeout(() => {
-        const newStart = clozeContent.querySelector(`.word-span[data-index="${startIdx}"]`);
-        const newEnd = clozeContent.querySelector(`.word-span[data-index="${endIdx}"]`);
-        if (!newStart || !newEnd) return;
-
-        const newRange = document.createRange();
-        newRange.setStart(newStart.firstChild || newStart, 0);
-        newRange.setEnd(
-            newEnd.firstChild || newEnd,
-            (newEnd.firstChild?.length || newEnd.textContent.length)
-        );
-
-        selection.removeAllRanges();
-        selection.addRange(newRange);
-    }, 0);
-
-    setTimeout(savePositions, 10);
-};
-function updateModeButtons() {
-    const sBtn = document.getElementById('searchModeBtn');
-    const bBtn = document.getElementById('boldModeBtn');
-    const dBtn = document.getElementById('delModeBtn');
+    // 3. 使用正则全局匹配时间轴：支持 00:00:00,000 或 00:00.000
+    // 该正则会匹配类似 "00:00:12,500 --> 00:00:15,000" 这样的行
+    const timeRegex = /(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/g;
     
-    // 搜索按钮：固定文字
-    if(sBtn) {
-        sBtn.innerText = "图片搜索";
-        sBtn.style.backgroundColor = "#e1f5fe";
-    }
-    // 加粗按钮：固定文字
-    if(bBtn) {
-        bBtn.innerText = "单词加粗";
-        bBtn.style.backgroundColor = "#e8f5e9";
-    }
-    // 只有“挖空重置”保留开关逻辑，因为它需要长效开启
-    if(dBtn) {
-        dBtn.innerText = isDeleteMode ? "重置: 开" : "重置: 关";
-        dBtn.style.backgroundColor = isDeleteMode ? "#ffe0b2" : "#fff";
-    }
-}
+    const cues = [];
+    let match;
 
-// 4. 核心事件绑定修改
-function bindEvents() {
-    clozeContent.onclick = (e) => {
-        const target = e.target;
-        const isWord = target.classList.contains('word-span');
-        const isInput = target.tagName === 'INPUT';
+    // 将内容按行拆分，更精确地定位时间轴及其下方的文本
+    const lines = cleanData.split('\n').map(l => l.trim()).filter(l => l !== "");
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const timeMatch = line.match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
         
-        if (!app.classList.contains('exercise-mode')) return;
-
-        // --- 核心：重置模式 (编辑模式) ---
-        if (isDeleteMode) {
-            const idx = parseInt(target.dataset.index);
-            if (isWord) {
-                // 如果没挖，就挖掉
-                if (!manualPositions.includes(idx)) manualPositions.push(idx);
-            } else if (isInput) {
-                // 如果已挖，点击输入框就还原
-                manualPositions = manualPositions.filter(i => i !== idx);
+        if (timeMatch) {
+            const start = timeToSeconds(timeMatch[1]);
+            // 收集时间轴之后、下一个时间轴之前的所有行作为文本
+            let textParts = [];
+            let j = i + 1;
+            while (j < lines.length && !lines[j].match(/-->/)) {
+                textParts.push(lines[j]);
+                j++;
             }
-            savePositions();
-            renderCloze();
-            return; // 拦截，不触发复制
-        }
-
-        // --- 核心：正常模式 (学习模式) ---
-        if (isWord) {
-            // 单击复制单词
-            copyToClipboard(target.innerText.trim());
-            
-            // 视觉选中 (方便你看图或查词)
-            const range = document.createRange();
-            range.selectNodeContents(target);
-            const sel = window.getSelection();
-            sel.removeAllRanges();
-            sel.addRange(range);
-        }
-    };
-
-    // 保留双击仅用于：非重置模式下复制整句
-    clozeContent.ondblclick = (e) => {
-        const target = e.target;
-        if (!isDeleteMode && target.classList.contains('word-span')) {
-            const txt = getSentenceByPunct(target);
-            if (txt) copyToClipboard(txt);
-        }
-    };
-}
-window.toggleSearchMode = function() {
-    const selection = window.getSelection();
-    let query = "";
-
-    if (!selection.isCollapsed) {
-        // 如果有选区，直接拿选中的文本（去空格和换行）
-        query = selection.toString().trim().replace(/\s+/g, " ");
-    } else {
-        // 没选区，尝试抓单个单词
-        const target = getSelectedWordElement();
-        if (target) query = target.innerText.trim();
-    }
-
-    if (!query) {
-        triggerButtonError('searchModeBtn');
-        return;
-    }
-
-    // 限制一下搜索长度，防止误选整篇文档导致 URL 过长
-    const displayTitle = query.length > 15 ? query.substring(0, 15) + "..." : query;
-    document.getElementById('preview-word-title').innerText = "搜索: " + displayTitle;
-    
-    const searchUrl = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&form=HDRSC2&adlt=strict`;
-    document.getElementById('preview-iframe').src = searchUrl;
-    document.getElementById('image-preview-container').classList.add('active');
-};
-
-// 新增：关闭图片预览函数
-window.closeImagePreview = function() {
-    const container = document.getElementById('image-preview-container');
-    const iframe = document.getElementById('preview-iframe');
-    
-    // 1. 移除 active 类，触发 CSS 过渡动画滑出屏幕
-    container.classList.remove('active');
-    
-    // 2. 关键：清空 iframe 地址
-    // 这样做可以停止后台网页运行，并确保下次打开时不会看到上一个单词的残留
-    setTimeout(() => {
-        iframe.src = "";
-    }, 300); 
-};
-// 5. 恢复函数
-function recover(el, showConfirm = true) {
-    const doRecover = () => {
-        manualPositions = manualPositions.filter(i => i !== parseInt(el.dataset.index));
-        savePositions();
-        renderCloze();
-    };
-    if (showConfirm) {
-        if (confirm("恢复显示？")) doRecover();
-    } else {
-        doRecover();
-    }
-}
-
-function handleSpaceKey(e, el) {
-    if (e.code === 'Space' || e.keyCode === 32) {
-        e.preventDefault();
-        const targetAns = answers[el.dataset.id];
-        if (el.value.length < targetAns.length) {
-            el.value = targetAns.substring(0, el.value.length + 1);
-            validateInput(el);
+            const text = textParts.join(' ');
+            if (text) {
+                cues.push({ start, text });
+            }
+            i = j - 1; // 跳过已处理的行
         }
     }
+
+    console.log("解析成功，条数:", cues.length);
+    return cues;
 }
-
-function changeFontSize(delta) {
-    currentFontSize += delta;
-    // 更新输入框和显示框的字体
-    inputArea.style.fontSize = clozeContent.style.fontSize = currentFontSize + "px";
-    // 更新底部新位置的字号数字
-    const label = document.getElementById('fontSizeLabel');
-    if(label) label.innerText = currentFontSize;
-}
-
-
-function getHint(w) { return w.length <= 2 ? w[0] + "_" : w[0] + "_".repeat(w.length - 2) + w[w.length-1]; }
-
-
-function savePositions() { 
-    // 记录当前滚动高度（像素值）
-    window.currentScrollPos = window.scrollY;
-    
-    if (window.syncUpload) window.syncUpload();
-}
-inputArea.oninput = savePositions;
-function handleClear() {
-    if(confirm("确定清空吗？")) {
-        inputArea.value = "";
-        manualPositions = [];
-        savePositions();
-        renderCloze();
-    }
-}
-// 新增：复制全文函数
-window.copyFullText = function() {
-    // 获取当前 textarea 里的原始文本
-    const fullText = inputArea.value.trim();
-    if (!fullText) {
-        alert("没有内容可复制");
-        return;
-    }
-    
-    copyToClipboard(fullText);
-    
-    // 给一点视觉反馈，暂时改变按钮文字
-    const btn = event.currentTarget;
-    const originalText = btn.innerText;
-    btn.innerText = "已复制 √";
-    setTimeout(() => {
-        btn.innerText = originalText;
-    }, 1000);
-};
-let scrollTimer;
-window.addEventListener('scroll', () => {
-    if (!app.classList.contains('exercise-mode')) return; // 只有在练习模式才记录
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(() => {
-        console.log("检测到停止滚动，正在自动同步进度...");
-        savePositions();
-    }, 1000); // 停止滚动 1 秒后自动上传
-});
-
-window.toggleHighlightMode = function() {
-    const indices = getTargetIndices();
-    if (indices.length === 0) {
-        triggerButtonError('highlightModeBtn');
-        return;
+    function timeToSeconds(timeStr) {
+        const parts = timeStr.trim().replace(',', '.').split(':');
+        if (parts.length === 3) return (+parts[0]) * 3600 + (+parts[1]) * 60 + (+parts[2]);
+        return (+parts[0]) * 60 + (+parts[1]);
     }
 
-    const anyNotHighlighted = indices.some(idx => !highlightPositions.includes(idx));
-
-    // 1. 更新数据
-    if (anyNotHighlighted) {
-        indices.forEach(idx => {
-            if (!highlightPositions.includes(idx)) highlightPositions.push(idx);
+    function renderSubtitles(cues) {
+        transcript.innerHTML = '';
+        cues.forEach(cue => {
+            const div = document.createElement('div');
+            div.className = 'line';
+            div.dataset.time = cue.start;
+            div.innerHTML = `
+                <span class="time-box">${formatTime(cue.start)}</span>
+                <div class="content">${cue.text}</div>
+            `;
+            div.onclick = () => {
+                video.currentTime = cue.start;
+                video.play();
+            };
+            transcript.appendChild(div);
         });
-    } else {
-        highlightPositions = highlightPositions.filter(idx => !indices.includes(idx));
     }
 
-    // 2. 【核心优化】直接操作 DOM
-    indices.forEach(idx => {
-        const el = clozeContent.querySelector(`.word-span[data-index="${idx}"]`);
-        if (el) {
-            if (anyNotHighlighted) el.classList.add('sentence-highlight');
-            else el.classList.remove('sentence-highlight');
-        }
+    function formatTime(s) {
+        return new Date(s * 1000).toISOString().substr(14, 5);
+    }
+
+    video.addEventListener('timeupdate', () => {
+        const currentTime = video.currentTime;
+        const lines = document.querySelectorAll('.line');
+        lines.forEach((line, i) => {
+            const start = parseFloat(line.dataset.time);
+            const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
+            if (currentTime >= start && currentTime < next) {
+                if (!line.classList.contains('active')) {
+                    document.querySelector('.line.active')?.classList.remove('active');
+                    line.classList.add('active');
+                    line.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            }
+        });
     });
 
-    setTimeout(savePositions, 10);
-};
+    window.addEventListener('message', (event) => {
+        if (event.data.type === 'LOAD_SUBTITLES') {
+            processSubtitleContent(event.data.data);
+        }
+    });
+    window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
 </script>
 </body>
 </html>
