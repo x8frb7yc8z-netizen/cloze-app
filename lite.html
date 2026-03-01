@@ -1,70 +1,153 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>视频点读压力测试</title>
-    <style>
-        body { font-family: sans-serif; padding: 20px; }
-        video { width: 100%; border-radius: 8px; background: #000; margin-bottom: 20px; }
-        .test-btn { 
-            display: block; width: 100%; padding: 15px; margin-bottom: 10px;
-            background: #007AFF; color: white; border: none; border-radius: 8px; font-size: 16px;
-        }
-        #status { color: #666; font-size: 12px; margin-top: 10px; }
-    </style>
-</head>
-<body>
-
-    <video id="testVideo" controls playsinline>
-        <source src="Lost_S01E01.mp4" type="video/mp4">
-    </video>
-
-    <div id="status">等待视频加载...</div>
-
+<div id="video-container">
+    <video id="ankiVideo" playsinline controls width="100%" poster=""></video>
+    <div id="status-bar">
+        <span id="load-status">正在扫描媒体库...</span>
+        <button id="manual-btn" onclick="document.getElementById('fileInput').click()">手动关联视频</button>
+    </div>
     <input type="file" id="fileInput" accept="video/*" style="display:none">
-    <button class="test-btn" style="background:#34c759" onclick="document.getElementById('fileInput').click()">
-        1. 关联本地视频文件
-    </button>
+</div>
 
-    <hr>
+<div id="script-display">
+    </div>
 
-    <p>点击下方按钮测试跳转：</p>
-    <button class="test-btn" onclick="seekTo(10)">跳转到第 10 秒 (测试开头)</button>
-    <button class="test-btn" onclick="seekTo(600)">跳转到第 10 分钟 (测试大文件Seek)</button>
-    <button class="test-btn" onclick="seekTo(1200)">跳转到第 20 分钟 (测试M4解码)</button>
+<style>
+    :root { --accent: #34c759; --bg: #ffffff; }
+    body { font-family: -apple-system, system-ui, sans-serif; padding: 15px; background: var(--bg); color: #333; }
+    
+    /* 视频样式 */
+    #video-container { position: sticky; top: 0; background: var(--bg); z-index: 100; padding-bottom: 10px; border-bottom: 1px solid #eee; }
+    video { width: 100%; border-radius: 10px; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    
+    /* 状态条 */
+    #status-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #888; }
+    #manual-btn { padding: 4px 8px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; color: #666; }
 
-    <script>
-        const video = document.getElementById('testVideo');
-        const status = document.getElementById('status');
+    /* 剧本样式 */
+    #script-display { margin-top: 20px; }
+    .sentence-row { display: flex; margin-bottom: 18px; align-items: flex-start; }
+    .time-anchor { font-size: 12px; color: #bbb; min-width: 45px; padding-top: 4px; cursor: pointer; transition: color 0.2s; }
+    .time-anchor:active { color: var(--accent); }
+    
+    /* 单词样式 */
+    .word-span { font-size: 19px; cursor: pointer; padding: 2px 4px; border-radius: 4px; display: inline-block; transition: all 0.1s; }
+    .word-span:active { background: #e8e8e8; transform: scale(0.95); }
+    .cloze-mode .word-span.is-cloze { color: var(--accent); font-weight: 600; border-bottom: 2px solid var(--accent); }
+</style>
 
-        // 关联文件逻辑
-        document.getElementById('fileInput').onchange = (e) => {
-            const file = e.target.files[0];
-            if (file) {
-                const url = URL.createObjectURL(file);
-                video.src = url;
-                status.innerText = `成功关联文件: ${file.name} (${(file.size/1024/1024).toFixed(2)}MB)`;
-            }
-        };
+<script>
+    // --- 1. 数据配置 ---
+    const v = document.getElementById('ankiVideo');
+    const status = document.getElementById('load-status');
+    const display = document.getElementById('script-display');
+    
+    const videoFileName = "{{VideoName}}".trim(); // 字段：Lost_S01E01.mp4
+    const rawData = `{{TimestampText}}`;           // 字段：[00:01.20] Text...
+    const nid = "{{nid}}";                         // 字段：唯一笔记ID
 
-        // 执行跳转函数
-        function seekTo(seconds) {
-            if (!video.src && !video.querySelector('source').src) {
-                alert("请先关联视频文件！");
-                return;
-            }
-            video.currentTime = seconds;
-            video.play();
-            status.innerText = `当前指令：跳转至 ${seconds} 秒`;
+    // --- 2. 视频加载逻辑 (关键) ---
+    function initVideo() {
+        if (!videoFileName) {
+            status.innerText = "❌ 未指定视频文件名";
+            return;
         }
 
-        // 监听视频实际进度变化
-        video.ontimeupdate = () => {
-            if(video.currentTime > 0) {
-                status.innerText = `当前播放时间: ${video.currentTime.toFixed(2)} 秒`;
-            }
+        v.src = videoFileName; // Anki 内部自动映射 collection.media
+        v.load();
+
+        v.onloadedmetadata = () => {
+            status.innerText = `✅ 已加载: ${videoFileName}`;
+            status.style.color = "#34c759";
+            restoreProgress(); // 加载成功后恢复进度
         };
-    </script>
-</body>
-</html>
+
+        v.onerror = () => {
+            status.innerText = "❌ 自动加载失败，请尝试手动关联";
+            status.style.color = "#ff3b30";
+        };
+    }
+
+    // --- 3. 剧本渲染逻辑 ---
+    function render() {
+        // 按时间戳切割句子
+        const segments = rawData.split(/(?=\[\d{2}:\d{2}\.\d{2}\])/g);
+        
+        display.innerHTML = segments.map(seg => {
+            const timeMatch = seg.match(/\[(\d{2}):(\d{2})\.(\d{2})\]/);
+            if (!timeMatch) return "";
+            
+            // 计算秒数作为跳转坐标
+            const sec = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]) + parseInt(timeMatch[3]) / 100;
+            const cleanText = seg.replace(/\[.*?\]/g, "").trim();
+            const words = cleanText.split(/\s+/);
+
+            return `
+                <div class="sentence-row">
+                    <div class="time-anchor" onclick="seek(${sec})">${timeMatch[1]}:${timeMatch[2]}</div>
+                    <div class="words-wrapper">
+                        ${words.map(w => `<span class="word-span" data-time="${sec}">${w}</span>`).join("")}
+                    </div>
+                </div>
+            `;
+        }).join("");
+    }
+
+    // --- 4. 交互：单击跳转/复制，双击搜图 ---
+    display.onclick = (e) => {
+        if (!e.target.classList.contains('word-span')) return;
+        const word = e.target.innerText.replace(/[^\w]/g, "");
+        
+        // 复制单词
+        navigator.clipboard.writeText(word);
+        // 执行跳转
+        seek(parseFloat(e.target.dataset.time));
+    };
+
+    display.ondblclick = (e) => {
+        if (!e.target.classList.contains('word-span')) return;
+        const word = e.target.innerText;
+        const sentence = e.target.closest('.sentence-row').innerText.replace(/\d{2}:\d{2}/, "");
+        
+        navigator.clipboard.writeText(sentence); // 复制整句
+        window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(word)}`); // 搜图
+    };
+
+    function seek(time) {
+        v.currentTime = time;
+        v.play();
+    }
+
+    // --- 5. 进度记忆逻辑 ---
+    function saveProgress() {
+        const time = v.currentTime;
+        if (time > 0) {
+            localStorage.setItem(`progress_${nid}`, time); // 先存本地
+            // 此处可扩展：firebase.database().ref('progress/'+nid).set(time);
+            console.log("进度已保存:", time);
+        }
+    }
+
+    function restoreProgress() {
+        const saved = localStorage.getItem(`progress_${nid}`);
+        if (saved) {
+            v.currentTime = parseFloat(saved);
+        }
+    }
+
+    // 定时保存进度 & 暂停时保存
+    v.onpause = saveProgress;
+    setInterval(() => { if(!v.paused) saveProgress(); }, 5000);
+
+    // 手动关联备份
+    document.getElementById('fileInput').onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            v.src = URL.createObjectURL(file);
+            status.innerText = `🔵 手动关联: ${file.name}`;
+            v.play();
+        }
+    };
+
+    // 执行启动
+    render();
+    setTimeout(initVideo, 200);
+</script>
