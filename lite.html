@@ -120,7 +120,7 @@
 
 
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, get, set, child, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
 import { getFirestore, doc, getDoc, setDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
 // --- 1. Firebase 初始化 ---
@@ -131,7 +131,7 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db = getDatabase(app); // 换成 getDatabase
 
 const video = document.getElementById('videoPlayer');
 const transcript = document.getElementById('transcript');
@@ -209,14 +209,16 @@ function renderSubtitles(cues) {
 }
 
 // --- 3. 进度保存与恢复 ---
+// --- 3. 进度保存与恢复 (Realtime Database 版本) ---
 async function fetchProgress(noteId) {
+    if (!noteId) return;
     try {
-        const snap = await getDoc(doc(db, "progress", noteId));
-        if (snap.exists()) {
-            const data = snap.data();
+        const dbRef = ref(db);
+        const snapshot = await get(child(dbRef, `progress/${noteId}`));
+        if (snapshot.exists()) {
+            const data = snapshot.val();
             video.currentTime = data.lastTime || 0;
             
-            // 延迟一点点等待渲染完成后再滚动
             setTimeout(() => {
                 const target = document.querySelector(`.line[data-index="${data.lastIndex}"]`);
                 if (target) {
@@ -230,30 +232,23 @@ async function fetchProgress(noteId) {
 }
 
 async function saveProgress(noteId, time, index) {
-    if (!noteId) {
-        console.log("跳过保存：没有 NoteID");
-        return;
-    }
+    if (!noteId) return;
     const now = Date.now();
     if (now - lastSaveTime < 2500) return; 
 
     lastSaveTime = now;
-    console.log(`正在尝试保存进度: NoteID=${noteId}, Time=${time}`);
-
     try {
-        // 确保引用正确
-        const docRef = doc(db, "progress", String(noteId)); 
-        await setDoc(docRef, {
+        // 使用 ref(db, '路径') 写入
+        await set(ref(db, 'progress/' + noteId), {
             lastTime: time,
             lastIndex: index,
-            updatedAt: serverTimestamp()
-        }, { merge: true });
+            updatedAt: serverTimestamp() // 注意：RTDB 的 serverTimestamp 也是可用的
+        });
         
-        console.log("✅ Firebase 写入成功");
         statusBar.innerText = "同步完成: " + new Date().toLocaleTimeString();
+        console.log("✅ RTDB 写入成功");
     } catch (e) { 
-        console.error("❌ Firebase 写入失败:", e); 
-        statusBar.innerText = "同步失败，请检查网络";
+        console.error("❌ RTDB 写入失败:", e); 
     }
 }
 
