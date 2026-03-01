@@ -230,19 +230,31 @@ async function fetchProgress(noteId) {
 }
 
 async function saveProgress(noteId, time, index) {
-    if (!noteId) return;
+    if (!noteId) {
+        console.log("跳过保存：没有 NoteID");
+        return;
+    }
     const now = Date.now();
-    if (now - lastSaveTime < 2500) return; // 节流：2.5秒存一次
+    if (now - lastSaveTime < 2500) return; 
 
     lastSaveTime = now;
+    console.log(`正在尝试保存进度: NoteID=${noteId}, Time=${time}`);
+
     try {
-        await setDoc(doc(db, "progress", noteId), {
+        // 确保引用正确
+        const docRef = doc(db, "progress", String(noteId)); 
+        await setDoc(docRef, {
             lastTime: time,
             lastIndex: index,
             updatedAt: serverTimestamp()
         }, { merge: true });
+        
+        console.log("✅ Firebase 写入成功");
         statusBar.innerText = "同步完成: " + new Date().toLocaleTimeString();
-    } catch (e) { console.error("保存失败", e); }
+    } catch (e) { 
+        console.error("❌ Firebase 写入失败:", e); 
+        statusBar.innerText = "同步失败，请检查网络";
+    }
 }
 
 // --- 4. 事件监听 ---
@@ -264,29 +276,39 @@ window.addEventListener('message', (event) => {
 });
 
 // 视频进度联动
+// 视频进度联动
 video.addEventListener('timeupdate', () => {
     const lines = document.querySelectorAll('.line');
     const currentTime = video.currentTime;
 
-    lines.forEach((line, i) => {
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         const start = parseFloat(line.dataset.time);
         const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
 
         if (currentTime >= start && currentTime < next) {
             if (!line.classList.contains('active')) {
+                // 1. 切换高亮
                 document.querySelector('.line.active')?.classList.remove('active');
                 line.classList.add('active');
-                
-                // 只有当不是因为手动滚动导致的更新时，才触发自动滚动和保存
+
+                // 2. 触发保存 (不受滚动锁影响)
+                // 只要 noteId 存在且高亮行切换了，就进入 saveProgress (内部有 2.5s 节流)
+                if (currentNoteId) {
+                    saveProgress(String(currentNoteId), currentTime, i);
+                }
+
+                // 3. 触发自动滚动 (受滚动锁影响，防止循环触发)
                 if (!isAutoScrolling) {
                     isAutoScrolling = true;
                     line.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    saveProgress(currentNoteId, currentTime, i);
-                    setTimeout(() => isAutoScrolling = false, 1200);
+                    // 缩短锁定时间，提高灵敏度
+                    setTimeout(() => isAutoScrolling = false, 800);
                 }
             }
+            break; 
         }
-    });
+    }
 });
 
 // 告知宿主准备好了
