@@ -144,25 +144,39 @@ document.getElementById('videoInput').addEventListener('change', (e) => {
 });
 
 window.addEventListener('message', (event) => {
-    // 调试用，确认数据内容
-    console.log("收到数据:", event.data);
+    // 调试：如果你在手机上用，可以保留这个 alert，成功后删掉
+    // alert("收到类型: " + event.data.type); 
 
     if (event.data.type === 'LOAD_SUBTITLES') {
-        // 1. 强制转为字符串，并移除 Firebase 不允许的字符
-        const rawId = String(event.data.noteId || "default_note");
+        // 1. 处理 Note ID：确保是字符串并过滤 Firebase 非法字符
+        let rawId = String(event.data.noteId || "default").trim();
         currentNoteId = rawId.replace(/[.#$[\]]/g, '_'); 
         
-        // 2. 解析并渲染
-        const cues = parseSubtitle(event.data.data);
+        // 2. 检查字幕内容是否存在
+        const subData = event.data.data;
+        if (!subData || subData.length < 10) {
+            transcript.innerHTML = '<div style="color:red; margin-top:50px;">字幕内容为空，请检查 Anki 字段</div>';
+            return;
+        }
+
+        // 3. 解析并渲染
+        const cues = parseSubtitle(subData);
+        if (cues.length === 0) {
+            transcript.innerHTML = '<div style="color:red; margin-top:50px;">字幕解析失败，请检查 SRT 格式</div>';
+            return;
+        }
+
         renderSubtitles(cues);
         
-        // 3. 启动同步
+        // 4. 启动同步与状态更新
         startRealtimeSync(currentNoteId);
-        
         statusBar.innerText = "卡片已激活: " + currentNoteId;
-        console.log("✅ 实时同步已就绪，ID:", currentNoteId);
+        console.log("✅ 实时同步就绪:", currentNoteId);
     }
 });
+
+// 确保向父级发送 READY 信号时使用通配符
+window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
 
 video.addEventListener('timeupdate', () => {
     if (isRemoteUpdating) return; // 云端更新时禁止触发本地上传
