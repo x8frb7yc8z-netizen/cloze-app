@@ -329,5 +329,147 @@ html, body {
     });
     window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
 </script>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+// --- Firebase 配置 ---
+const firebaseConfig = {
+    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+    authDomain: "cloze-master-pro.firebaseapp.com",
+    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "cloze-master-pro",
+    storageBucket: "cloze-master-pro.firebasestorage.app",
+    messagingSenderId: "697808901954",
+    appId: "1:697808901954:web:32455d94bf67e522e01adb"
+};
+const fbApp = initializeApp(firebaseConfig);
+const db = getDatabase(fbApp);
+
+// --- 页面元素 ---
+const video = document.getElementById('videoPlayer');
+const transcript = document.getElementById('transcript');
+const status = document.getElementById('status');
+const dot = document.getElementById('dot');
+
+function updateStatus(msg, active=false){
+    status.innerText = msg;
+    dot.className = active ? 'status-dot active' : 'status-dot';
+}
+
+// --- 上传/下载文档ID ---
+// 可用视频名或自定义 ID
+function getDocId() {
+    if(video.src){
+        const name = video.src.split('/').pop().split('.').shift();
+        return 'vid_' + name;
+    }
+    return 'default_video';
+}
+
+// --- Firebase 上传 ---
+let lastUploadTime = 0;
+function syncUpload(){
+    const id = getDocId();
+    if(!id) return;
+    const activeLine = document.querySelector('.line.active');
+    const activeIndex = activeLine ? Array.from(transcript.children).indexOf(activeLine) : 0;
+    set(ref(db, 'players/' + id), {
+        currentTime: video.currentTime,
+        activeIndex: activeIndex,
+        ts: Date.now()
+    });
+}
+
+// --- Firebase 下载 ---
+async function syncDownload(){
+    const id = getDocId();
+    if(!id) return;
+    const snapshot = await get(child(ref(db), 'players/' + id));
+    if(snapshot.exists()){
+        const data = snapshot.val();
+        if(data.currentTime) video.currentTime = data.currentTime;
+        if(data.activeIndex !== undefined){
+            const line = transcript.children[data.activeIndex];
+            if(line) {
+                document.querySelector('.line.active')?.classList.remove('active');
+                line.classList.add('active');
+                line.scrollIntoView({block:'center'});
+            }
+        }
+        updateStatus("已恢复播放进度", true);
+    }
+}
+
+// --- 监听远程更新 ---
+function listenRemoteUpdates(){
+    const id = getDocId();
+    if(!id) return;
+    onValue(ref(db, 'players/' + id), (snapshot)=>{
+        const data = snapshot.val();
+        if(!data) return;
+        // 防止自己上传覆盖
+        const now = Date.now();
+        if(now - lastUploadTime < 1000) return;
+        if(data.currentTime !== undefined && Math.abs(video.currentTime - data.currentTime) > 1){
+            video.currentTime = data.currentTime;
+        }
+        if(data.activeIndex !== undefined){
+            const line = transcript.children[data.activeIndex];
+            if(line && !line.classList.contains('active')){
+                document.querySelector('.line.active')?.classList.remove('active');
+                line.classList.add('active');
+                line.scrollIntoView({block:'center'});
+            }
+        }
+    });
+}
+
+// --- 自动上传播放进度 ---
+video.addEventListener('timeupdate', ()=>{
+    lastUploadTime = Date.now();
+    syncUpload();
+    // 激活行同步
+    const currentTime = video.currentTime;
+    const lines = transcript.querySelectorAll('.line');
+    lines.forEach((line, i)=>{
+        const start = parseFloat(line.dataset.time);
+        const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
+        if(currentTime >= start && currentTime < next){
+            if(!line.classList.contains('active')){
+                document.querySelector('.line.active')?.classList.remove('active');
+                line.classList.add('active');
+                line.scrollIntoView({behavior:'smooth', block:'center'});
+            }
+        }
+    });
+});
+
+// --- 初始化 ---
+video.addEventListener('loadedmetadata', ()=>{
+    syncDownload();
+    listenRemoteUpdates();
+});
+
+// --- 原有字幕上传接口 ---
+function processSubtitleContent(content){
+    const cues = parseSubtitle(content);
+    renderSubtitles(cues);
+    updateStatus("字幕已从 Anki 同步", true);
+}
+function parseSubtitle(data){ /* 保持你原先 parseSubtitle 逻辑 */ }
+function renderSubtitles(cues){ /* 保持你原先 renderSubtitles 逻辑 */ }
+function timeToSeconds(timeStr){ /* 保持你原先 timeToSeconds 逻辑 */ }
+function formatTime(s){ /* 保持你原先 formatTime 逻辑 */ }
+
+// --- 监听消息从父页面传字幕 ---
+window.addEventListener('message', (event)=>{
+    if(event.data.type === 'LOAD_SUBTITLES'){
+        processSubtitleContent(event.data.data);
+    }
+});
+window.parent.postMessage({type:'PLAYER_READY'}, '*');
+</script>
 </body>
 </html>
