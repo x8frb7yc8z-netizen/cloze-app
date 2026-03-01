@@ -144,12 +144,13 @@ document.getElementById('videoInput').addEventListener('change', (e) => {
 });
 
 window.addEventListener('message', (event) => {
+    // 强制弹窗测试，看 Anki 是否把数据塞进来了
+    alert("收到消息，来源: " + event.origin + " 类型: " + event.data.type);
+    
     if (event.data.type === 'LOAD_SUBTITLES') {
         currentNoteId = String(event.data.noteId).trim();
-        const cues = parseSubtitle(event.data.data);
-        renderSubtitles(cues);
-        startRealtimeSync(currentNoteId); // 开启实时监听
-        statusBar.innerText = "卡片已加载: " + currentNoteId;
+        // ... 原有逻辑
+        statusBar.innerText = "成功加载 ID: " + currentNoteId;
     }
 });
 
