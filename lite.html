@@ -209,91 +209,67 @@ html, body {
     </div>
 </div>
 
-<script>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.1.0/firebase-app.js";
+    import { getDatabase, ref, set, get, serverTimestamp } from "https://www.gstatic.com/firebasejs/9.1.0/firebase-database.js";
+
+    // 1. Firebase 配置
+    const firebaseConfig = {
+        apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+        databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "cloze-master-pro"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
     const video = document.getElementById('videoPlayer');
     const transcript = document.getElementById('transcript');
-    const status = document.getElementById('status');
-    const dot = document.getElementById('dot');
+    let currentNoteID = "";
+    let scrollTimer = null;
+    let isAutoScrolling = false; // 防止自动滚动触发进度上传
 
-    function updateStatus(msg, active = false) {
-        status.innerText = msg;
-        dot.className = active ? 'status-dot active' : 'status-dot';
-    }
-
-    document.getElementById('videoInput').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            video.src = URL.createObjectURL(file);
-            updateStatus("视频已加载", true);
+    // --- 2. 核心：解析与渲染 ---
+    window.addEventListener('message', async (event) => {
+        if (event.data.type === 'LOAD_SUBTITLES') {
+            currentNoteID = event.data.noteID;
+            const cues = parseSubtitle(event.data.data);
+            renderSubtitles(cues);
+            
+            if (currentNoteID) {
+                restoreProgress(); // 渲染完立即恢复进度
+            }
         }
     });
 
-    function processSubtitleContent(content) {
-        const cues = parseSubtitle(content);
-        renderSubtitles(cues);
-        updateStatus("字幕已从 Anki 同步", true);
-    }
-
     function parseSubtitle(data) {
-    // 1. 彻底清除 HTML 标签并将常见标签转为换行，防止 Anki 的 <div> 等干扰分割
-    let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
-                        .replace(/<\/p>|<\/div>/gi, "\n")
-                        .replace(/<\/?[^>]+(>|$)/g, "");
-
-    // 2. 处理 HTML 转义字符（&rarr; 等）
-    const doc = new DOMParser().parseFromString(cleanData, 'text/html');
-    cleanData = doc.documentElement.textContent;
-
-    // 3. 使用正则全局匹配时间轴：支持 00:00:00,000 或 00:00.000
-    // 该正则会匹配类似 "00:00:12,500 --> 00:00:15,000" 这样的行
-    const timeRegex = /(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/g;
-    
-    const cues = [];
-    let match;
-
-    // 将内容按行拆分，更精确地定位时间轴及其下方的文本
-    const lines = cleanData.split('\n').map(l => l.trim()).filter(l => l !== "");
-
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const timeMatch = line.match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
-        
-        if (timeMatch) {
-            const start = timeToSeconds(timeMatch[1]);
-            // 收集时间轴之后、下一个时间轴之前的所有行作为文本
-            let textParts = [];
-            let j = i + 1;
-            while (j < lines.length && !lines[j].match(/-->/)) {
-                textParts.push(lines[j]);
-                j++;
+        let cleanData = data.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>|<\/div>/gi, "\n").replace(/<\/?[^>]+(>|$)/g, "");
+        const lines = cleanData.split('\n').map(l => l.trim()).filter(l => l !== "");
+        const cues = [];
+        for (let i = 0; i < lines.length; i++) {
+            const timeMatch = lines[i].match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
+            if (timeMatch) {
+                let textParts = [];
+                let j = i + 1;
+                while (j < lines.length && !lines[j].match(/-->/)) {
+                    textParts.push(lines[j]);
+                    j++;
+                }
+                cues.push({ start: timeToSeconds(timeMatch[1]), text: textParts.join(' ') });
+                i = j - 1;
             }
-            const text = textParts.join(' ');
-            if (text) {
-                cues.push({ start, text });
-            }
-            i = j - 1; // 跳过已处理的行
         }
-    }
-
-    console.log("解析成功，条数:", cues.length);
-    return cues;
-}
-    function timeToSeconds(timeStr) {
-        const parts = timeStr.trim().replace(',', '.').split(':');
-        if (parts.length === 3) return (+parts[0]) * 3600 + (+parts[1]) * 60 + (+parts[2]);
-        return (+parts[0]) * 60 + (+parts[1]);
+        return cues;
     }
 
     function renderSubtitles(cues) {
         transcript.innerHTML = '';
-        cues.forEach(cue => {
+        cues.forEach((cue, index) => {
             const div = document.createElement('div');
             div.className = 'line';
             div.dataset.time = cue.start;
-            div.innerHTML = `
-                <span class="time-box">${formatTime(cue.start)}</span>
-                <div class="content">${cue.text}</div>
-            `;
+            div.dataset.index = index; // 锚点索引
+            div.innerHTML = `<div class="content">${cue.text}</div>`;
             div.onclick = () => {
                 video.currentTime = cue.start;
                 video.play();
@@ -302,10 +278,51 @@ html, body {
         });
     }
 
-    function formatTime(s) {
-        return new Date(s * 1000).toISOString().substr(14, 5);
+    // --- 3. 进度保存：监听滚动停止 ---
+    transcript.addEventListener('scroll', () => {
+        if (isAutoScrolling) return; 
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(saveReadingProgress, 1000); // 停顿1秒保存
+    });
+
+    async function saveReadingProgress() {
+        if (!currentNoteID) return;
+        const lines = document.querySelectorAll('.line');
+        const containerRect = transcript.getBoundingClientRect();
+        const centerLine = Array.from(lines).find(line => {
+            const rect = line.getBoundingClientRect();
+            return rect.top >= containerRect.top && rect.top <= containerRect.bottom;
+        });
+
+        if (centerLine) {
+            const index = centerLine.dataset.index;
+            const time = centerLine.dataset.time;
+            await set(ref(db, `video_progress/${currentNoteID}`), {
+                lastIndex: parseInt(index),
+                lastTime: parseFloat(time),
+                updatedAt: serverTimestamp()
+            });
+            console.log("进度已锚定:", index);
+        }
     }
 
+    // --- 4. 进度恢复 ---
+    async function restoreProgress() {
+        const snapshot = await get(ref(db, `video_progress/${currentNoteID}`));
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            isAutoScrolling = true;
+            video.currentTime = data.lastTime;
+            const targetLine = document.querySelector(`.line[data-index="${data.lastIndex}"]`);
+            if (targetLine) {
+                targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetLine.classList.add('active');
+            }
+            setTimeout(() => { isAutoScrolling = false; }, 1500);
+        }
+    }
+
+    // --- 5. 播放联动 ---
     video.addEventListener('timeupdate', () => {
         const currentTime = video.currentTime;
         const lines = document.querySelectorAll('.line');
@@ -316,17 +333,20 @@ html, body {
                 if (!line.classList.contains('active')) {
                     document.querySelector('.line.active')?.classList.remove('active');
                     line.classList.add('active');
+                    isAutoScrolling = true;
                     line.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    setTimeout(() => { isAutoScrolling = false; }, 1000);
                 }
             }
         });
     });
 
-    window.addEventListener('message', (event) => {
-        if (event.data.type === 'LOAD_SUBTITLES') {
-            processSubtitleContent(event.data.data);
-        }
-    });
+    function timeToSeconds(t) {
+        const p = t.replace(',', '.').split(':');
+        return (+p[0]) * 3600 + (+p[1]) * 60 + (+p[2]);
+    }
+
+    // 告知 Anki 已准备就绪
     window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
 </script>
 </body>
