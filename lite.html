@@ -673,15 +673,42 @@ function triggerButtonError(btnId) {
     }, 400); // 动画结束后移除类名
 }
 window.toggleBoldMode = function() {
-    const indices = getTargetIndices();
-    if (indices.length === 0) {
+
+    const selection = window.getSelection();
+    if (!selection.rangeCount) {
         triggerButtonError('boldModeBtn');
         return;
     }
 
+    const range = selection.getRangeAt(0);
+    const startContainer = range.startContainer;
+    const endContainer = range.endContainer;
+
+    // 记录选区所在的 data-index
+    const startSpan = startContainer.nodeType === 3 
+        ? startContainer.parentElement.closest('.word-span')
+        : startContainer.closest?.('.word-span');
+
+    const endSpan = endContainer.nodeType === 3
+        ? endContainer.parentElement.closest('.word-span')
+        : endContainer.closest?.('.word-span');
+
+    if (!startSpan || !endSpan) {
+        triggerButtonError('boldModeBtn');
+        return;
+    }
+
+    const startIdx = parseInt(startSpan.dataset.index);
+    const endIdx = parseInt(endSpan.dataset.index);
+
+    const indices = [];
+    for (let i = startIdx; i <= endIdx; i++) {
+        indices.push(i);
+    }
+
     const allBold = indices.every(idx => boldPositions.includes(idx));
 
-    // 1. 更新数据状态
+    // 更新数据
     if (allBold) {
         boldPositions = boldPositions.filter(idx => !indices.includes(idx));
     } else {
@@ -690,7 +717,7 @@ window.toggleBoldMode = function() {
         });
     }
 
-    // 2. 【核心优化】直接操作 DOM，不重绘
+    // 不直接 render，避免闪烁
     indices.forEach(idx => {
         const el = clozeContent.querySelector(`.word-span[data-index="${idx}"]`);
         if (el) {
@@ -699,10 +726,25 @@ window.toggleBoldMode = function() {
         }
     });
 
-    // 3. 异步保存，不阻塞主线程
+    // ⭐ 关键：重新恢复选区
+    setTimeout(() => {
+        const newStart = clozeContent.querySelector(`.word-span[data-index="${startIdx}"]`);
+        const newEnd = clozeContent.querySelector(`.word-span[data-index="${endIdx}"]`);
+        if (!newStart || !newEnd) return;
+
+        const newRange = document.createRange();
+        newRange.setStart(newStart.firstChild || newStart, 0);
+        newRange.setEnd(
+            newEnd.firstChild || newEnd,
+            (newEnd.firstChild?.length || newEnd.textContent.length)
+        );
+
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+    }, 0);
+
     setTimeout(savePositions, 10);
 };
-
 function updateModeButtons() {
     const sBtn = document.getElementById('searchModeBtn');
     const bBtn = document.getElementById('boldModeBtn');
