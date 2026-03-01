@@ -1,153 +1,162 @@
-<div id="video-container">
-    <video id="ankiVideo" playsinline controls width="100%" poster=""></video>
-    <div id="status-bar">
-        <span id="load-status">正在扫描媒体库...</span>
-        <button id="manual-btn" onclick="document.getElementById('fileInput').click()">手动关联视频</button>
-    </div>
-    <input type="file" id="fileInput" accept="video/*" style="display:none">
-</div>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <title>Anki Video Player Pro</title>
+    <style>
+        :root { --primary: #43a047; --bg: #000; --text-bg: #fff; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: var(--bg); font-family: -apple-system, sans-serif; overflow: hidden; }
 
-<div id="script-display">
-    </div>
-
-<style>
-    :root { --accent: #34c759; --bg: #ffffff; }
-    body { font-family: -apple-system, system-ui, sans-serif; padding: 15px; background: var(--bg); color: #333; }
-    
-    /* 视频样式 */
-    #video-container { position: sticky; top: 0; background: var(--bg); z-index: 100; padding-bottom: 10px; border-bottom: 1px solid #eee; }
-    video { width: 100%; border-radius: 10px; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
-    
-    /* 状态条 */
-    #status-bar { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 11px; color: #888; }
-    #manual-btn { padding: 4px 8px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 4px; color: #666; }
-
-    /* 剧本样式 */
-    #script-display { margin-top: 20px; }
-    .sentence-row { display: flex; margin-bottom: 18px; align-items: flex-start; }
-    .time-anchor { font-size: 12px; color: #bbb; min-width: 45px; padding-top: 4px; cursor: pointer; transition: color 0.2s; }
-    .time-anchor:active { color: var(--accent); }
-    
-    /* 单词样式 */
-    .word-span { font-size: 19px; cursor: pointer; padding: 2px 4px; border-radius: 4px; display: inline-block; transition: all 0.1s; }
-    .word-span:active { background: #e8e8e8; transform: scale(0.95); }
-    .cloze-mode .word-span.is-cloze { color: var(--accent); font-weight: 600; border-bottom: 2px solid var(--accent); }
-</style>
-
-<script>
-    // --- 1. 数据配置 ---
-    const v = document.getElementById('ankiVideo');
-    const status = document.getElementById('load-status');
-    const display = document.getElementById('script-display');
-    
-    const videoFileName = "{{VideoName}}".trim(); // 字段：Lost_S01E01.mp4
-    const rawData = `{{TimestampText}}`;           // 字段：[00:01.20] Text...
-    const nid = "{{nid}}";                         // 字段：唯一笔记ID
-
-    // --- 2. 视频加载逻辑 (关键) ---
-    function initVideo() {
-        if (!videoFileName) {
-            status.innerText = "❌ 未指定视频文件名";
-            return;
+        /* 视频容器：固定在顶部 */
+        .video-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background: #000;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        video {
+            width: 100%;
+            max-height: 40vh; /* 视频最高占屏幕 40% */
+            display: block;
         }
 
-        v.src = videoFileName; // Anki 内部自动映射 collection.media
-        v.load();
+        /* 文本区域：下方滚动 */
+        .content-area {
+            position: absolute;
+            top: 0; /* 初始值，由 JS 动态计算视频高度后修正 */
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: var(--text-bg);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 20px;
+            font-size: 22px;
+            line-height: 1.5;
+            transition: top 0.3s ease;
+        }
 
-        v.onloadedmetadata = () => {
-            status.innerText = `✅ 已加载: ${videoFileName}`;
-            status.style.color = "#34c759";
-            restoreProgress(); // 加载成功后恢复进度
-        };
-
-        v.onerror = () => {
-            status.innerText = "❌ 自动加载失败，请尝试手动关联";
-            status.style.color = "#ff3b30";
-        };
-    }
-
-    // --- 3. 剧本渲染逻辑 ---
-    function render() {
-        // 按时间戳切割句子
-        const segments = rawData.split(/(?=\[\d{2}:\d{2}\.\d{2}\])/g);
+        /* 意群样式保持一致 */
+        .word-span {
+            display: inline-block;
+            margin: 0 2px;
+            cursor: pointer;
+            border-bottom: 1px solid transparent;
+        }
+        .word-span:active {
+            background-color: #e3f2fd;
+        }
         
-        display.innerHTML = segments.map(seg => {
-            const timeMatch = seg.match(/\[(\d{2}):(\d{2})\.(\d{2})\]/);
-            if (!timeMatch) return "";
-            
-            // 计算秒数作为跳转坐标
-            const sec = parseInt(timeMatch[1]) * 60 + parseInt(timeMatch[2]) + parseInt(timeMatch[3]) / 100;
-            const cleanText = seg.replace(/\[.*?\]/g, "").trim();
-            const words = cleanText.split(/\s+/);
+        /* 正在播放的句子高亮 */
+        .active-sentence {
+            background-color: #fff9c4;
+            border-radius: 4px;
+        }
 
-            return `
-                <div class="sentence-row">
-                    <div class="time-anchor" onclick="seek(${sec})">${timeMatch[1]}:${timeMatch[2]}</div>
-                    <div class="words-wrapper">
-                        ${words.map(w => `<span class="word-span" data-time="${sec}">${w}</span>`).join("")}
-                    </div>
-                </div>
-            `;
+        /* 控制条 */
+        .controls {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            z-index: 200;
+        }
+        .btn-round {
+            width: 50px;
+            height: 50px;
+            border-radius: 25px;
+            background: var(--primary);
+            color: white;
+            border: none;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="video-container" id="videoBox">
+    <video id="mainVideo" controls playsinline>
+        <source id="videoSrc" src="" type="video/mp4">
+    </video>
+</div>
+
+<div class="content-area" id="clozeContent">
+    等待 Anki 数据加载...
+</div>
+
+<div class="controls">
+    <button class="btn-round" onclick="resetVideo()">重置</button>
+</div>
+
+<script>
+    const video = document.getElementById('mainVideo');
+    const content = document.getElementById('clozeContent');
+    const videoBox = document.getElementById('videoBox');
+
+    // 1. 监听 Anki 传来的消息
+    window.addEventListener('message', (event) => {
+        if (event.data.type === 'ANKI_SYNC_DATA') {
+            const { text, videoFile } = event.data;
+
+            // 加载视频
+            if (videoFile) {
+                const videoUrl = videoFile.startsWith('http') ? videoFile : videoFile; 
+                // Anki 内部媒体直接用文件名即可
+                document.getElementById('videoSrc').src = videoUrl;
+                video.load();
+                
+                // 动态调整文本区域高度
+                setTimeout(adjustLayout, 100);
+            }
+
+            // 渲染文本
+            if (text) {
+                renderText(text);
+            }
+        }
+    });
+
+    // 2. 渲染意群文本 (复用你原有的拆解逻辑)
+    function renderText(rawText) {
+        const segments = rawText.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
+        content.innerHTML = segments.map((seg, idx) => {
+            if (!seg || /^\s+$/.test(seg)) return seg || "";
+            return `<span class="word-span" data-index="${idx}" onclick="handleWordClick(this)">${seg}</span>`;
         }).join("");
     }
 
-    // --- 4. 交互：单击跳转/复制，双击搜图 ---
-    display.onclick = (e) => {
-        if (!e.target.classList.contains('word-span')) return;
-        const word = e.target.innerText.replace(/[^\w]/g, "");
-        
+    // 3. 布局自适应
+    function adjustLayout() {
+        const vHeight = videoBox.offsetHeight;
+        content.style.top = vHeight + 'px';
+    }
+    window.onresize = adjustLayout;
+
+    // 4. 点击交互
+    function handleWordClick(el) {
         // 复制单词
-        navigator.clipboard.writeText(word);
-        // 执行跳转
-        seek(parseFloat(e.target.dataset.time));
-    };
-
-    display.ondblclick = (e) => {
-        if (!e.target.classList.contains('word-span')) return;
-        const word = e.target.innerText;
-        const sentence = e.target.closest('.sentence-row').innerText.replace(/\d{2}:\d{2}/, "");
+        const txt = el.innerText.trim();
+        navigator.clipboard.writeText(txt);
         
-        navigator.clipboard.writeText(sentence); // 复制整句
-        window.open(`https://www.google.com/search?tbm=isch&q=${encodeURIComponent(word)}`); // 搜图
-    };
-
-    function seek(time) {
-        v.currentTime = time;
-        v.play();
+        // 如果视频在播放，点击可以执行 暂停/播放 切换
+        if (video.paused) video.play();
+        else video.pause();
     }
 
-    // --- 5. 进度记忆逻辑 ---
-    function saveProgress() {
-        const time = v.currentTime;
-        if (time > 0) {
-            localStorage.setItem(`progress_${nid}`, time); // 先存本地
-            // 此处可扩展：firebase.database().ref('progress/'+nid).set(time);
-            console.log("进度已保存:", time);
-        }
+    function resetVideo() {
+        video.currentTime = 0;
+        video.play();
     }
 
-    function restoreProgress() {
-        const saved = localStorage.getItem(`progress_${nid}`);
-        if (saved) {
-            v.currentTime = parseFloat(saved);
-        }
-    }
-
-    // 定时保存进度 & 暂停时保存
-    v.onpause = saveProgress;
-    setInterval(() => { if(!v.paused) saveProgress(); }, 5000);
-
-    // 手动关联备份
-    document.getElementById('fileInput').onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            v.src = URL.createObjectURL(file);
-            status.innerText = `🔵 手动关联: ${file.name}`;
-            v.play();
-        }
-    };
-
-    // 执行启动
-    render();
-    setTimeout(initVideo, 200);
+    // 5. (可选) 简单的 A-B 重复或位置记录逻辑可以写在这里
 </script>
+</body>
+</html>
