@@ -218,23 +218,22 @@ async function fetchProgress(noteId) {
         }
     } catch (e) { console.error("读取进度失败:", e); }
 }
-
 async function saveProgress(noteId, time, index) {
-    if (!noteId) return;
+    if (!noteId || noteId === "undefined") return; // 防止无效 ID 写入
     const now = Date.now();
-    // 2.5秒节流，避免频繁写入
     if (now - lastSaveTime < 2500) return; 
 
     lastSaveTime = now;
     try {
-        // 修改为 player_progress
-        await set(ref(db, 'player_progress/' + noteId), {
+        // 强制转换为字符串，避免路径非法
+        const safePath = String(noteId).trim();
+        await set(ref(db, 'player_progress/' + safePath), {
             lastTime: time,
             lastIndex: index,
             updatedAt: serverTimestamp()
         });
         statusBar.innerText = "同步成功: " + new Date().toLocaleTimeString();
-        console.log("✅ 进度已同步到 Firebase");
+        console.log("✅ 已同步至 player_progress/" + safePath);
     } catch (e) { 
         console.error("写入失败:", e);
         statusBar.innerText = "写入失败: " + e.message;
