@@ -679,21 +679,28 @@ window.toggleBoldMode = function() {
         return;
     }
 
-    // 逻辑：如果选中的索引里，有一个没加粗，那就全部加粗；否则全部取消
     const allBold = indices.every(idx => boldPositions.includes(idx));
 
+    // 1. 更新数据状态
     if (allBold) {
-        // 全部取消加粗
         boldPositions = boldPositions.filter(idx => !indices.includes(idx));
     } else {
-        // 批量加入加粗列表（去重）
         indices.forEach(idx => {
             if (!boldPositions.includes(idx)) boldPositions.push(idx);
         });
     }
 
-    savePositions();
-    renderCloze();
+    // 2. 【核心优化】直接操作 DOM，不重绘
+    indices.forEach(idx => {
+        const el = clozeContent.querySelector(`.word-span[data-index="${idx}"]`);
+        if (el) {
+            if (allBold) el.classList.remove('word-bold');
+            else el.classList.add('word-bold');
+        }
+    });
+
+    // 3. 异步保存，不阻塞主线程
+    setTimeout(savePositions, 10);
 };
 
 function updateModeButtons() {
@@ -895,21 +902,27 @@ window.toggleHighlightMode = function() {
         return;
     }
 
-    // 逻辑：如果选中的索引里，有一个没高亮，那就全部高亮；否则全部取消
     const anyNotHighlighted = indices.some(idx => !highlightPositions.includes(idx));
 
+    // 1. 更新数据
     if (anyNotHighlighted) {
-        // 批量加入高亮列表
         indices.forEach(idx => {
             if (!highlightPositions.includes(idx)) highlightPositions.push(idx);
         });
     } else {
-        // 全部取消高亮
         highlightPositions = highlightPositions.filter(idx => !indices.includes(idx));
     }
 
-    savePositions();
-    renderCloze();
+    // 2. 【核心优化】直接操作 DOM
+    indices.forEach(idx => {
+        const el = clozeContent.querySelector(`.word-span[data-index="${idx}"]`);
+        if (el) {
+            if (anyNotHighlighted) el.classList.add('sentence-highlight');
+            else el.classList.remove('sentence-highlight');
+        }
+    });
+
+    setTimeout(savePositions, 10);
 };
 </script>
 </body>
