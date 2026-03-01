@@ -142,35 +142,7 @@ let isAutoScrolling = false;
 let lastSaveTime = 0;
 
 // --- 2. 字幕处理逻辑 ---
-function parseSubtitle(data) {
-    if (!data) return [];
-    // 清洗 HTML
-    let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
-                        .replace(/<\/p>|<\/div>/gi, "\n")
-                        .replace(/<\/?[^>]+(>|$)/g, "");
-    
-    const lines = cleanData.split('\n').map(l => l.trim()).filter(l => l !== "");
-    const cues = [];
-
-    for (let i = 0; i < lines.length; i++) {
-        // 匹配时间轴 00:00:00,000 或 00:00:00.000
-        const timeMatch = lines[i].match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
-        if (timeMatch) {
-            let textParts = [];
-            let j = i + 1;
-            while (j < lines.length && !lines[j].match(/-->/)) {
-                textParts.push(lines[j]);
-                j++;
-            }
-            cues.push({ 
-                start: timeToSeconds(timeMatch[1]), 
-                text: textParts.join(' ') 
-            });
-            i = j - 1;
-        }
-    }
-    return cues;
-}
+function parseSubtitle(data)
 
 function timeToSeconds(t) {
     const p = t.replace(',', '.').split(':');
