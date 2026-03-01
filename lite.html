@@ -140,38 +140,39 @@ const statusBar = document.getElementById('status-bar');
 let currentNoteId = null;
 let isAutoScrolling = false;
 let lastSaveTime = 0;
-
 // --- 2. 字幕处理逻辑 ---
+function timeToSeconds(t) {
+    if (!t) return 0;
+    const p = t.replace(',', '.').trim().split(':');
+    if (p.length === 3) {
+        return (+p[0]) * 3600 + (+p[1]) * 60 + (+p[2]);
+    }
+    return (+p[0]) * 60 + (+p[1]);
+}
+
 function parseSubtitle(data) {
-    // 1. 彻底清除 HTML 标签并将常见标签转为换行，防止 Anki 的 <div> 等干扰分割
-    let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
-                        .replace(/<\/p>|<\/div>/gi, "\n")
-                        .replace(/<\/?[^>]+(>|$)/g, "");
+    if (!data) return [];
 
-    // 2. 处理 HTML 转义字符（&rarr; 等）
-    const doc = new DOMParser().parseFromString(cleanData, 'text/html');
-    cleanData = doc.documentElement.textContent;
+    // 1. 处理 Anki 可能存在的 HTML 转义和标签污染
+    const doc = new DOMParser().parseFromString(data, 'text/html');
+    let cleanData = doc.documentElement.textContent;
 
-    // 3. 使用正则全局匹配时间轴：支持 00:00:00,000 或 00:00.000
-    // 该正则会匹配类似 "00:00:12,500 --> 00:00:15,000" 这样的行
-    const timeRegex = /(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/g;
-    
+    cleanData = cleanData.replace(/<br\s*\/?>/gi, "\n")
+                         .replace(/<\/p>|<\/div>/gi, "\n")
+                         .replace(/<\/?[^>]+(>|$)/g, "");
+
+    // 2. 匹配时间轴（兼容标准 --> 和转义后的 --&gt;）
+    const lines = cleanData.split(/\r?\n/).map(l => l.trim()).filter(l => l !== "");
     const cues = [];
-    let match;
-
-    // 将内容按行拆分，更精确地定位时间轴及其下方的文本
-    const lines = cleanData.split('\n').map(l => l.trim()).filter(l => l !== "");
 
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const timeMatch = line.match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
+        const timeMatch = lines[i].match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*(?:-->|--&gt;)\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
         
         if (timeMatch) {
             const start = timeToSeconds(timeMatch[1]);
-            // 收集时间轴之后、下一个时间轴之前的所有行作为文本
             let textParts = [];
             let j = i + 1;
-            while (j < lines.length && !lines[j].match(/-->/)) {
+            while (j < lines.length && !lines[j].match(/-->|--&gt;/)) {
                 textParts.push(lines[j]);
                 j++;
             }
@@ -179,7 +180,7 @@ function parseSubtitle(data) {
             if (text) {
                 cues.push({ start, text });
             }
-            i = j - 1; // 跳过已处理的行
+            i = j - 1;
         }
     }
 
