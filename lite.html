@@ -230,10 +230,6 @@ html, body {
     font-size: 14px;
     transition: all 0.2s;
     flex-shrink: 0;
-    /* 5. 核心：禁止选中和复制 */
-    user-select: none !important;
-    -webkit-user-select: none !important; /* 针对 iOS Anki */
-    -webkit-touch-callout: none !important;
 }
 .play-btn:hover {
     background: #f5f5f7;
@@ -325,7 +321,6 @@ html, body {
         </div>
     </div>
 </div> 
-</div>
 <div class="action-bar">
     <button class="action-btn" onclick="scrollToActive()">🎯 当前</button>
     <button class="action-btn" id="toggle-controls-btn" onclick="toggleNativeControls()">▶️ 控件</button>
@@ -426,25 +421,6 @@ html, body {
         }
       }
     };
-  window.syncDownload = async function() {
-      const id = window.getDocId();
-      const snapshot = await get(child(ref(db), 'video_sync/' + id));
-      if (snapshot.exists()) {
-          const data = snapshot.val();
-          if (data.htmlContent) {
-              document.getElementById('transcript').innerHTML = data.htmlContent;
-              rebindEvents(); 
-          }
-          if (data.topTime) {
-              setTimeout(() => {
-                  const targetLine = document.querySelector(`.line[data-time="${data.topTime}"]`);
-                  if (targetLine) {
-                      targetLine.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }
-              }, 150); // 略微延迟确保 DOM 渲染完毕
-          }
-      }
-  };
 </script>
 <script>
     let scrollTimer = null;
@@ -558,24 +534,6 @@ document.addEventListener('touchend', (e) => {
             videoHint.style.display = 'block';
         }
     });
-video.addEventListener('timeupdate', () => {
-    const currentTime = video.currentTime;
-    if (currentTime > 0) {
-        localStorage.setItem('last_video_time', currentTime);
-    }
-    const lines = document.querySelectorAll('.line');
-    lines.forEach((line, i) => {
-        const start = parseFloat(line.dataset.time);
-        const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
-        if (currentTime >= start && currentTime < next) {
-            if (!line.classList.contains('active')) {
-                const prevActive = document.querySelector('.line.active');
-                if (prevActive) prevActive.classList.remove('active');
-                line.classList.add('active');
-            }
-        }
-    });
-});
 video.addEventListener('pause', () => {
     if (window.syncUpload) {
         window.syncUpload();
