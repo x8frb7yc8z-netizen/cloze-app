@@ -364,10 +364,28 @@ const myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
 
 // 获取文档ID
 window.getDocId = function () {
-    const text = localStorage.getItem('last_subtitles') || "";
+
+    // ① 优先使用 URL 里的 customid（Anki 传入）
+    const urlParams = new URLSearchParams(window.location.search);
+    const customId = urlParams.get('customid');
+
+    if (customId && customId.trim() !== "") {
+        return "anki_" + customId.trim();
+    }
+
+    // ② 备用：使用正文前30字符生成
+    const transcript = document.getElementById('transcript');
+    if (!transcript) return null;
+
+    const text = transcript.innerText.trim();
     if (!text) return null;
+
     try {
-        return "vid_" + btoa(unescape(encodeURIComponent(text.substring(0, 30)))).replace(/[/+=]/g, "");
+        return "vid_" + btoa(
+            unescape(
+                encodeURIComponent(text.substring(0, 30))
+            )
+        ).replace(/[/+=]/g, "");
     } catch(e) {
         return null;
     }
@@ -560,6 +578,7 @@ document.addEventListener('touchend', (e) => {
     const touchEndY = e.changedTouches[0].clientY;
     const deltaX = touchEndX - touchStartX;
     const deltaY = touchEndY - touchStartY;
+
     if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > SWIPE_THRESHOLD) {
         if (deltaX < 0) {
             video.currentTime = Math.max(0, video.currentTime - 2);
@@ -573,55 +592,45 @@ document.addEventListener('touchend', (e) => {
                 updateStatus("⏸ 暂停", true);
             }
         }
+
         setTimeout(() => {
-            const lastVideoName = localStorage.getItem('last_video_name');
-            updateStatus(lastVideoName ? "视频已加载" : "准备就绪", true);
+            updateStatus("准备就绪", true);
         }, 1000);
     }
 }, { passive: true });
-    transcriptContainer.addEventListener('scroll', () => {
-    localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
+
+function updateStatus(msg, active = false) {
+    status.innerText = msg;
+    dot.className = active ? 'status-dot active' : 'status-dot';
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+    updateStatus("准备就绪", true);
 });
-    function updateStatus(msg, active = false) {
-        status.innerText = msg;
-        dot.className = active ? 'status-dot active' : 'status-dot';
-    }
-    window.addEventListener('DOMContentLoaded', () => {
-        const cachedSubs = localStorage.getItem('last_subtitles');
-        if (cachedSubs) {
-            processSubtitleContent(cachedSubs, true);
-        }
-        const lastVideoName = localStorage.getItem('last_video_name');
-        const lastTime = localStorage.getItem('last_video_time');
-        if (lastVideoName) {
-            let timeStr = lastTime ? ` (上次看到 ${formatTime(parseFloat(lastTime))})` : '';
-            videoHint.innerText = `待加载: ${lastVideoName}${timeStr}`;
-            videoHint.style.display = 'block';
-        }
-    });
+
 video.addEventListener('pause', () => {
     if (window.syncUpload) {
         window.syncUpload();
         lastSyncTime = Date.now();
     }
 });
-    document.getElementById('videoInput').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            localStorage.setItem('last_video_name', file.name);
-            videoHint.style.display = 'none';
-            video.src = URL.createObjectURL(file);
-            updateStatus("视频已加载", true);
-            video.addEventListener('loadeddata', function onLoaded() {
-                const lastTime = localStorage.getItem('last_video_time');
-                if (lastTime) {
-                    console.log("恢复播放位置至:", lastTime);
-                    video.currentTime = parseFloat(lastTime);
-                }
-                video.removeEventListener('loadeddata', onLoaded);
-            });
-        }
+
+document.getElementById('videoInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    videoHint.style.display = 'none';
+
+    video.src = URL.createObjectURL(file);
+    updateStatus("视频已加载", true);
+
+    // 可选：加载完成后自动播放
+    video.addEventListener('loadeddata', function onLoaded() {
+        video.currentTime = 0; // 每次从头开始
+        video.removeEventListener('loadeddata', onLoaded);
     });
+});
+
 document.getElementById('subtitleManualInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -634,34 +643,20 @@ document.getElementById('subtitleManualInput').addEventListener('change', (e) =>
         reader.readAsText(file);
     }
 });
-function processSubtitleContent(content, isFromCache = false) {
-    if (!isFromCache) {
-        localStorage.setItem('last_subtitles', content);
-    }
+function processSubtitleContent(content) {
+
+    // 解析字幕
     const cues = parseSubtitle(content);
+
+    // 渲染字幕
     renderSubtitles(cues);
-    const lastScrollPos = localStorage.getItem('last_scroll_pos');
-    const lastTime = localStorage.getItem('last_video_time');
+
+    // 稍微延迟后触发云端下载（如果存在）
     setTimeout(() => {
-        if (lastScrollPos) {
-            transcriptContainer.scrollTop = parseFloat(lastScrollPos);
-        } else if (lastTime) {
-            const savedTime = parseFloat(lastTime);
-            const lines = document.querySelectorAll('.line');
-            for (let i = 0; i < lines.length; i++) {
-                const start = parseFloat(lines[i].dataset.time);
-                const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
-                if (savedTime >= start && savedTime < next) {
-                    lines[i].classList.add('active');
-                    lines[i].scrollIntoView({ behavior: 'auto', block: 'center' });
-                    break;
-                }
-            }
+        if (window.syncDownload) {
+            window.syncDownload();
         }
-    }, 150); // 稍微延长延迟，确保 DOM 布局计算完成
-    setTimeout(() => {
-        if(window.syncDownload) window.syncDownload();
-    }, 500);
+    }, 400);
 }
 function parseSubtitle(data) {
     let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
@@ -835,12 +830,7 @@ function boldSelectedText() {
         window.syncUpload(); // 上传云端 (Firebase)
     }
 }
-function saveCurrentTranscript() {
-    const transcript = document.getElementById('transcript');
-    if (transcript) {
-        localStorage.setItem('last_subtitles_html', transcript.innerHTML);
-    }
-}
+
     function rebindEvents() {
         const lines = document.querySelectorAll('.line');
         lines.forEach(line => {
@@ -902,23 +892,29 @@ function saveCurrentTranscript() {
     function formatTime(s) {
         return new Date(s * 1000).toISOString().substr(14, 5);
     }
+// 针对 JavaScript 函数，请帮我修改 [timeupdate 监听逻辑]，并提供修改后的【完整函数代码】。
 video.addEventListener('timeupdate', () => {
     const currentTime = video.currentTime;
     const lines = document.querySelectorAll('.line');
     const floatingText = document.getElementById('current-floating-text');
+    
     if (lines.length === 0) return;
+
     const firstLineStart = parseFloat(lines[0].dataset.time);
     const lastLine = lines[lines.length - 1];
     const lastLineEnd = parseFloat(lastLine.dataset.time) + 3; 
+
+    // 1. 自动循环/边界检查 (保持功能，但不再读取本地缓存)
     if (currentTime > lastLineEnd || currentTime < firstLineStart - 1) {
         video.currentTime = firstLineStart;
         video.play().catch(() => {});
-        updateStatus("🔄 已回到字幕区间", true);
-        return; // 跳过本次后续逻辑，等待跳转完成
+        // 注意：此处不再使用 updateStatus，因为 status 标签已被隐藏
+        return; 
     }
-    if (currentTime > 0) {
-        localStorage.setItem('last_video_time', currentTime);
-    }
+
+    // --- 已删除：localStorage.setItem('last_video_time', currentTime) ---
+
+    // 2. 查找当前播放时间对应的字幕行
     let currentLine = null;
     for (let i = 0; i < lines.length; i++) {
         const start = parseFloat(lines[i].dataset.time);
@@ -929,12 +925,21 @@ video.addEventListener('timeupdate', () => {
             break;
         }
     }
+
+    // 3. 执行视觉更新逻辑
     if (currentLine) {
+        // A. 高亮并滚动（仅当行发生切换时触发，避免性能消耗）
         if (!currentLine.classList.contains('active')) {
             document.querySelector('.line.active')?.classList.remove('active');
             currentLine.classList.add('active');
-            currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
+            // 只有非远程同步引起的播放位置变动，才执行滚动对齐
+            if (!window.isRemoteScrolling) {
+                currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         }
+
+        // B. 更新悬浮字幕内容
         if (floatingText) {
             const newContent = currentLine.querySelector('.content').innerHTML;
             if (floatingText.innerHTML !== newContent) {
@@ -943,12 +948,14 @@ video.addEventListener('timeupdate', () => {
             }
         }
     } else {
+        // C. 超出范围时隐藏悬浮框
         if (floatingText) {
             floatingText.style.display = 'none';
             floatingText.innerHTML = '';
         }
     }
 });
+
     window.addEventListener('message', (event) => {
         if (event.data.type === 'LOAD_SUBTITLES') {
             processSubtitleContent(event.data.data);
