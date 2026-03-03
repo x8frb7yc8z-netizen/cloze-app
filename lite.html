@@ -410,28 +410,57 @@ window.syncUpload = async function() {
 };
 
   // 3. 下载同步：恢复进度和加粗状态
+/* --- 修改后的 syncDownload：支持异步等待视频加载 --- */
 window.syncDownload = async function() {
     const id = window.getDocId();
-    const snapshot = await get(child(ref(db), 'video_sync/' + id));
-    if (snapshot.exists()) {
-        const data = snapshot.val();
-        
-        // 恢复字幕 HTML
-        if (data.htmlContent) {
-            document.getElementById('transcript').innerHTML = data.htmlContent;
-            rebindEvents();
-        }
+    if (!id) return;
 
-        // 恢复视频进度
-        if (data.lastTime) {
-            const v = document.getElementById('videoPlayer');
-            v.currentTime = data.lastTime;
-        }
+    try {
+        const snapshot = await get(child(ref(db), 'video_sync/' + id));
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            console.log("获取到同步数据:", data);
 
-        // 恢复滚动位置
-        if (data.lastScrollPos) {
-            transcriptContainer.scrollTop = parseFloat(data.lastScrollPos);
+            // 1. 立即恢复字幕 HTML（包含加粗标记）
+            if (data.htmlContent) {
+                document.getElementById('transcript').innerHTML = data.htmlContent;
+                if (typeof rebindEvents === 'function') rebindEvents();
+            }
+
+            // 2. 立即恢复滚动位置
+            if (data.lastScrollPos) {
+                const container = document.querySelector('.transcript-container');
+                if (container) {
+                    container.scrollTop = parseFloat(data.lastScrollPos);
+                }
+            }
+
+            // 3. 核心：处理视频进度恢复
+            if (data.lastTime) {
+                const v = document.getElementById('videoPlayer');
+                
+                const applyTime = () => {
+                    v.currentTime = data.lastTime;
+                    console.log("视频已就绪，已恢复至上次进度:", data.lastTime);
+                    updateStatus("进度已同步", true);
+                };
+
+                // 如果视频已经加载了文件，直接跳转
+                if (v.readyState >= 1) {
+                    applyTime();
+                } else {
+                    // 如果视频还没加载，监听一次性加载事件
+                    updateStatus("等待视频文件以恢复进度...", true);
+                    v.onceLoaded = () => {
+                        applyTime();
+                        v.removeEventListener('loadedmetadata', v.onceLoaded);
+                    };
+                    v.addEventListener('loadedmetadata', v.onceLoaded);
+                }
+            }
         }
+    } catch (err) {
+        console.error("下载同步数据失败", err);
     }
 };
 
@@ -620,31 +649,32 @@ document.getElementById('subtitleManualInput').addEventListener('change', (e) =>
         reader.readAsText(file);
     }
 });
+/* --- 修改后的 processSubtitleContent：优先云端恢复 --- */
 function processSubtitleContent(content, isFromCache = false) {
+    // 1. 基础存储逻辑
     if (!isFromCache) {
         localStorage.setItem('last_subtitles', content);
     }
+
+    // 2. 渲染静态字幕 DOM 结构
     const cues = parseSubtitle(content);
     renderSubtitles(cues);
-    const lastScrollPos = localStorage.getItem('last_scroll_pos');
-    const lastTime = localStorage.getItem('last_video_time');
-    setTimeout(() => {
-        if (lastScrollPos) {
-            transcriptContainer.scrollTop = parseFloat(lastScrollPos);
-        } else if (lastTime) {
-            const savedTime = parseFloat(lastTime);
-            const lines = document.querySelectorAll('.line');
-            for (let i = 0; i < lines.length; i++) {
-                const start = parseFloat(lines[i].dataset.time);
-                const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
-                if (savedTime >= start && savedTime < next) {
-                    lines[i].classList.add('active');
-                    lines[i].scrollIntoView({ behavior: 'auto', block: 'center' });
-                    break;
-                }
+
+    // 3. 立即触发云端数据下载 (Firebase)
+    // 这样可以在页面加载瞬间恢复：加粗样式、滚动位置、视频进度
+    if (window.syncDownload) {
+        console.log("正在从云端同步最新状态...");
+        window.syncDownload();
+    } else {
+        // 如果云端不可用，则回退到本地 localStorage 恢复 (降级方案)
+        setTimeout(() => {
+            const lastScrollPos = localStorage.getItem('last_scroll_pos');
+            if (lastScrollPos) {
+                transcriptContainer.scrollTop = parseFloat(lastScrollPos);
             }
-        }
-    }, 150); // 稍微延长延迟，确保 DOM 布局计算完成
+        }, 150);
+    }
+}
     setTimeout(() => {
         if(window.syncDownload) window.syncDownload();
     }, 500);
