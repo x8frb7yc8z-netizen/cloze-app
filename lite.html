@@ -342,7 +342,6 @@ html, body {
         <iframe id="preview-iframe" style="width: 100%; height: 100%; border: none;" src=""></iframe>
     </div>
 </div>
-// 针对 JavaScript 函数，请帮我修改 [Firebase 同步逻辑], 并提供修改后的【完整代码】。
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -352,16 +351,20 @@ html, body {
     const db = getDatabase(fbApp);
 
     const myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
-    window.isRemoteScrolling = false; // 锁：防止循环同步
+    window.isRemoteScrolling = false; 
 
+    // 修改：不再从 localStorage 读取，仅根据当前页面内存中的字幕内容生成 ID
     window.getDocId = function() {
-        const text = localStorage.getItem('last_subtitles') || "";
+        const transcript = document.getElementById('transcript');
+        const text = transcript ? transcript.innerText.substring(0, 50) : "";
         if (!text) return "default_video";
         try {
-            return "vid_" + btoa(unescape(encodeURIComponent(text.substring(0, 30)))).replace(/[/+=]/g, "");
+            // 使用内存中的文本生成临时会话 ID
+            return "vid_" + btoa(unescape(encodeURIComponent(text))).replace(/[/+=]/g, "").substring(0, 20);
         } catch(e) { return "default_video"; }
     };
 
+    // 滚动探测
     window.getTopLineIndex = function() {
         const container = document.querySelector('.transcript-container');
         const lines = document.querySelectorAll('.line');
@@ -375,16 +378,18 @@ html, body {
         return 0;
     };
 
-    // 增强的上传函数
+    // 实时上传：增加判断，防止初始状态（index 0）覆盖云端已有进度
     window.syncUpload = async function() {
-        // 如果是由远程同步引起的滚动，则不上传，防止无限循环
         if (window.isRemoteScrolling) return;
 
         const id = window.getDocId();
-        if (!id || id === "default_video") return;
+        if (id === "default_video") return;
         
         const lineIndex = window.getTopLineIndex();
         const transcriptHtml = document.getElementById('transcript').innerHTML;
+
+        // 只有当内容加载后才允许上传
+        if (lineIndex === 0 && transcriptHtml.length < 100) return;
 
         set(ref(db, 'video_sync/' + id), {
             lineIndex: lineIndex,
@@ -394,43 +399,43 @@ html, body {
         });
     };
 
-    const id = window.getDocId();
-    if (id !== "default_video") {
-        const syncRef = ref(db, 'video_sync/' + id);
+    // 实时监听
+    const initSync = () => {
+        const id = window.getDocId();
+        if (id === "default_video") return;
         
+        const syncRef = ref(db, 'video_sync/' + id);
         onValue(syncRef, (snapshot) => {
             const data = snapshot.val();
             if (!data || data.sender === myDeviceId) return;
 
-            // 只有云端数据比本地新，才处理
             const lastTs = window.lastProcessedTs || 0;
             if (data.ts <= lastTs) return;
             window.lastProcessedTs = data.ts;
 
-            // A. 同步加粗状态 (采用更宽松的长度对比或直接覆盖)
+            // 同步加粗
             const transcript = document.getElementById('transcript');
             if (data.htmlContent && transcript.innerHTML.length !== data.htmlContent.length) {
                 transcript.innerHTML = data.htmlContent;
                 if (typeof rebindEvents === 'function') rebindEvents(); 
             }
 
-            // B. 执行滚动锚定 (带锁执行)
+            // 同步滚动（带锁，解决无限循环）
             if (typeof data.lineIndex !== 'undefined') {
                 const lines = document.querySelectorAll('.line');
                 const targetLine = lines[data.lineIndex];
                 if (targetLine) {
                     const container = document.querySelector('.transcript-container');
-                    window.isRemoteScrolling = true; // 上锁
-                    
-                    const offset = targetLine.offsetTop - 40; 
-                    container.scrollTo({ top: offset, behavior: 'smooth' });
-
-                    // 滚动完成后解锁（根据平滑滚动时间延迟）
+                    window.isRemoteScrolling = true;
+                    container.scrollTo({ top: targetLine.offsetTop - 40, behavior: 'smooth' });
                     setTimeout(() => { window.isRemoteScrolling = false; }, 800);
                 }
             }
         });
-    }
+    };
+    
+    // 监听字幕加载完成后再启动同步
+    window.addEventListener('subtitlesLoaded', initSync);
 </script>
 <script>
     let scrollTimer = null;
