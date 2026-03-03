@@ -343,20 +343,24 @@ html, body {
     </div>
 </div>
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-    const firebaseConfig = {
-      // 请替换为你自己的配置
-      apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
-      authDomain: "cloze-master-pro.firebaseapp.com",
-      databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "cloze-master-pro",
-      storageBucket: "cloze-master-pro.firebasestorage.app",
-      messagingSenderId: "697808901954",
-      appId: "1:697808901954:web:32455d94bf67e522e01adb"
-    };
-    const fbApp = initializeApp(firebaseConfig);
-    const db = getDatabase(fbApp);
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+  const firebaseConfig = {
+    // 请替换为你自己的配置
+    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+    authDomain: "cloze-master-pro.firebaseapp.com",
+    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "cloze-master-pro",
+    storageBucket: "cloze-master-pro.firebasestorage.app",
+    messagingSenderId: "697808901954",
+    appId: "1:697808901954:web:32455d94bf67e522e01adb"
+  };
+
+  const fbApp = initializeApp(firebaseConfig);
+  const db = getDatabase(fbApp);
+
+  // 1. 生成文档唯一 ID (基于字幕内容)
 window.getDocId = function () {
 
     // ① 优先使用 URL 里的 customid（Anki 传入）
@@ -384,62 +388,42 @@ window.getDocId = function () {
         return null;
     }
 };
-    window.getTopVisibleTime = function() {
-      const container = document.querySelector('.transcript-container');
-      const lines = document.querySelectorAll('.line');
-      // 探测基准线：容器顶部向下偏移 10px，避免因滚动微差错过首行
-      const containerRect = container.getBoundingClientRect();
-      const probeY = containerRect.top + 10; 
-  
-      for (let line of lines) {
-        const rect = line.getBoundingClientRect();
-        // 只要该行的底部超过了探测线，它就是用户正在看的“首行”
-        if (rect.bottom >= probeY) {
-          return line.dataset.time;
-        }
-      }
-      return 0;
-    };
+
+  // 2. 上传同步：保存进度和加粗的 HTML
   window.syncUpload = async function() {
       const id = window.getDocId();
-      if (!id || id === "default_video") return;
-      const topTime = window.getTopVisibleTime(); 
+      const currentTime = document.getElementById('videoPlayer').currentTime;
       const transcriptHtml = document.getElementById('transcript').innerHTML;
+
       set(ref(db, 'video_sync/' + id), {
-          topTime: topTime,           // 只有滚动位置
-          htmlContent: transcriptHtml, // 只有加粗状态
-          ts: Date.now()               // 操作时间
+          lastTime: currentTime,
+          htmlContent: transcriptHtml,
+          ts: Date.now()
       });
-      console.log("阅读进度已同步 (播放进度未上传)");
   };
-    window.syncDownload = async function() {
+
+  // 3. 下载同步：恢复进度和加粗状态
+  window.syncDownload = async function() {
       const id = window.getDocId();
       const snapshot = await get(child(ref(db), 'video_sync/' + id));
       if (snapshot.exists()) {
-        const data = snapshot.val();
-        if (data.htmlContent) {
-          document.getElementById('transcript').innerHTML = data.htmlContent;
-          rebindEvents(); 
-        }
-        if (data.videoProgress && Math.abs(video.currentTime - data.videoProgress) > 5) {
-            video.currentTime = data.videoProgress;
-        }
-        if (data.topTime) {
-          setTimeout(() => {
-            const targetLine = document.querySelector(`.line[data-time="${data.topTime}"]`);
-            if (targetLine) {
-              const container = document.querySelector('.transcript-container');
-              const offset = targetLine.offsetTop - 5;
-              container.scrollTo({
-                top: offset,
-                behavior: 'smooth'
-              });
-              console.log("已恢复阅读进度至时间戳:", data.topTime);
-            }
-          }, 300); 
-        }
+          const data = snapshot.val();
+          
+          // 恢复加粗状态（HTML 结构）
+          if (data.htmlContent) {
+              document.getElementById('transcript').innerHTML = data.htmlContent;
+              // 重新绑定新生成 DOM 的事件
+              rebindEvents(); 
+          }
+
+          // 恢复视频进度
+          if (data.lastTime) {
+              const v = document.getElementById('videoPlayer');
+              v.currentTime = data.lastTime;
+          }
       }
-    };
+  };
+
 </script>
 <script>
     let scrollTimer = null;
