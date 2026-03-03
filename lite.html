@@ -541,14 +541,30 @@ document.addEventListener('touchend', (e) => {
         }, 1000);
     }
 }, { passive: true });
-transcriptContainer.addEventListener('scroll', () => {
-    if (scrollTimer) clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(() => {
-        if (window.syncUpload) {
-            window.syncUpload(); // ✅ 使用统一上传函数
-        }
-    }, 500);
-});
+/* --- 修改后的滚动监听与统一上传逻辑 --- */
+(function() {
+    let scrollTimer = null;
+    const scrollTarget = document.querySelector('.transcript-container');
+
+    if (scrollTarget) {
+        scrollTarget.addEventListener('scroll', () => {
+            // 1. 立即记录本地，防止刷新丢失
+            const scrollPos = scrollTarget.scrollTop;
+            localStorage.setItem('last_scroll_pos', scrollPos);
+
+            // 2. 节流上传：停止滚动 500ms 后同步到 Firebase
+            clearTimeout(scrollTimer);
+            scrollTimer = setTimeout(() => {
+                if (typeof window.syncUpload === 'function') {
+                    console.log("检测到滚动停止，触发云端同步...");
+                    window.syncUpload();
+                } else {
+                    console.warn("syncUpload 函数尚未就绪");
+                }
+            }, 500);
+        });
+    }
+})();
     function updateStatus(msg, active = false) {
         status.innerText = msg;
         dot.className = active ? 'status-dot active' : 'status-dot';
