@@ -342,111 +342,88 @@ html, body {
         <iframe id="preview-iframe" style="width: 100%; height: 100%; border: none;" src=""></iframe>
     </div>
 </div>
-// 针对 JavaScript 函数，请帮我修改 [Firebase 启动逻辑]，并提供修改后的【完整代码】。
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-import { getDatabase, ref, set, onValue, get } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-const firebaseConfig = { /* 保持原配置不变 */ };
-const fbApp = initializeApp(firebaseConfig);
-const db = getDatabase(fbApp);
+  const firebaseConfig = {
+    // 请替换为你自己的配置
+    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+    authDomain: "cloze-master-pro.firebaseapp.com",
+    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "cloze-master-pro",
+    storageBucket: "cloze-master-pro.firebasestorage.app",
+    messagingSenderId: "697808901954",
+    appId: "1:697808901954:web:32455d94bf67e522e01adb"
+  };
 
-const myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
-window.lastProcessedTs = 0;
-window.isRemoteScrolling = false;
+  const fbApp = initializeApp(firebaseConfig);
+  const db = getDatabase(fbApp);
 
+  // 1. 生成文档唯一 ID (基于字幕内容)
 window.getDocId = function () {
+
+    // ① 优先使用 URL 里的 customid（Anki 传入）
     const urlParams = new URLSearchParams(window.location.search);
     const customId = urlParams.get('customid');
-    if (customId && customId.trim() !== "" && customId !== "{{Note ID}}") {
+
+    if (customId && customId.trim() !== "") {
         return "anki_" + customId.trim();
     }
+
+    // ② 备用：使用正文前30字符生成
     const transcript = document.getElementById('transcript');
-    const text = transcript ? transcript.innerText.substring(0, 30) : "";
-    return text ? "vid_" + btoa(unescape(encodeURIComponent(text))).replace(/[/+=]/g, "").substring(0, 15) : null;
-};
+    if (!transcript) return null;
 
-// 辅助：执行同步动作的统一函数
-function applyRemoteData(data) {
-    if (!data) return;
-    const transcript = document.getElementById('transcript');
-    if (!transcript) return;
+    const text = transcript.innerText.trim();
+    if (!text) return null;
 
-    // A. 同步加粗
-    if (data.htmlContent && transcript.innerHTML !== data.htmlContent) {
-        transcript.innerHTML = data.htmlContent;
-        if (typeof rebindEvents === 'function') rebindEvents();
-    }
-
-    // B. 同步滚动 (基于 topTime)
-    if (data.topTime) {
-        const targetLine = document.querySelector(`.line[data-time="${data.topTime}"]`);
-        if (targetLine) {
-            const container = document.querySelector('.transcript-container');
-            window.isRemoteScrolling = true; // 加锁防止反向上传
-            container.scrollTo({
-                top: targetLine.offsetTop - 40,
-                behavior: 'instant' // 首次加载建议使用 instant，即时对齐
-            });
-            setTimeout(() => { window.isRemoteScrolling = false; }, 1000);
-        }
-    }
-}
-
-// 启动实时同步并【强制拉取一次】
-async function startRealtimeSync() {
-    const id = window.getDocId();
-    if (!id) return;
-
-    const syncRef = ref(db, 'video_sync/' + id);
-
-    // 1. 首次进入页面：强制拉取一次云端历史位置
     try {
-        const snapshot = await get(syncRef);
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            window.lastProcessedTs = data.ts || 0;
-            applyRemoteData(data);
-        }
-    } catch (e) { console.error("初始同步失败", e); }
-
-    // 2. 开启后续实时监听
-    onValue(syncRef, (snapshot) => {
-        const data = snapshot.val();
-        if (!data || data.sender === myDeviceId) return;
-        if (data.ts <= window.lastProcessedTs) return;
-        window.lastProcessedTs = data.ts;
-        applyRemoteData(data);
-    });
-}
-
-// 修改：不要直接在 DOMContentLoaded 启动，而是在字幕处理完成后启动
-window.addEventListener('message', (event) => {
-    if (event.data.type === 'LOAD_SUBTITLES') {
-        // 假设 processSubtitleContent 是渲染字幕的函数
-        if (typeof processSubtitleContent === 'function') {
-            processSubtitleContent(event.data.data);
-            // 确保 DOM 渲染后再执行同步
-            setTimeout(startRealtimeSync, 200);
-        }
+        return "vid_" + btoa(
+            unescape(
+                encodeURIComponent(text.substring(0, 30))
+            )
+        ).replace(/[/+=]/g, "");
+    } catch(e) {
+        return null;
     }
-});
-
-// 上传函数保持不变，但增加 isRemoteScrolling 锁检查
-window.syncUpload = async function(force = false) {
-    if (window.isRemoteScrolling) return;
-    const id = window.getDocId();
-    if (!id) return;
-    const transcript = document.getElementById('transcript');
-    const topTime = (typeof getTopVisibleTime === 'function') ? getTopVisibleTime() : 0;
-    
-    await set(ref(db, 'video_sync/' + id), {
-        topTime: topTime,
-        htmlContent: transcript.innerHTML,
-        ts: Date.now(),
-        sender: myDeviceId
-    });
 };
+
+  // 2. 上传同步：保存进度和加粗的 HTML
+  window.syncUpload = async function() {
+      const id = window.getDocId();
+      const currentTime = document.getElementById('videoPlayer').currentTime;
+      const transcriptHtml = document.getElementById('transcript').innerHTML;
+
+      set(ref(db, 'video_sync/' + id), {
+          lastTime: currentTime,
+          htmlContent: transcriptHtml,
+          ts: Date.now()
+      });
+  };
+
+  // 3. 下载同步：恢复进度和加粗状态
+  window.syncDownload = async function() {
+      const id = window.getDocId();
+      const snapshot = await get(child(ref(db), 'video_sync/' + id));
+      if (snapshot.exists()) {
+          const data = snapshot.val();
+          
+          // 恢复加粗状态（HTML 结构）
+          if (data.htmlContent) {
+              document.getElementById('transcript').innerHTML = data.htmlContent;
+              // 重新绑定新生成 DOM 的事件
+              rebindEvents(); 
+          }
+
+          // 恢复视频进度
+          if (data.lastTime) {
+              const v = document.getElementById('videoPlayer');
+              v.currentTime = data.lastTime;
+          }
+      }
+  };
+
 </script>
 <script>
     let scrollTimer = null;
@@ -521,7 +498,6 @@ document.addEventListener('touchend', (e) => {
     const touchEndY = e.changedTouches[0].clientY;
     const deltaX = touchEndX - touchStartX;
     const deltaY = touchEndY - touchStartY;
-
     if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > SWIPE_THRESHOLD) {
         if (deltaX < 0) {
             video.currentTime = Math.max(0, video.currentTime - 2);
@@ -535,45 +511,55 @@ document.addEventListener('touchend', (e) => {
                 updateStatus("⏸ 暂停", true);
             }
         }
-
         setTimeout(() => {
-            updateStatus("准备就绪", true);
+            const lastVideoName = localStorage.getItem('last_video_name');
+            updateStatus(lastVideoName ? "视频已加载" : "准备就绪", true);
         }, 1000);
     }
 }, { passive: true });
-
-function updateStatus(msg, active = false) {
-    status.innerText = msg;
-    dot.className = active ? 'status-dot active' : 'status-dot';
-}
-
-window.addEventListener('DOMContentLoaded', () => {
-    updateStatus("准备就绪", true);
+    transcriptContainer.addEventListener('scroll', () => {
+    localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
 });
-
+    function updateStatus(msg, active = false) {
+        status.innerText = msg;
+        dot.className = active ? 'status-dot active' : 'status-dot';
+    }
+    window.addEventListener('DOMContentLoaded', () => {
+        const cachedSubs = localStorage.getItem('last_subtitles');
+        if (cachedSubs) {
+            processSubtitleContent(cachedSubs, true);
+        }
+        const lastVideoName = localStorage.getItem('last_video_name');
+        const lastTime = localStorage.getItem('last_video_time');
+        if (lastVideoName) {
+            let timeStr = lastTime ? ` (上次看到 ${formatTime(parseFloat(lastTime))})` : '';
+            videoHint.innerText = `待加载: ${lastVideoName}${timeStr}`;
+            videoHint.style.display = 'block';
+        }
+    });
 video.addEventListener('pause', () => {
     if (window.syncUpload) {
         window.syncUpload();
         lastSyncTime = Date.now();
     }
 });
-
-document.getElementById('videoInput').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    videoHint.style.display = 'none';
-
-    video.src = URL.createObjectURL(file);
-    updateStatus("视频已加载", true);
-
-    // 可选：加载完成后自动播放
-    video.addEventListener('loadeddata', function onLoaded() {
-        video.currentTime = 0; // 每次从头开始
-        video.removeEventListener('loadeddata', onLoaded);
+    document.getElementById('videoInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            localStorage.setItem('last_video_name', file.name);
+            videoHint.style.display = 'none';
+            video.src = URL.createObjectURL(file);
+            updateStatus("视频已加载", true);
+            video.addEventListener('loadeddata', function onLoaded() {
+                const lastTime = localStorage.getItem('last_video_time');
+                if (lastTime) {
+                    console.log("恢复播放位置至:", lastTime);
+                    video.currentTime = parseFloat(lastTime);
+                }
+                video.removeEventListener('loadeddata', onLoaded);
+            });
+        }
     });
-});
-
 document.getElementById('subtitleManualInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -586,20 +572,34 @@ document.getElementById('subtitleManualInput').addEventListener('change', (e) =>
         reader.readAsText(file);
     }
 });
-function processSubtitleContent(content) {
-
-    // 解析字幕
+function processSubtitleContent(content, isFromCache = false) {
+    if (!isFromCache) {
+        localStorage.setItem('last_subtitles', content);
+    }
     const cues = parseSubtitle(content);
-
-    // 渲染字幕
     renderSubtitles(cues);
-
-    // 稍微延迟后触发云端下载（如果存在）
+    const lastScrollPos = localStorage.getItem('last_scroll_pos');
+    const lastTime = localStorage.getItem('last_video_time');
     setTimeout(() => {
-        if (window.syncDownload) {
-            window.syncDownload();
+        if (lastScrollPos) {
+            transcriptContainer.scrollTop = parseFloat(lastScrollPos);
+        } else if (lastTime) {
+            const savedTime = parseFloat(lastTime);
+            const lines = document.querySelectorAll('.line');
+            for (let i = 0; i < lines.length; i++) {
+                const start = parseFloat(lines[i].dataset.time);
+                const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
+                if (savedTime >= start && savedTime < next) {
+                    lines[i].classList.add('active');
+                    lines[i].scrollIntoView({ behavior: 'auto', block: 'center' });
+                    break;
+                }
+            }
         }
-    }, 400);
+    }, 150); // 稍微延长延迟，确保 DOM 布局计算完成
+    setTimeout(() => {
+        if(window.syncDownload) window.syncDownload();
+    }, 500);
 }
 function parseSubtitle(data) {
     let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
@@ -773,7 +773,12 @@ function boldSelectedText() {
         window.syncUpload(); // 上传云端 (Firebase)
     }
 }
-
+function saveCurrentTranscript() {
+    const transcript = document.getElementById('transcript');
+    if (transcript) {
+        localStorage.setItem('last_subtitles_html', transcript.innerHTML);
+    }
+}
     function rebindEvents() {
         const lines = document.querySelectorAll('.line');
         lines.forEach(line => {
@@ -835,29 +840,23 @@ function boldSelectedText() {
     function formatTime(s) {
         return new Date(s * 1000).toISOString().substr(14, 5);
     }
-// 针对 JavaScript 函数，请帮我修改 [timeupdate 监听逻辑]，并提供修改后的【完整函数代码】。
 video.addEventListener('timeupdate', () => {
     const currentTime = video.currentTime;
     const lines = document.querySelectorAll('.line');
     const floatingText = document.getElementById('current-floating-text');
-    
     if (lines.length === 0) return;
-
     const firstLineStart = parseFloat(lines[0].dataset.time);
     const lastLine = lines[lines.length - 1];
     const lastLineEnd = parseFloat(lastLine.dataset.time) + 3; 
-
-    // 1. 自动循环/边界检查 (保持功能，但不再读取本地缓存)
     if (currentTime > lastLineEnd || currentTime < firstLineStart - 1) {
         video.currentTime = firstLineStart;
         video.play().catch(() => {});
-        // 注意：此处不再使用 updateStatus，因为 status 标签已被隐藏
-        return; 
+        updateStatus("🔄 已回到字幕区间", true);
+        return; // 跳过本次后续逻辑，等待跳转完成
     }
-
-    // --- 已删除：localStorage.setItem('last_video_time', currentTime) ---
-
-    // 2. 查找当前播放时间对应的字幕行
+    if (currentTime > 0) {
+        localStorage.setItem('last_video_time', currentTime);
+    }
     let currentLine = null;
     for (let i = 0; i < lines.length; i++) {
         const start = parseFloat(lines[i].dataset.time);
@@ -868,21 +867,12 @@ video.addEventListener('timeupdate', () => {
             break;
         }
     }
-
-    // 3. 执行视觉更新逻辑
     if (currentLine) {
-        // A. 高亮并滚动（仅当行发生切换时触发，避免性能消耗）
         if (!currentLine.classList.contains('active')) {
             document.querySelector('.line.active')?.classList.remove('active');
             currentLine.classList.add('active');
-            
-            // 只有非远程同步引起的播放位置变动，才执行滚动对齐
-            if (!window.isRemoteScrolling) {
-                currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
+            currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-
-        // B. 更新悬浮字幕内容
         if (floatingText) {
             const newContent = currentLine.querySelector('.content').innerHTML;
             if (floatingText.innerHTML !== newContent) {
@@ -891,14 +881,12 @@ video.addEventListener('timeupdate', () => {
             }
         }
     } else {
-        // C. 超出范围时隐藏悬浮框
         if (floatingText) {
             floatingText.style.display = 'none';
             floatingText.innerHTML = '';
         }
     }
 });
-
     window.addEventListener('message', (event) => {
         if (event.data.type === 'LOAD_SUBTITLES') {
             processSubtitleContent(event.data.data);
