@@ -389,78 +389,82 @@ window.getDocId = function () {
     }
 };
 
-// 2. 探测当前视口最顶部的行时间戳 (语义锚点核心)
+ // 1. 语义化探测：获取当前视口最顶部的行时间戳
   window.getTopVisibleTime = function() {
     const container = document.querySelector('.transcript-container');
     const lines = document.querySelectorAll('.line');
-    if (!container || lines.length === 0) return 0;
-
+    // 探测基准线：容器顶部向下偏移 10px，避免因滚动微差错过首行
     const containerRect = container.getBoundingClientRect();
     const probeY = containerRect.top + 10; 
 
     for (let line of lines) {
-        const rect = line.getBoundingClientRect();
-        if (rect.bottom >= probeY) {
-            return line.dataset.time;
-        }
+      const rect = line.getBoundingClientRect();
+      // 只要该行的底部超过了探测线，它就是用户正在看的“首行”
+      if (rect.bottom >= probeY) {
+        return line.dataset.time;
+      }
     }
     return 0;
   };
-	
-// 2. 增强型同步上传 (基于语义锚点)
-window.syncUpload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
 
-    const topTime = window.getTopVisibleTime(); // 获取当前看到的行时间戳
+  // 2. 增强型同步上传 (基于语义锚点)
+  window.syncUpload = async function() {
+    const id = window.getDocId();
+    if (!id || id === "default_video") return;
+
+    const topTime = window.getTopVisibleTime(); // 获取语义锚点
     const transcriptHtml = document.getElementById('transcript').innerHTML;
+    const currentVideoTime = document.getElementById('videoPlayer').currentTime;
 
-    // 此时不再强制同步视频播放进度，只同步阅读位置和 HTML 内容
     set(ref(db, 'video_sync/' + id), {
-        topTime: topTime,        // 阅读进度锚点
-        htmlContent: transcriptHtml,
-        ts: Date.now()
+      topTime: topTime,           // 阅读进度锚点
+      videoProgress: currentVideoTime, // 视频播放进度
+      htmlContent: transcriptHtml,
+      ts: Date.now()
     });
-    console.log("云端同步成功: 锚点", topTime);
-};
+    console.log("云端同步成功: 锚点", topTime, "视频", currentVideoTime);
+  };
 
-// 3. 增强型下载恢复 (带偏移补偿)
-window.syncDownload = async function() {
+  // 3. 增强型下载恢复 (带偏移补偿)
+  window.syncDownload = async function() {
     const id = window.getDocId();
-    const dbRef = ref(getDatabase());
-    const snapshot = await get(child(dbRef, 'video_sync/' + id));
+    const snapshot = await get(child(ref(db), 'video_sync/' + id));
     
     if (snapshot.exists()) {
-        const data = snapshot.val();
-        
-        // ① 恢复加粗/标记 HTML
-        if (data.htmlContent) {
-            document.getElementById('transcript').innerHTML = data.htmlContent;
-            if (typeof rebindEvents === "function") rebindEvents(); 
-        }
+      const data = snapshot.val();
+      
+      // 1. 恢复加粗/标记 HTML
+      if (data.htmlContent) {
+        document.getElementById('transcript').innerHTML = data.htmlContent;
+        rebindEvents(); 
+      }
 
-        // ② 核心：语义锚定位置恢复
-        if (data.topTime) {
-            // 延迟执行确保 HTML 渲染完成，计算出正确的 offsetTop
-            setTimeout(() => {
-                const targetLine = document.querySelector(`.line[data-time="${data.topTime}"]`);
-                const container = document.querySelector('.transcript-container');
-                
-                if (targetLine && container) {
-                    // 计算目标行相对于容器顶部的偏移，补偿 5px 视觉间距
-                    const offset = targetLine.offsetTop - 5;
-                    
-                    container.scrollTo({
-                        top: offset,
-                        behavior: 'smooth'
-                    });
-                    console.log("已恢复阅读进度至:", data.topTime);
-                }
-            }, 300); // 300ms 延迟通常足以应付 DOM 渲染
-        }
+      // 2. 恢复视频进度 (可选：如果你希望视频也随设备同步)
+      if (data.videoProgress && Math.abs(video.currentTime - data.videoProgress) > 5) {
+          video.currentTime = data.videoProgress;
+      }
+
+      // 3. 核心：语义锚定位置恢复
+      if (data.topTime) {
+        // 延迟执行确保 HTML 渲染完成，计算出正确的 offsetTop
+        setTimeout(() => {
+          const targetLine = document.querySelector(`.line[data-time="${data.topTime}"]`);
+          if (targetLine) {
+            const container = document.querySelector('.transcript-container');
+            // 计算目标行相对于容器顶部的偏移
+            // 补偿 5px 的间距，视觉上更舒适，不会紧贴边框
+            const offset = targetLine.offsetTop - 5;
+            
+            container.scrollTo({
+              top: offset,
+              behavior: 'smooth'
+            });
+            console.log("已恢复阅读进度至时间戳:", data.topTime);
+          }
+        }, 300); 
+      }
     }
-};
-
+  };
 </script>
 <script>
     let scrollTimer = null;
