@@ -342,150 +342,102 @@ html, body {
         <iframe id="preview-iframe" style="width: 100%; height: 100%; border: none;" src=""></iframe>
     </div>
 </div>
+// 针对 JavaScript 函数，请帮我修改 [Firebase 模块]，并提供修改后的【完整代码】。
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
     const firebaseConfig = {
-      // 请替换为你自己的配置
-      apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
-      authDomain: "cloze-master-pro.firebaseapp.com",
-      databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "cloze-master-pro",
-      storageBucket: "cloze-master-pro.firebasestorage.app",
-      messagingSenderId: "697808901954",
-      appId: "1:697808901954:web:32455d94bf67e522e01adb"
+        apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+        authDomain: "cloze-master-pro.firebaseapp.com",
+        databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "cloze-master-pro",
+        storageBucket: "cloze-master-pro.firebasestorage.app",
+        messagingSenderId: "697808901954",
+        appId: "1:697808901954:web:32455d94bf67e522e01adb"
     };
+
     const fbApp = initializeApp(firebaseConfig);
     const db = getDatabase(fbApp);
+
+    // 设备唯一标识，防止自循环同步
+    const myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
+
     window.getDocId = function() {
-        // 优先使用 Anki 传来的特征，如果没有则取字幕前 30 位
         const text = localStorage.getItem('last_subtitles') || "";
         if (!text) return "default_video";
         try {
             return "vid_" + btoa(unescape(encodeURIComponent(text.substring(0, 30)))).replace(/[/+=]/g, "");
         } catch(e) { return "default_video"; }
     };
-// 1. 确保在全局（或模块作用域）定义设备唯一标识
-if (!window.myDeviceId) {
-    window.myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
-}
 
-// 2. 辅助函数：探测当前视口最顶部的行索引 (滚动锚定核心)
-window.getTopLineIndex = function() {
-    const container = document.querySelector('.transcript-container');
-    const lines = document.querySelectorAll('.line');
-    if (!container || lines.length === 0) return 0;
-
-    const containerRect = container.getBoundingClientRect();
-    // 探测线设定在容器顶部向下 45px 处（避开 action-bar 的遮挡）
-    const probeY = containerRect.top + 45; 
-
-    for (let i = 0; i < lines.length; i++) {
-        const rect = lines[i].getBoundingClientRect();
-        // 只要该行的底部越过了探测线，就认为它是用户当前阅读的“首行”
-        if (rect.bottom >= probeY) {
-            return i; 
+    // 获取当前视口顶部的行索引 (滚动锚定核心)
+    window.getTopLineIndex = function() {
+        const container = document.querySelector('.transcript-container');
+        const lines = document.querySelectorAll('.line');
+        if (!container || lines.length === 0) return 0;
+        const containerRect = container.getBoundingClientRect();
+        const probeY = containerRect.top + 45; 
+        for (let i = 0; i < lines.length; i++) {
+            const rect = lines[i].getBoundingClientRect();
+            if (rect.bottom >= probeY) return i;
         }
-    }
-    return 0;
-};
-	
-    window.getTopVisibleTime = function() {
-      const container = document.querySelector('.transcript-container');
-      const lines = document.querySelectorAll('.line');
-      // 探测基准线：容器顶部向下偏移 10px，避免因滚动微差错过首行
-      const containerRect = container.getBoundingClientRect();
-      const probeY = containerRect.top + 10; 
-  
-      for (let line of lines) {
-        const rect = line.getBoundingClientRect();
-        // 只要该行的底部超过了探测线，它就是用户正在看的“首行”
-        if (rect.bottom >= probeY) {
-          return line.dataset.time;
-        }
-      }
-      return 0;
+        return 0;
     };
-	
-// 3. 完整的同步上传函数
-window.syncUpload = async function() {
-    const id = window.getDocId();
-    if (!id || id === "default_video") return;
-    
-    const transcript = document.getElementById('transcript');
-    if (!transcript) return;
 
-    // 获取当前滚动到的行索引
-    const lineIndex = window.getTopLineIndex(); 
-    // 获取当前的 HTML 内容（包含加粗状态）
-    const transcriptHtml = transcript.innerHTML;
+    // 实时上传函数
+    window.syncUpload = async function() {
+        const id = window.getDocId();
+        if (!id || id === "default_video") return;
+        
+        const lineIndex = window.getTopLineIndex();
+        const transcriptHtml = document.getElementById('transcript').innerHTML;
 
-    try {
-        await set(ref(db, 'video_sync/' + id), {
-            lineIndex: lineIndex,        // 存储行索引用于滚动锚定
-            htmlContent: transcriptHtml, // 存储加粗状态
-            ts: Date.now(),              // 时间戳用于冲突检查
-            sender: window.myDeviceId    // 标识发送设备，防止监听器回弹
+        set(ref(db, 'video_sync/' + id), {
+            lineIndex: lineIndex,
+            htmlContent: transcriptHtml,
+            ts: Date.now(),
+            sender: myDeviceId
         });
-        console.log("云端同步成功：行索引", lineIndex);
-    } catch (e) {
-        console.error("云端同步失败", e);
-    }
-};
-	
-// 1. 定义唯一的设备 ID，用于防止自循环同步
-const myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
+    };
 
-// 1. 定义设备 ID 用于防止自循环（在 script type="module" 顶层定义一次即可）
-const myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
+    // 实时监听逻辑 (统一为一个监听器)
+    const id = window.getDocId();
+    if (id !== "default_video") {
+        const syncRef = ref(db, 'video_sync/' + id);
+        
+        onValue(syncRef, (snapshot) => {
+            const data = snapshot.val();
+            if (!data || data.sender === myDeviceId) return;
 
-// 2. 实时监听函数（替换原本逻辑）
-const id = window.getDocId();
-if (id !== "default_video") {
-    const syncRef = ref(db, 'video_sync/' + id);
-    
-    onValue(syncRef, (snapshot) => {
-        const data = snapshot.val();
-        if (!data || data.sender === myDeviceId) return; // 忽略自己发送的数据
+            // 检查时间戳，防止处理旧数据
+            const lastTs = window.lastProcessedTs || 0;
+            if (data.ts <= lastTs) return;
+            window.lastProcessedTs = data.ts;
 
-        // 逻辑判断：确保只处理更新的数据
-        const lastTs = window.lastProcessedTs || 0;
-        if (data.ts <= lastTs) return;
-        window.lastProcessedTs = data.ts;
+            // A. 同步加粗状态
+            const transcript = document.getElementById('transcript');
+            if (data.htmlContent && transcript.innerHTML !== data.htmlContent) {
+                transcript.innerHTML = data.htmlContent;
+                if (typeof rebindEvents === 'function') rebindEvents(); 
+            }
 
-        // A. 实时同步加粗状态 (HTML 内容)
-        const transcript = document.getElementById('transcript');
-        if (data.htmlContent && transcript.innerHTML !== data.htmlContent) {
-            transcript.innerHTML = data.htmlContent;
-            // 必须重新绑定点击事件，否则新生成的 HTML 无法点击
-            if (typeof rebindEvents === 'function') rebindEvents(); 
-        }
-
-        // B. 实时同步阅读位置 (采用滚动锚定逻辑)
-        // 优先使用索引锚定，如果不存在则退回到时间锚定
-        if (typeof data.lineIndex !== 'undefined' || data.topTime) {
-            const lines = document.querySelectorAll('.line');
-            let targetLine = null;
-
+            // B. 执行滚动锚定
             if (typeof data.lineIndex !== 'undefined') {
-                targetLine = lines[data.lineIndex]; // 基于行索引精确锚定
-            } else {
-                targetLine = document.querySelector(`.line[data-time="${data.topTime}"]`);
+                const lines = document.querySelectorAll('.line');
+                const targetLine = lines[data.lineIndex];
+                if (targetLine) {
+                    const container = document.querySelector('.transcript-container');
+                    // 补偿滚动：对齐到 action-bar (35px) 下方位置
+                    const offset = targetLine.offsetTop - 40; 
+                    container.scrollTo({
+                        top: offset,
+                        behavior: 'smooth'
+                    });
+                }
             }
-
-            if (targetLine) {
-                const container = document.querySelector('.transcript-container');
-                // 补偿滚动：对齐到 action-bar (35px) 下方 5px 位置
-                const offset = targetLine.offsetTop - 40; 
-                container.scrollTo({
-                    top: offset,
-                    behavior: 'smooth'
-                });
-                console.log("云端同步：滚动锚定至第", data.lineIndex, "行");
-            }
-        }
-    });
-}
+        });
+    }
 </script>
 <script>
     let scrollTimer = null;
