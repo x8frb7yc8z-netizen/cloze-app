@@ -343,99 +343,149 @@ html, body {
     </div>
 </div>
 <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    const firebaseConfig = { /* 保持你的配置不变 */ };
-    const fbApp = initializeApp(firebaseConfig);
-    const db = getDatabase(fbApp);
+const firebaseConfig = {
+  apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+  authDomain: "cloze-master-pro.firebaseapp.com",
+  databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "cloze-master-pro",
+  storageBucket: "cloze-master-pro.firebasestorage.app",
+  messagingSenderId: "697808901954",
+  appId: "1:697808901954:web:32455d94bf67e522e01adb"
+};
 
-    const myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
-    window.isRemoteScrolling = false; 
+const fbApp = initializeApp(firebaseConfig);
+const db = getDatabase(fbApp);
 
-    // 修改：不再从 localStorage 读取，仅根据当前页面内存中的字幕内容生成 ID
-    window.getDocId = function() {
-        const transcript = document.getElementById('transcript');
-        const text = transcript ? transcript.innerText.substring(0, 50) : "";
-        if (!text) return "default_video";
-        try {
-            // 使用内存中的文本生成临时会话 ID
-            return "vid_" + btoa(unescape(encodeURIComponent(text))).replace(/[/+=]/g, "").substring(0, 20);
-        } catch(e) { return "default_video"; }
-    };
+// 唯一设备ID（防止自循环）
+const myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
 
-    // 滚动探测
-    window.getTopLineIndex = function() {
-        const container = document.querySelector('.transcript-container');
-        const lines = document.querySelectorAll('.line');
-        if (!container || lines.length === 0) return 0;
-        const containerRect = container.getBoundingClientRect();
-        const probeY = containerRect.top + 45; 
-        for (let i = 0; i < lines.length; i++) {
-            const rect = lines[i].getBoundingClientRect();
-            if (rect.bottom >= probeY) return i;
+// 获取文档ID
+window.getDocId = function () {
+    const text = localStorage.getItem('last_subtitles') || "";
+    if (!text) return null;
+    try {
+        return "vid_" + btoa(unescape(encodeURIComponent(text.substring(0, 30)))).replace(/[/+=]/g, "");
+    } catch(e) {
+        return null;
+    }
+};
+
+// 获取当前阅读顶部字幕时间
+function getTopVisibleTime() {
+    const container = document.querySelector('.transcript-container');
+    const lines = document.querySelectorAll('.line');
+    if (!container || lines.length === 0) return 0;
+
+    const containerRect = container.getBoundingClientRect();
+    const probeY = containerRect.top + 10;
+
+    for (let line of lines) {
+        const rect = line.getBoundingClientRect();
+        if (rect.bottom >= probeY) {
+            return line.dataset.time;
         }
-        return 0;
-    };
+    }
+    return 0;
+}
 
-    // 实时上传：增加判断，防止初始状态（index 0）覆盖云端已有进度
-    window.syncUpload = async function() {
-        if (window.isRemoteScrolling) return;
+// 防抖上传
+let lastUploadTs = 0;
+let lastUploadedTop = null;
+let lastUploadedHtml = null;
 
-        const id = window.getDocId();
-        if (id === "default_video") return;
-        
-        const lineIndex = window.getTopLineIndex();
-        const transcriptHtml = document.getElementById('transcript').innerHTML;
+window.syncUpload = async function(force = false) {
+    const id = window.getDocId();
+    if (!id) return;
 
-        // 只有当内容加载后才允许上传
-        if (lineIndex === 0 && transcriptHtml.length < 100) return;
+    const now = Date.now();
+    if (!force && now - lastUploadTs < 1000) return;
+    lastUploadTs = now;
 
-        set(ref(db, 'video_sync/' + id), {
-            lineIndex: lineIndex,
-            htmlContent: transcriptHtml,
-            ts: Date.now(),
-            sender: myDeviceId
-        });
-    };
+    const topTime = getTopVisibleTime();
+    const transcript = document.getElementById('transcript');
+    if (!transcript) return;
 
-    // 实时监听
-    const initSync = () => {
-        const id = window.getDocId();
-        if (id === "default_video") return;
-        
-        const syncRef = ref(db, 'video_sync/' + id);
-        onValue(syncRef, (snapshot) => {
-            const data = snapshot.val();
-            if (!data || data.sender === myDeviceId) return;
+    const htmlContent = transcript.innerHTML;
 
-            const lastTs = window.lastProcessedTs || 0;
-            if (data.ts <= lastTs) return;
-            window.lastProcessedTs = data.ts;
+    if (!force && lastUploadedTop == topTime && lastUploadedHtml === htmlContent) {
+        return;
+    }
 
-            // 同步加粗
-            const transcript = document.getElementById('transcript');
-            if (data.htmlContent && transcript.innerHTML.length !== data.htmlContent.length) {
-                transcript.innerHTML = data.htmlContent;
-                if (typeof rebindEvents === 'function') rebindEvents(); 
+    lastUploadedTop = topTime;
+    lastUploadedHtml = htmlContent;
+
+    await set(ref(db, 'video_sync/' + id), {
+        topTime: topTime,
+        htmlContent: htmlContent,
+        ts: now,
+        sender: myDeviceId
+    });
+};
+
+// 实时监听
+function startRealtimeSync() {
+    const id = window.getDocId();
+    if (!id) return;
+
+    const syncRef = ref(db, 'video_sync/' + id);
+
+    onValue(syncRef, (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+
+        if (data.sender === myDeviceId) return;
+
+        const transcript = document.getElementById('transcript');
+
+        // A. 同步加粗HTML
+        if (data.htmlContent && transcript.innerHTML !== data.htmlContent) {
+            transcript.innerHTML = data.htmlContent;
+            if (typeof rebindEvents === 'function') rebindEvents();
+        }
+
+        // B. 同步滚动锚点
+        if (data.topTime) {
+            const targetLine = document.querySelector(`.line[data-time="${data.topTime}"]`);
+            if (targetLine) {
+                const container = document.querySelector('.transcript-container');
+                container.scrollTo({
+                    top: targetLine.offsetTop - 5,
+                    behavior: 'smooth'
+                });
             }
+        }
+    });
+}
 
-            // 同步滚动（带锁，解决无限循环）
-            if (typeof data.lineIndex !== 'undefined') {
-                const lines = document.querySelectorAll('.line');
-                const targetLine = lines[data.lineIndex];
-                if (targetLine) {
-                    const container = document.querySelector('.transcript-container');
-                    window.isRemoteScrolling = true;
-                    container.scrollTo({ top: targetLine.offsetTop - 40, behavior: 'smooth' });
-                    setTimeout(() => { window.isRemoteScrolling = false; }, 800);
-                }
-            }
-        });
-    };
-    
-    // 监听字幕加载完成后再启动同步
-    window.addEventListener('subtitlesLoaded', initSync);
+// 页面加载后启动同步
+window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => {
+        startRealtimeSync();
+    }, 800);
+});
+
+// 滚动时自动同步
+const transcriptContainer = document.querySelector('.transcript-container');
+if (transcriptContainer) {
+    let scrollTimer;
+    transcriptContainer.addEventListener('scroll', () => {
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(() => {
+            window.syncUpload();
+        }, 800);
+    });
+}
+
+// 视频暂停时同步
+const video = document.getElementById('videoPlayer');
+if (video) {
+    video.addEventListener('pause', () => {
+        window.syncUpload(true);
+    });
+}
 </script>
 <script>
     let scrollTimer = null;
