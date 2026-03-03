@@ -342,26 +342,17 @@ html, body {
         <iframe id="preview-iframe" style="width: 100%; height: 100%; border: none;" src=""></iframe>
     </div>
 </div>
-// 针对 JavaScript 函数，请帮我修改 [Firebase 模块]，并提供修改后的【完整代码】。
+// 针对 JavaScript 函数，请帮我修改 [Firebase 同步逻辑], 并提供修改后的【完整代码】。
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    const firebaseConfig = {
-        apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
-        authDomain: "cloze-master-pro.firebaseapp.com",
-        databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "cloze-master-pro",
-        storageBucket: "cloze-master-pro.firebasestorage.app",
-        messagingSenderId: "697808901954",
-        appId: "1:697808901954:web:32455d94bf67e522e01adb"
-    };
-
+    const firebaseConfig = { /* 保持你的配置不变 */ };
     const fbApp = initializeApp(firebaseConfig);
     const db = getDatabase(fbApp);
 
-    // 设备唯一标识，防止自循环同步
     const myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
+    window.isRemoteScrolling = false; // 锁：防止循环同步
 
     window.getDocId = function() {
         const text = localStorage.getItem('last_subtitles') || "";
@@ -371,7 +362,6 @@ html, body {
         } catch(e) { return "default_video"; }
     };
 
-    // 获取当前视口顶部的行索引 (滚动锚定核心)
     window.getTopLineIndex = function() {
         const container = document.querySelector('.transcript-container');
         const lines = document.querySelectorAll('.line');
@@ -385,8 +375,11 @@ html, body {
         return 0;
     };
 
-    // 实时上传函数
+    // 增强的上传函数
     window.syncUpload = async function() {
+        // 如果是由远程同步引起的滚动，则不上传，防止无限循环
+        if (window.isRemoteScrolling) return;
+
         const id = window.getDocId();
         if (!id || id === "default_video") return;
         
@@ -401,7 +394,6 @@ html, body {
         });
     };
 
-    // 实时监听逻辑 (统一为一个监听器)
     const id = window.getDocId();
     if (id !== "default_video") {
         const syncRef = ref(db, 'video_sync/' + id);
@@ -410,30 +402,31 @@ html, body {
             const data = snapshot.val();
             if (!data || data.sender === myDeviceId) return;
 
-            // 检查时间戳，防止处理旧数据
+            // 只有云端数据比本地新，才处理
             const lastTs = window.lastProcessedTs || 0;
             if (data.ts <= lastTs) return;
             window.lastProcessedTs = data.ts;
 
-            // A. 同步加粗状态
+            // A. 同步加粗状态 (采用更宽松的长度对比或直接覆盖)
             const transcript = document.getElementById('transcript');
-            if (data.htmlContent && transcript.innerHTML !== data.htmlContent) {
+            if (data.htmlContent && transcript.innerHTML.length !== data.htmlContent.length) {
                 transcript.innerHTML = data.htmlContent;
                 if (typeof rebindEvents === 'function') rebindEvents(); 
             }
 
-            // B. 执行滚动锚定
+            // B. 执行滚动锚定 (带锁执行)
             if (typeof data.lineIndex !== 'undefined') {
                 const lines = document.querySelectorAll('.line');
                 const targetLine = lines[data.lineIndex];
                 if (targetLine) {
                     const container = document.querySelector('.transcript-container');
-                    // 补偿滚动：对齐到 action-bar (35px) 下方位置
+                    window.isRemoteScrolling = true; // 上锁
+                    
                     const offset = targetLine.offsetTop - 40; 
-                    container.scrollTo({
-                        top: offset,
-                        behavior: 'smooth'
-                    });
+                    container.scrollTo({ top: offset, behavior: 'smooth' });
+
+                    // 滚动完成后解锁（根据平滑滚动时间延迟）
+                    setTimeout(() => { window.isRemoteScrolling = false; }, 800);
                 }
             }
         });
