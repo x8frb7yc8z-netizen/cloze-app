@@ -390,17 +390,24 @@ window.getDocId = function () {
 };
 
   // 2. 上传同步：保存进度和加粗的 HTML
-  window.syncUpload = async function() {
-      const id = window.getDocId();
-      const currentTime = document.getElementById('videoPlayer').currentTime;
-      const transcriptHtml = document.getElementById('transcript').innerHTML;
-
-      set(ref(db, 'video_sync/' + id), {
-          lastTime: currentTime,
-          htmlContent: transcriptHtml,
-          ts: Date.now()
-      });
-  };
+window.syncUpload = async function() {
+    const id = window.getDocId();
+    if (!id) return;
+    const currentTime = document.getElementById('videoPlayer').currentTime;
+    const transcriptHtml = document.getElementById('transcript').innerHTML;
+    const scrollPos = transcriptContainer.scrollTop;
+    try {
+        await set(ref(db, 'video_sync/' + id), {
+            lastTime: currentTime,
+            htmlContent: transcriptHtml,
+            lastScrollPos: scrollPos,
+            ts: Date.now()
+        });
+        console.log("已上传同步数据:", { id, currentTime, scrollPos });
+    } catch (err) {
+        console.error("上传失败", err);
+    }
+};
 
   // 3. 下载同步：恢复进度和加粗状态
 window.syncDownload = async function() {
@@ -534,8 +541,13 @@ document.addEventListener('touchend', (e) => {
         }, 1000);
     }
 }, { passive: true });
-    transcriptContainer.addEventListener('scroll', () => {
-    localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
+transcriptContainer.addEventListener('scroll', () => {
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+        if (window.syncUpload) {
+            window.syncUpload(); // ✅ 使用统一上传函数
+        }
+    }, 500);
 });
     function updateStatus(msg, active = false) {
         status.innerText = msg;
@@ -554,10 +566,13 @@ document.addEventListener('touchend', (e) => {
             videoHint.style.display = 'block';
         }
     });
-video.addEventListener('pause', () => {
+video.addEventListener('timeupdate', () => {
     if (window.syncUpload) {
-        window.syncUpload();
-        lastSyncTime = Date.now();
+        // 可加节流避免频繁调用
+        if (!video._lastSync || Date.now() - video._lastSync > 2000) {
+            window.syncUpload();
+            video._lastSync = Date.now();
+        }
     }
 });
     document.getElementById('videoInput').addEventListener('change', (e) => {
