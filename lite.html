@@ -381,46 +381,64 @@ html, body {
       }
       return 0;
     };
-  window.syncUpload = async function() {
-      const id = window.getDocId();
-      if (!id || id === "default_video") return;
-      const topTime = window.getTopVisibleTime(); 
-      const transcriptHtml = document.getElementById('transcript').innerHTML;
-      set(ref(db, 'video_sync/' + id), {
-          topTime: topTime,           // 只有滚动位置
-          htmlContent: transcriptHtml, // 只有加粗状态
-          ts: Date.now()               // 操作时间
-      });
-      console.log("阅读进度已同步 (播放进度未上传)");
-  };
-    window.syncDownload = async function() {
-      const id = window.getDocId();
-      const snapshot = await get(child(ref(db), 'video_sync/' + id));
-      if (snapshot.exists()) {
+	
+// 针对 JavaScript 函数，请帮我修改 [syncUpload]，并提供修改后的【完整函数代码】。	
+window.syncUpload = async function() {
+    const id = window.getDocId();
+    if (!id || id === "default_video") return;
+    
+    const topTime = window.getTopVisibleTime(); 
+    const transcriptHtml = document.getElementById('transcript').innerHTML;
+
+    set(ref(db, 'video_sync/' + id), {
+        topTime: topTime,
+        htmlContent: transcriptHtml,
+        ts: Date.now(),
+        sender: myDeviceId // 标识是哪个设备发出的
+    });
+};
+// 1. 定义唯一的设备 ID，用于防止自循环同步
+const myDeviceId = "dev_" + Math.random().toString(36).substr(2, 5);
+
+// 2. 实时监听函数（替换原本的 syncDownload）
+const id = window.getDocId();
+if (id !== "default_video") {
+    const syncRef = ref(db, 'video_sync/' + id);
+    
+    // 使用 onValue 实现实时推送
+    onValue(syncRef, (snapshot) => {
         const data = snapshot.val();
-        if (data.htmlContent) {
-          document.getElementById('transcript').innerHTML = data.htmlContent;
-          rebindEvents(); 
+        if (!data) return;
+
+        // 逻辑判断：如果是自己上传的数据，或者数据太旧，则跳过
+        const lastTs = window.lastProcessedTs || 0;
+        if (data.ts <= lastTs || data.sender === myDeviceId) return;
+        window.lastProcessedTs = data.ts;
+
+        // A. 实时同步加粗状态 (HTML 内容)
+        const transcript = document.getElementById('transcript');
+        if (data.htmlContent && transcript.innerHTML !== data.htmlContent) {
+            transcript.innerHTML = data.htmlContent;
+            // 必须重新绑定点击事件，否则新生成的 HTML 无法点击
+            if (typeof rebindEvents === 'function') rebindEvents(); 
         }
-        if (data.videoProgress && Math.abs(video.currentTime - data.videoProgress) > 5) {
-            video.currentTime = data.videoProgress;
-        }
+
+        // B. 实时同步阅读位置 (滚动位置)
         if (data.topTime) {
-          setTimeout(() => {
             const targetLine = document.querySelector(`.line[data-time="${data.topTime}"]`);
             if (targetLine) {
-              const container = document.querySelector('.transcript-container');
-              const offset = targetLine.offsetTop - 5;
-              container.scrollTo({
-                top: offset,
-                behavior: 'smooth'
-              });
-              console.log("已恢复阅读进度至时间戳:", data.topTime);
+                const container = document.querySelector('.transcript-container');
+                const offset = targetLine.offsetTop - 5;
+                container.scrollTo({
+                    top: offset,
+                    behavior: 'smooth'
+                });
+                console.log("云端同步：已跳转至阅读位置", data.topTime);
             }
-          }, 300); 
         }
-      }
-    };
+        // 注意：此处已彻底移除 videoProgress 相关逻辑
+    });
+}
 </script>
 <script>
     let scrollTimer = null;
