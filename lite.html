@@ -359,7 +359,7 @@ html, body {
 
   const fbApp = initializeApp(firebaseConfig);
   const db = getDatabase(fbApp);
-
+	
   // 1. 生成文档唯一 ID (基于字幕内容)
 window.getDocId = function () {
 
@@ -389,64 +389,74 @@ window.getDocId = function () {
     }
 };
 
-   window.getTopVisibleTime = function() {
-      const container = document.querySelector('.transcript-container');
-      const lines = document.querySelectorAll('.line');
-      // 探测基准线：容器顶部向下偏移 10px，避免因滚动微差错过首行
-      const containerRect = container.getBoundingClientRect();
-      const probeY = containerRect.top + 10; 
-  
-      for (let line of lines) {
+// 获取当前视口顶部的“语义锚点” (data-time)
+window.getTopVisibleAnchor = function() {
+    const container = document.querySelector('.transcript-container');
+    const lines = document.querySelectorAll('.line');
+    const containerTop = container.getBoundingClientRect().top;
+
+    for (let line of lines) {
         const rect = line.getBoundingClientRect();
-        // 只要该行的底部超过了探测线，它就是用户正在看的“首行”
-        if (rect.bottom >= probeY) {
-          return line.dataset.time;
+        // 只要元素的顶部超过了容器顶部，它就是当前用户正在阅读的行
+        if (rect.top >= containerTop - 10) { 
+            return line.dataset.time; 
         }
-      }
-      return 0;
-    };
+    }
+    return null;
+};
 
-  window.syncUpload = async function() {
-      const id = window.getDocId();
-      if (!id || id === "default_video") return;
-      const topTime = window.getTopVisibleTime(); 
-      const transcriptHtml = document.getElementById('transcript').innerHTML;
-      set(ref(db, 'video_sync/' + id), {
-          topTime: topTime,           // 只有滚动位置
-          htmlContent: transcriptHtml, // 只有加粗状态
-          ts: Date.now()               // 操作时间
-      });
-      console.log("阅读进度已同步 (播放进度未上传)");
-  };
+// 在 syncDownload 恢复位置时使用
+window.scrollToAnchor = function(anchorTime) {
+    const container = document.querySelector('.transcript-container');
+    const targetLine = document.querySelector(`.line[data-time="${anchorTime}"]`);
+    
+    if (targetLine && container) {
+        // 计算目标行相对于容器顶部的偏移量
+        // 减去 10px 的缓冲距离，防止紧贴顶部，视觉更舒适
+        const offsetPosition = targetLine.offsetTop - 10; 
 
-  window.syncDownload = async function() {
-      const id = window.getDocId();
-      const snapshot = await get(child(ref(db), 'video_sync/' + id));
-      if (snapshot.exists()) {
+        container.scrollTo({
+            top: offsetPosition,
+            behavior: 'smooth'
+        });
+    }
+};
+window.syncUpload = async function() {
+    const id = window.getDocId();
+    const anchor = window.getTopVisibleAnchor(); // 探测语义锚点
+    const transcriptHtml = document.getElementById('transcript').innerHTML;
+
+    if (!anchor) return;
+
+    set(ref(db, 'video_sync/' + id), {
+        topAnchor: anchor, // 存储语义化锚点
+        htmlContent: transcriptHtml,
+        ts: Date.now()
+    });
+};
+
+window.syncDownload = async function() {
+    const id = window.getDocId();
+    const snapshot = await get(child(ref(db), 'video_sync/' + id));
+    
+    if (snapshot.exists()) {
         const data = snapshot.val();
+        
+        // 恢复内容
         if (data.htmlContent) {
-          document.getElementById('transcript').innerHTML = data.htmlContent;
-          rebindEvents(); 
+            document.getElementById('transcript').innerHTML = data.htmlContent;
+            rebindEvents(); 
         }
-        if (data.videoProgress && Math.abs(video.currentTime - data.videoProgress) > 5) {
-            video.currentTime = data.videoProgress;
+
+        // 恢复位置：执行带补偿的滚动
+        if (data.topAnchor) {
+            setTimeout(() => {
+                window.scrollToAnchor(data.topAnchor);
+            }, 200); // 给 DOM 渲染留一点缓冲时间
         }
-        if (data.topTime) {
-          setTimeout(() => {
-            const targetLine = document.querySelector(`.line[data-time="${data.topTime}"]`);
-            if (targetLine) {
-              const container = document.querySelector('.transcript-container');
-              const offset = targetLine.offsetTop - 5;
-              container.scrollTo({
-                top: offset,
-                behavior: 'smooth'
-              });
-              console.log("已恢复阅读进度至时间戳:", data.topTime);
-            }
-          }, 300); 
-        }
-      }
-    };
+    }
+};
+
 </script>
 <script>
     let scrollTimer = null;
