@@ -60,8 +60,12 @@ body {
 .btn-upload:hover{opacity:1;background:rgba(255,255,255,0.4)!important;}
 .controls-group{position:absolute;top:10px;right:10px;z-index:200;display:flex;gap:8px;align-items:center;}
 .controls-group .btn-upload{position:static;}
-#video-hint{background:rgba(0,161,214,0.9);color:white;font-size:12px;padding:4px 10px;border-radius:4px;white-space:nowrap;display:none;}
-input[type="file"]{display:none;}
+video {
+    width: 101%; /* 微调：稍微溢出 1% 并配合容器 hidden，可以完美遮盖边缘白线 */
+    margin-left: -0.5%;
+    display: block;
+    object-fit: contain;
+}input[type="file"]{display:none;}
 .main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 /* 确保 action-bar 不会被高度挤压 */
 .action-bar {
