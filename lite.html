@@ -2,6 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>AI 意群同步播放器 - White Edition</title>
 <style>
 #current-floating-text .custom-bold{color:#ffffff!important;text-shadow:0 0 3px rgba(0,0,0,0.8);}
@@ -43,7 +44,7 @@ video{max-height:45vh;width:100%;display:block;}
 .content{line-height:1;font-size:26px;transition:none!important;font-weight:400!important;transform:none!important;color:#1d1d1f;max-width:100%!important;margin:0!important;}
 .line.active .content{font-weight:400!important;transform:none!important;color:#000;}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-dim);text-align:center;}
-    </style>
+</style>
 </head>
 <body>
 <div class="header"><div class="status-dot" id="dot"></div><span id="status">等待加载...</span><div class="controls-group"><div id="video-hint"></div><label class="btn-upload">🎥<input type="file" id="videoInput" accept="video/*"></label><label class="btn-upload">📝<input type="file" id="subtitleManualInput" accept=".srt,.txt,.vtt"></label></div></div>
