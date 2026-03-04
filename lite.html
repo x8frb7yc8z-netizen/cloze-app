@@ -9,15 +9,18 @@
 #current-floating-text{background:transparent!important;box-shadow:none!important;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,2px 2px 4px rgba(0,0,0,0.8);}
 /* 修改后的 html 和 body 样式块 */
 html, body {
-    width: 100vw; /* 改用 vw 确保完全覆盖视口宽度 */
-    height: 100dvh;
+    width: 100%;
+    /* 使用 dvh 确保在 iOS 上高度计算精确到可视区 */
+    height: 100vh;
+    height: 100dvh; 
     margin: 0;
     padding: 0;
-    overflow: hidden !important;
-    position: fixed;
+    /* 核心：禁止外层溢出，防止拉动出现黑色背景 */
+    overflow: hidden !important; 
+    /* 核心：在 iOS 上通过 fixed 定位彻底锁死橡皮筋回弹 */
+    position: fixed; 
     left: 0;
     top: 0;
-
 }
 #status,.status-dot{display:none!important;}
 /* 修改后的字幕容器样式 */
@@ -57,12 +60,8 @@ body {
 .btn-upload:hover{opacity:1;background:rgba(255,255,255,0.4)!important;}
 .controls-group{position:absolute;top:10px;right:10px;z-index:200;display:flex;gap:8px;align-items:center;}
 .controls-group .btn-upload{position:static;}
-video {
-    width: 101%; /* 微调：稍微溢出 1% 并配合容器 hidden，可以完美遮盖边缘白线 */
-    margin-left: -0.5%;
-    display: block;
-    object-fit: contain;
-}input[type="file"]{display:none;}
+#video-hint{background:rgba(0,161,214,0.9);color:white;font-size:12px;padding:4px 10px;border-radius:4px;white-space:nowrap;display:none;}
+input[type="file"]{display:none;}
 .main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;}
 /* 确保 action-bar 不会被高度挤压 */
 .action-bar {
@@ -87,16 +86,12 @@ video {
 .action-bar .action-btn:active{background:#eeeeee;}
 .action-btn{padding:6px 14px;border-radius:8px;border:1px solid #d2d2d7;background:#fff;font-size:13px;color:#1d1d1f;cursor:pointer;transition:all 0.2s;font-family:inherit;}
 .action-btn:hover{background:#f5f5f7;border-color:var(--primary);color:var(--primary);}
-/* 3. 修正视频容器，确保左右完全贴边 */
 .video-wrapper {
-    position: relative;
-    width: 100%;
-    left: 0;
-    right: 0;
-    margin: 0;
+    padding-top: env(safe-area-inset-top); /* 仅在这里保留，避开灵动岛 */
+    flex: 0 0 auto;
     background: #000;
-    flex-shrink: 0;
-    overflow: hidden; /* 防止内部 video 标签溢出 */
+    width: 100%;
+    z-index: 100; /* 确保层级在最前 */
 }
 video{max-height:45vh;width:100%;display:block;}
 .line{padding: 12px 10px;border-bottom: 1px solid #f2f2f7;width:100%;max-width:800px;padding:10px 0;cursor:default;text-align:center;background:transparent!important;display:flex;flex-direction:row;align-items:center;justify-content:center;margin:0 auto 10px auto;align-items: flex-start;}
