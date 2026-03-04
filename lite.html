@@ -9,18 +9,15 @@
 #current-floating-text{background:transparent!important;box-shadow:none!important;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,2px 2px 4px rgba(0,0,0,0.8);}
 /* 修改后的 html 和 body 样式块 */
 html, body {
-    width: 100%;
-    /* 使用 dvh 确保在 iOS 上高度计算精确到可视区 */
-    height: 100vh;
-    height: 100dvh; 
+    width: 100vw; /* 改用 vw 确保完全覆盖视口宽度 */
+    height: 100dvh;
     margin: 0;
     padding: 0;
-    /* 核心：禁止外层溢出，防止拉动出现黑色背景 */
-    overflow: hidden !important; 
-    /* 核心：在 iOS 上通过 fixed 定位彻底锁死橡皮筋回弹 */
-    position: fixed; 
+    overflow: hidden !important;
+    position: fixed;
     left: 0;
     top: 0;
+
 }
 #status,.status-dot{display:none!important;}
 /* 修改后的字幕容器样式 */
