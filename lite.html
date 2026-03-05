@@ -154,7 +154,6 @@ window.getDocId = function () {
     let isLongPress = false;
     let touchStartX = 0;
     let touchStartY = 0;
-    let isSelectingText = false;
     const container = document.querySelector('.transcript-container');
     const SWIPE_THRESHOLD = 40; // 划动最小像素阈值
     const video = document.getElementById('videoPlayer');
@@ -164,16 +163,6 @@ window.getDocId = function () {
     const dot = document.getElementById('dot');
     const videoHint = document.getElementById('video-hint');
     const transcriptContainer = document.querySelector('.transcript-container');
-
-document.addEventListener('selectionchange', () => {
-    const selection = window.getSelection();
-    if (selection && selection.toString().length > 0) {
-        isSelectingText = true;
-    } else {
-        isSelectingText = false;
-    }
-});
-
 function toggleNativeControls() {
     const video = document.getElementById('videoPlayer');
     const touchOverlay = document.getElementById('video-touch-overlay');
@@ -196,26 +185,30 @@ touchOverlay.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 }, { passive: true });
-
+    //
 touchOverlay.addEventListener('touchend', (e) => {
+    // 拦截：如果正在选词，直接跳出
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim().length > 0) return;
 
-if (isSelectingText) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
 
-const touchEndX = e.changedTouches[0].clientX;
-const touchEndY = e.changedTouches[0].clientY;
-
-const deltaX = touchEndX - touchStartX;
-const deltaY = touchEndY - touchStartY;
-
-if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
-    if (video.paused) {
-        video.play().catch(err => console.log("播放被拦截", err));
-    } else {
-        video.pause();
+    if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
+        if (video.paused) {
+            video.play().catch(err => console.log("播放被拦截", err));
+        } else {
+            video.pause();
+        }
+    } else if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+        if (deltaX < 0) {
+            video.currentTime = Math.max(0, video.currentTime - 2);
+        } else {
+            video.pause();
+        }
     }
-}
-});
-
 });
 
 // 监听字幕容器滚动
@@ -232,23 +225,27 @@ document.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 }, { passive: true });
-// 修改后的全局手势监听
+    //
 document.addEventListener('touchend', (e) => {
-
-    if (isSelectingText) return;
+    // 关键拦截：如果用户正在选中文字，则不执行任何视频控制逻辑
+    const selection = window.getSelection();
+    if (selection && selection.toString().trim().length > 0) {
+        // 发现有选中的内容，直接退出函数，不执行下面的播放/暂停逻辑
+        return; 
+    }
 
     const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
-
     const deltaX = touchEndX - touchStartX;
     const deltaY = touchEndY - touchStartY;
 
+    // 只有在没有选中文字的情况下，才判断是否执行划动手势
     if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > SWIPE_THRESHOLD) {
-
         if (deltaX < 0) {
             video.currentTime = Math.max(0, video.currentTime - 2);
             updateStatus("⏪ 快退 2s", true);
         } else {
+            // 这里是控制播放/暂停的核心点
             if (video.paused) {
                 video.play();
                 updateStatus("▶️ 播放", true);
@@ -257,10 +254,14 @@ document.addEventListener('touchend', (e) => {
                 updateStatus("⏸ 暂停", true);
             }
         }
+        
+        setTimeout(() => {
+            const lastVideoName = localStorage.getItem('last_video_name');
+            updateStatus(lastVideoName ? "视频已加载" : "准备就绪", true);
+        }, 1000);
     }
-
-});
-
+}, { passive: true });
+    //
     transcriptContainer.addEventListener('scroll', () => {
     localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
 });
