@@ -1,324 +1,685 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>LingoPlayer Pro</title>
-    <style>
-        :root {
-            --ios-blue: #007aff;
-            --ios-bg: #f2f2f7;
-            --card-bg: #ffffff;
-            --safe-top: env(safe-area-inset-top);
-            --safe-bottom: env(safe-area-inset-bottom);
-        }
-
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body, html { 
-            margin: 0; padding: 0; height: 100%; 
-            background: var(--ios-bg); font-family: -apple-system, system-ui;
-            overflow: hidden;
-        }
-
-        /* 页面切换 */
-        .page { display: none; height: 100vh; flex-direction: column; padding-top: var(--safe-top); }
-        .page.active { display: flex; }
-
-        /* 头部 */
-        .ios-header { padding: 20px 16px; display: flex; justify-content: space-between; align-items: center; }
-        .ios-header h1 { font-size: 34px; margin: 0; font-weight: 700; }
-        .add-btn { background: none; border: none; color: var(--ios-blue); font-size: 32px; cursor: pointer; }
-
-        /* 列表 */
-        .project-list { flex: 1; overflow-y: auto; padding: 0 16px 100px; }
-        .deck-card { 
-            background: var(--card-bg); border-radius: 15px; padding: 20px; 
-            margin-bottom: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            display: flex; justify-content: space-between; align-items: center;
-        }
-
-        /* 播放器 */
-        .player-nav { 
-            display: flex; justify-content: space-between; align-items: center; 
-            padding: 10px 16px; background: #fff; border-bottom: 0.5px solid #d1d1d6; 
-        }
-        .player-nav button { background: none; border: none; color: var(--ios-blue); font-size: 17px; cursor: pointer; }
-
-        .video-box { background: #000; width: 100%; position: sticky; top: 0; z-index: 10; }
-        video { width: 100%; display: block; max-height: 30vh; }
-
-        #subList { flex: 1; overflow-y: auto; padding: 15px; background: var(--ios-bg); padding-bottom: 150px; }
-        .sentence-card {
-            background: var(--card-bg); margin-bottom: 12px; padding: 16px;
-            border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-            font-size: 18px; line-height: 1.5; color: #1c1c1e;
-            transition: border 0.2s; border: 2px solid transparent;
-        }
-        .sentence-card.active { border-color: var(--ios-blue); background: #f0f7ff; }
-
-        /* --- 算法按钮面板 --- */
-        .algo-bar {
-            position: fixed; bottom: calc(55px + var(--safe-bottom));
-            left: 0; width: 100%; height: 75px;
-            background: rgba(255,255,255,0.9); backdrop-filter: blur(15px);
-            border-top: 0.5px solid #d1d1d6;
-            display: none; justify-content: space-around; align-items: center;
-            padding: 0 10px; z-index: 110;
-        }
-        .algo-btn {
-            flex: 1; margin: 0 5px; height: 45px; border-radius: 12px;
-            border: none; color: white; font-weight: bold; font-size: 14px;
-        }
-        .btn-fail { background: #ff3b30; }
-        .btn-hard { background: #ff9500; }
-        .btn-good { background: #34c759; }
-        .btn-easy { background: #5856d6; }
-
-        /* 底部导航 */
-        .tab-bar {
-            position: fixed; bottom: 0; width: 100%;
-            height: calc(55px + var(--safe-bottom));
-            background: rgba(255,255,255,0.85); backdrop-filter: blur(20px);
-            border-top: 0.5px solid #d1d1d6;
-            display: flex; padding-bottom: var(--safe-bottom); z-index: 100;
-        }
-        .tab-item { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #8e8e93; font-size: 11px; }
-        .tab-item.active { color: var(--ios-blue); }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>AI 意群同步播放器 - White Edition</title>
+<style>
+#current-floating-text .custom-bold{color:#ffffff!important;text-shadow:0 0 3px rgba(0,0,0,0.8);}
+#current-floating-text{background:transparent!important;box-shadow:none!important;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,2px 2px 4px rgba(0,0,0,0.8);}
+html,body{width:100%;margin:0;padding:0;overflow-x:hidden!important;position:relative;}
+#status,.status-dot{display:none!important;}
+.transcript-container{flex:1;overflow-y:auto;overflow-x:hidden!important;padding:20px!important;background:#ffffff;box-sizing:border-box;}
+.custom-bold{font-weight:700!important;color:#000!important;text-underline-offset:4px;}
+:root{--primary:#00a1d6;--primary-light:rgba(0,161,214,0.08);--bg:#ffffff;--header-bg:rgba(255,255,255,0.9);--panel:#f5f5f7;--text-main:#1d1d1f;--text-dim:#86868b;--border:#d2d2d7;--line-hover:#f0f0f2;}
+body{font-family:-apple-system,"SF Pro Display","PingFang SC",sans-serif;background:var(--bg);color:var(--text-main);margin:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg);}
+.header{height:0;padding:0;border:none;}
+.status-dot{width:8px;height:8px;border-radius:50%;background:#d2d2d7;display:inline-block;}
+.status-dot.active{background:#34c759;box-shadow:0 0 6px rgba(52,199,89,0.5);}
+#status{font-size:13px;color:var(--text-dim);flex-grow:1;}
+.btn-upload{position:absolute;top:10px;right:10px;z-index:200;background:rgba(255,255,255,0.2)!important;color:white!important;border:none!important;backdrop-filter:blur(5px);opacity:0.3;transition:opacity 0.3s;}
+.btn-upload:hover{opacity:1;background:rgba(255,255,255,0.4)!important;}
+.controls-group{position:absolute;top:10px;right:10px;z-index:200;display:flex;gap:8px;align-items:center;}
+.controls-group .btn-upload{position:static;}
+#video-hint{background:rgba(0,161,214,0.9);color:white;font-size:12px;padding:4px 10px;border-radius:4px;white-space:nowrap;display:none;}
+input[type="file"]{display:none;}
+.main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+.action-bar{border-bottom: 1px solid #eee;position:sticky;top:0;left:0;width:100%;height:35px;z-index:1000;display:flex;background:#fff;border-bottom:1px solid #eee;box-shadow:0 2px 5px rgba(0,0,0,0.02);padding:0;}
+.action-bar .action-btn:nth-child(1){background:#e3f2fd;color:#1d1d1f;}
+.action-bar .action-btn:nth-child(2){background:#e8f5e9;color:#1d1d1f;}
+.action-bar .action-btn{flex:1;height:100%;border:none;border-right:1px solid #f0f0f0;background:#fff;font-size:13px;font-weight:600;color:#444;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;padding:0;border-radius:0;}
+.action-bar .action-btn:nth-child(3):hover{background:#fff8e1;color:#f57c00;}
+.action-bar .action-btn:hover{background:#f5f5f7;color:var(--primary);}
+.action-bar .action-btn:active{background:#eeeeee;}
+.action-btn{padding:6px 14px;border-radius:8px;border:1px solid #d2d2d7;background:#fff;font-size:13px;color:#1d1d1f;cursor:pointer;transition:all 0.2s;font-family:inherit;}
+.action-btn:hover{background:#f5f5f7;border-color:var(--primary);color:var(--primary);}
+.video-wrapper{flex:0 0 auto;background:#000;box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+video{max-height:45vh;width:100%;display:block;}
+.line{border-bottom: 1px solid #f2f2f7;width:100%;max-width:800px;padding:10px 0;cursor:default;text-align:center;background:transparent!important;display:flex;flex-direction:row;align-items:center;justify-content:center;margin:0 auto 10px auto;align-items: flex-start;}
+.play-btn{width:32px;height:32px;margin-right:5px;border-radius:50%;border:1px solid #d2d2d7;background:#fff;color:#86868b;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:all 0.2s;flex-shrink:0;user-select: none;-webkit-user-select: none;margin-top: 2px;}
+.play-btn:hover{background:#f5f5f7;color:var(--primary);border-color:var(--primary);}
+.line.active .play-btn{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 0 8px rgba(0,161,214,0.4);}
+.line:hover{background:var(--line-hover);border-color:var(--border);}
+.time-box{display:inline-block!important;font-family:"SF Mono",monospace;font-size:10px;color:#ccc;background:#f0f0f2;padding:2px 6px;border-radius:4px;margin-bottom:8px;opacity:0.6;}
+.content{line-height:1;font-size:26px;transition:none!important;font-weight:400!important;transform:none!important;color:#1d1d1f;max-width:100%!important;margin:0!important;}
+.line.active .content{font-weight:400!important;transform:none!important;color:#000;}
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-dim);text-align:center;}
     </style>
 </head>
 <body>
+<div class="header"><div class="status-dot" id="dot"></div><span id="status">等待加载...</span><div class="controls-group"><div id="video-hint"></div><label class="btn-upload">🎥<input type="file" id="videoInput" accept="video/*"></label><label class="btn-upload">📝<input type="file" id="subtitleManualInput" accept=".srt,.txt,.vtt"></label></div></div>
+<div class="video-wrapper" style="position: relative; width: 100%; background: #000; overflow: hidden;"><video id="videoPlayer" playsinline webkit-playsinline></video><div id="video-touch-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;background:rgba(0,0,0,0);-webkit-tap-highlight-color:transparent;"></div><div id="video-overlay-subtitle" style="position:absolute;bottom:0%;left:0;width:100%;text-align:center;pointer-events:none;z-index:10;padding:0 20px;box-sizing:border-box;"><div id="current-floating-text" style="display:none;background:rgba(0,0,0,0.6);color:white;font-size:24px;padding:5px 15px;border-radius:8px;pointer-events:auto;user-select:text;-webkit-user-select:text;line-height:1;cursor:text;max-width:85%;word-wrap:break-word;margin:0 auto;"></div></div></div>
+<div class="action-bar"><button class="action-btn" onclick="scrollToActive()">🎯 当前</button><button class="action-btn" id="toggle-controls-btn" onclick="toggleNativeControls()">▶️ 控件</button><button class="action-btn" onclick="boldSelectedText()"><b>B</b> 粗体</button><button class="action-btn" onclick="searchGoogleImages()">🖼️ 图片</button></div>
+<div class="transcript-container" id="transcript"><div class="empty-state"><p>请在 Anki 中填写“字幕内容”<br>或手动上传视频与字幕</p></div></div>
+<div id="image-preview-container" style="position:fixed;top:100%;left:0;width:100%;height:100%;background:#fff;z-index:2000;transition:top 0.3s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;"><div class="preview-header" style="display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:#f1f3f4;border-bottom:1px solid #ddd;flex-shrink:0;"><span id="preview-word-title" style="font-weight:bold;color:#0288d1;font-size:14px;">图片搜索</span><button onclick="closeImagePreview()" style="border:none;background:#eee;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;">关闭</button></div><div class="preview-content" style="flex:1;overflow:hidden;"><iframe id="preview-iframe" style="width:100%;height:100%;border:none;" src=""></iframe></div></div>
 
-    <div id="app">
-        <section id="page-library" class="page active">
-            <header class="ios-header">
-                <h1>我的分组</h1>
-                <button class="add-btn" onclick="addNewGroup()">＋</button>
-            </header>
-            <div class="project-list" id="groupList"></div>
-        </section>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        <section id="page-player" class="page">
-            <nav class="player-nav">
-                <button onclick="exitPlayer()">〈 返回</button>
-                <div id="current-title" style="font-weight:600;">学习中</div>
-                <button onclick="importContentToGroup()">导入内容</button>
-            </nav>
-            <div id="mainPlayer" style="display:none; flex:1; flex-direction:column; overflow:hidden;">
-                <div class="video-box"><video id="vPlayer" playsinline controls></video></div>
-                <div id="subList"></div>
-            </div>
-            <div id="emptyView" style="text-align:center; color:#888; padding-top:100px;">
-                此分组暂无视频，请点击上方“导入内容”
-            </div>
+  const firebaseConfig = {
+    // 请替换为你自己的配置
+    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+    authDomain: "cloze-master-pro.firebaseapp.com",
+    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "cloze-master-pro",
+    storageBucket: "cloze-master-pro.firebasestorage.app",
+    messagingSenderId: "697808901954",
+    appId: "1:697808901954:web:32455d94bf67e522e01adb"
+  };
 
-            <div id="algoBar" class="algo-bar">
-                <button class="algo-btn btn-fail" onclick="rateCard(1)">忘了</button>
-                <button class="algo-btn btn-hard" onclick="rateCard(3)">模糊</button>
-                <button class="algo-btn btn-good" onclick="rateCard(4)">记得</button>
-                <button class="algo-btn btn-easy" onclick="rateCard(5)">简单</button>
-            </div>
-        </section>
+  const fbApp = initializeApp(firebaseConfig);
+  const db = getDatabase(fbApp);
 
-        <footer class="tab-bar">
-            <div class="tab-item active" onclick="switchPage('library')"><span style="font-size:22px">📚</span>分组</div>
-            <div class="tab-item" onclick="alert('即将推出跨分组复习模式')"><span style="font-size:22px">🔄</span>待复习</div>
-        </footer>
-    </div>
+  // 1. 生成文档唯一 ID (基于字幕内容)
+window.getDocId = function () {
+    // ① 优先使用 URL 里的 customid（Anki 传入）
+    const urlParams = new URLSearchParams(window.location.search);
+    const customId = urlParams.get('customid');
 
-    <script>
-        let db;
-        let activeGroupId = null;
-        let activeCardId = null;
+    if (customId && customId.trim() !== "") {
+        return "anki_" + customId.trim();
+    }
 
-        // --- 1. 数据库逻辑 (IndexedDB) ---
-        const request = indexedDB.open("LingoPlayerDB", 3);
-        request.onupgradeneeded = (e) => {
-            db = e.target.result;
-            if (!db.objectStoreNames.contains('groups')) db.createObjectStore('groups', { keyPath: 'id', autoIncrement: true });
-            if (!db.objectStoreNames.contains('cards')) {
-                const cardStore = db.createObjectStore('cards', { keyPath: 'cardId' });
-                cardStore.createIndex('groupId', 'groupId', { unique: false });
-                cardStore.createIndex('nextReview', 'nextReview', { unique: false });
+    // ② 备用：使用正文前30字符生成
+    const transcript = document.getElementById('transcript');
+    if (!transcript) return null;
+
+    const text = transcript.innerText.trim();
+    if (!text) return null;
+
+    try {
+        return "vid_" + btoa(
+            unescape(
+                encodeURIComponent(text.substring(0, 30))
+            )
+        ).replace(/[/+=]/g, "");
+    } catch(e) {
+        return null;
+    }
+};
+// 2. 上传同步：增加 scrollPos (滚动百分比)
+  window.syncUpload = async function() {
+      const id = window.getDocId();
+      if (!id) return;
+
+      const video = document.getElementById('videoPlayer');
+      const transcript = document.getElementById('transcript');
+      
+      // 计算滚动百分比
+      const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
+
+      set(ref(db, 'video_sync/' + id), {
+          lastTime: video.currentTime || 0,
+          htmlContent: transcript.innerHTML,
+          scrollPos: scrollPercent, // 新增：滚动位置百分比
+          ts: Date.now()
+      });
+  };
+
+  // 3. 下载同步：恢复进度和滚动位置
+  window.syncDownload = async function() {
+      const id = window.getDocId();
+      const snapshot = await get(child(ref(db), 'video_sync/' + id));
+      if (snapshot.exists()) {
+          const data = snapshot.val();
+          
+          // 1. 恢复加粗状态
+          if (data.htmlContent) {
+              document.getElementById('transcript').innerHTML = data.htmlContent;
+              rebindEvents(); 
+          }
+
+          // 2. 恢复视频进度 (如果有视频)
+          if (data.lastTime && !isNaN(data.lastTime)) {
+              const v = document.getElementById('videoPlayer');
+              v.currentTime = data.lastTime;
+          }
+
+          // 3. 恢复滚动位置 (延迟执行确保 DOM 渲染完毕)
+          if (data.scrollPos !== undefined) {
+              const transcript = document.getElementById('transcript');
+              setTimeout(() => {
+                  transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                  updateStatus("已同步阅读进度", true);
+              }, 200);
+          }
+      }
+  };
+</script>
+
+<script>
+    let scrollTimer = null;
+    let controlsTimer = null;
+    let isLongPress = false;
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isSelectingText = false;
+    const container = document.querySelector('.transcript-container');
+    const SWIPE_THRESHOLD = 40; // 划动最小像素阈值
+    const video = document.getElementById('videoPlayer');
+    const touchOverlay = document.getElementById('video-touch-overlay');
+    const transcript = document.getElementById('transcript');
+    const status = document.getElementById('status');
+    const dot = document.getElementById('dot');
+    const videoHint = document.getElementById('video-hint');
+    const transcriptContainer = document.querySelector('.transcript-container');
+
+document.addEventListener('selectionchange', () => {
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+        isSelectingText = true;
+    } else {
+        isSelectingText = false;
+    }
+});
+
+function toggleNativeControls() {
+    const video = document.getElementById('videoPlayer');
+    const touchOverlay = document.getElementById('video-touch-overlay');
+    const btn = document.getElementById('toggle-controls-btn');
+    if (controlsTimer) clearTimeout(controlsTimer);
+    video.controls = true;
+    touchOverlay.style.pointerEvents = 'none';
+    btn.style.color = 'var(--primary)';
+    btn.innerText = "🔒 控件已开";
+    updateStatus("已唤起系统控件，5秒后自动关闭", true);
+    controlsTimer = setTimeout(() => {
+        video.controls = false;
+        touchOverlay.style.pointerEvents = 'auto';
+        btn.style.color = '';
+        btn.innerText = "🛠️ 播放控件";
+        updateStatus("已恢复纯净模式", true);
+    }, 5000);
+}
+touchOverlay.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+touchOverlay.addEventListener('touchend', (e) => {
+
+if (isSelectingText) return;
+
+const touchEndX = e.changedTouches[0].clientX;
+const touchEndY = e.changedTouches[0].clientY;
+
+const deltaX = touchEndX - touchStartX;
+const deltaY = touchEndY - touchStartY;
+
+if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
+    if (video.paused) {
+        video.play().catch(err => console.log("播放被拦截", err));
+    } else {
+        video.pause();
+    }
+}
+});
+
+});
+
+// 监听字幕容器滚动
+const transcriptDiv = document.getElementById('transcript');
+transcriptDiv.addEventListener('scroll', () => {
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+        console.log("检测到滚动停止，同步阅读进度...");
+        if (window.syncUpload) window.syncUpload();
+    }, 1500); // 停止滚动 1.5 秒后同步
+});
+
+document.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: true });
+// 修改后的全局手势监听
+document.addEventListener('touchend', (e) => {
+
+    if (isSelectingText) return;
+
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+
+    if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+
+        if (deltaX < 0) {
+            video.currentTime = Math.max(0, video.currentTime - 2);
+            updateStatus("⏪ 快退 2s", true);
+        } else {
+            if (video.paused) {
+                video.play();
+                updateStatus("▶️ 播放", true);
+            } else {
+                video.pause();
+                updateStatus("⏸ 暂停", true);
+            }
+        }
+    }
+
+});
+
+    transcriptContainer.addEventListener('scroll', () => {
+    localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
+});
+    function updateStatus(msg, active = false) {
+        status.innerText = msg;
+        dot.className = active ? 'status-dot active' : 'status-dot';
+    }
+
+
+window.addEventListener('DOMContentLoaded', () => {
+    const cachedSubs = localStorage.getItem('last_subtitles');
+    if (cachedSubs) {
+        processSubtitleContent(cachedSubs, true);
+    }
+    const lastVideoName = localStorage.getItem('last_video_name');
+    
+    // 移除 lastTime 相关的提示
+    if (lastVideoName) {
+        videoHint.innerText = `待加载: ${lastVideoName}`; // 不再显示上次时间
+        videoHint.style.display = 'block';
+    }
+});
+
+
+video.addEventListener('pause', () => {
+    if (window.syncUpload) {
+        window.syncUpload();
+        lastSyncTime = Date.now();
+    }
+});
+
+document.getElementById('videoInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        localStorage.setItem('last_video_name', file.name);
+        videoHint.style.display = 'none';
+        video.src = URL.createObjectURL(file);
+        updateStatus("视频已加载", true);
+        
+        // 移除原有的 loadeddata 恢复进度逻辑，仅保留基础加载
+        video.addEventListener('loadeddata', function onLoaded() {
+            console.log("视频已就绪，从 00:00 开始播放");
+            video.removeEventListener('loadeddata', onLoaded);
+        });
+    }
+});
+
+document.getElementById('subtitleManualInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            const content = event.target.result;
+            processSubtitleContent(content); 
+            updateStatus("字幕已手动加载", true);
+        };
+        reader.readAsText(file);
+    }
+});
+function processSubtitleContent(content, isFromCache = false) {
+    if (!isFromCache) {
+        localStorage.setItem('last_subtitles', content);
+    }
+    const cues = parseSubtitle(content);
+    renderSubtitles(cues);
+    const lastScrollPos = localStorage.getItem('last_scroll_pos');
+    const lastTime = localStorage.getItem('last_video_time');
+    setTimeout(() => {
+        if (lastScrollPos) {
+            transcriptContainer.scrollTop = parseFloat(lastScrollPos);
+        } else if (lastTime) {
+            const savedTime = parseFloat(lastTime);
+            const lines = document.querySelectorAll('.line');
+            for (let i = 0; i < lines.length; i++) {
+                const start = parseFloat(lines[i].dataset.time);
+                const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
+                if (savedTime >= start && savedTime < next) {
+                    lines[i].classList.add('active');
+                    lines[i].scrollIntoView({ behavior: 'auto', block: 'center' });
+                    break;
+                }
+            }
+        }
+    }, 150); // 稍微延长延迟，确保 DOM 布局计算完成
+    setTimeout(() => {
+        if(window.syncDownload) window.syncDownload();
+    }, 500);
+}
+function parseSubtitle(data) {
+    let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
+                        .replace(/<\/p>|<\/div>/gi, "\n")
+                        .replace(/<\/?[^>]+(>|$)/g, "");
+    const doc = new DOMParser().parseFromString(cleanData, 'text/html');
+    cleanData = doc.documentElement.textContent;
+    const cues = [];
+    const lines = cleanData.split('\n').map(l => l.trim()).filter(l => l !== "");
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const timeMatch = line.match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
+        if (timeMatch) {
+            const start = timeToSeconds(timeMatch[1]);
+            let textParts = [];
+            let j = i + 1;
+            while (j < lines.length && !lines[j].match(/-->/)) {
+                const contentLine = lines[j];
+                if (!/^\d+$/.test(contentLine)) {
+                    textParts.push(contentLine);
+                }
+                j++;
+            }
+            // 关键修改：使用 <br> 连接多行文本以保留分行效果
+            const text = textParts.join('<br>').trim();
+            if (text) {
+                cues.push({ start, text });
+            }
+            i = j - 1; 
+        }
+    }
+    return cues;
+}
+    function timeToSeconds(timeStr) {
+        const parts = timeStr.trim().replace(',', '.').split(':');
+        if (parts.length === 3) return (+parts[0]) * 3600 + (+parts[1]) * 60 + (+parts[2]);
+        return (+parts[0]) * 60 + (+parts[1]);
+    }
+function renderSubtitles(cues) {
+    const transcript = document.getElementById('transcript');
+    if (!transcript) return;
+    transcript.innerHTML = ''; 
+
+    if (!cues || cues.length === 0) {
+        transcript.innerHTML = '<div class="empty-state"><p>暂无字幕内容</p></div>';
+        return;
+    }
+
+    cues.forEach(cue => {
+        const div = document.createElement('div');
+        div.className = 'line';
+        div.dataset.time = cue.start;
+        
+        // 1. 核心 HTML 结构：确保 play-btn 和 content 分开
+        div.innerHTML = `
+          <div class="play-btn" title="从此处播放" contenteditable="false">▶</div>
+          <div class="content">${cue.text}</div>
+        `;
+
+        // 2. 绑定播放按钮逻辑
+        const btn = div.querySelector('.play-btn');
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            video.currentTime = cue.start;
+            video.play().catch(()=>{});
+            document.querySelector('.line.active')?.classList.remove('active');
+            div.classList.add('active');
+        };
+
+        // 3. 绑定文字区域逻辑
+        const contentArea = div.querySelector('.content');
+        let clickTimer = null;
+
+        contentArea.onclick = (e) => {
+            // 既然点击的是 contentArea，e.target 就不应该是按钮，除非 CSS 布局重叠了
+            const selection = window.getSelection();
+
+            if (clickTimer) { // 双击：复制整句
+                clearTimeout(clickTimer);
+                clickTimer = null;
+                const range = document.createRange();
+                range.selectNodeContents(contentArea);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                // 这里直接拿 contentArea.innerText 绝对不会带上播放按钮
+                copyToClipboard(contentArea.innerText.trim(), "已复制整句");
+            } else { // 单击：选词
+                clickTimer = setTimeout(() => {
+                    if (selection.isCollapsed) {
+                        let range;
+                        if (document.caretRangeFromPoint) {
+                            range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                        }
+                        if (range) {
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            selection.modify('move', 'backward', 'word');
+                            selection.modify('extend', 'forward', 'word');
+                        }
+                        const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                        if (word && word.length < 25) {
+                            copyToClipboard(word, "已复制单词: " + word);
+                        }
+                    }
+                    clickTimer = null;
+                }, 250);
             }
         };
-        request.onsuccess = (e) => { db = e.target.result; loadLibrary(); };
 
-        // --- 2. 分组逻辑 ---
-        function addNewGroup() {
-            const name = prompt("输入分组名：");
-            if (!name) return;
-            const tx = db.transaction('groups', 'readwrite');
-            tx.objectStore('groups').add({ name, video: null, count: 0 });
-            tx.oncomplete = () => loadLibrary();
+        transcript.appendChild(div);
+    });
+}
+
+async function copyToClipboard(text, msg) {
+    try {
+        await navigator.clipboard.writeText(text);
+        updateStatus(msg, true);
+        setTimeout(() => updateStatus("视频已加载", true), 1500);
+    } catch (err) {}
+}
+function scrollToActive() {
+    const activeLine = document.querySelector('.line.active');
+    if (activeLine) {
+        activeLine.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+        });
+        updateStatus("已定位到当前播放位置", true);
+    } else {
+        updateStatus("视频未在播放匹配的字幕行", false);
+    }
+}
+function boldSelectedText() {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        updateStatus("请先选中单词", false);
+        return;
+    }
+    const range = selection.getRangeAt(0);
+    const container = range.commonAncestorContainer.nodeType === 3
+        ? range.commonAncestorContainer.parentElement
+        : range.commonAncestorContainer;
+    if (!container.closest('.content')) {
+        updateStatus("只能在字幕正文内操作", false);
+        return;
+    }
+    const bolds = document.querySelectorAll('.custom-bold');
+    let matchedBold = [];
+    bolds.forEach(bold => {
+        const boldRange = document.createRange();
+        boldRange.selectNodeContents(bold);
+        if (range.compareBoundaryPoints(Range.END_TO_START, boldRange) < 0 &&
+            range.compareBoundaryPoints(Range.START_TO_END, boldRange) > 0) {
+            matchedBold.push(bold);
         }
-
-        function loadLibrary() {
-            const list = document.getElementById('groupList');
-            list.innerHTML = '';
-            db.transaction('groups').objectStore('groups').openCursor().onsuccess = (e) => {
-                const cursor = e.target.result;
-                if (cursor) {
-                    const g = cursor.value;
-                    const div = document.createElement('div');
-                    div.className = 'deck-card';
-                    div.innerHTML = `<div><h3>${g.name}</h3><small>${g.video ? g.count + ' 条意群' : '空分组'}</small></div><span>〉</span>`;
-                    div.onclick = () => openGroup(g);
-                    list.appendChild(div);
-                    cursor.continue();
-                }
-            };
+    });
+    if (matchedBold.length > 0) {
+        matchedBold.forEach(bold => {
+            const parent = bold.parentNode;
+            while (bold.firstChild) { parent.insertBefore(bold.firstChild, bold); }
+            parent.removeChild(bold);
+            parent.normalize();
+        });
+        updateStatus("已取消标记", true);
+    } else {
+        const span = document.createElement('span');
+        span.className = 'custom-bold';
+        try {
+            const extracted = range.extractContents();
+            span.appendChild(extracted);
+            range.insertNode(span);
+            updateStatus("已成功标记重点", true);
+        } catch (e) {
+            updateStatus("选区太复杂", false);
         }
-
-        // --- 3. 播放与数据流 (核心改造) ---
-        function openGroup(group) {
-            activeGroupId = group.id;
-            document.getElementById('current-title').innerText = group.name;
-            switchPage('player');
-            const v = document.getElementById('vPlayer');
-            if (group.video) {
-                document.getElementById('mainPlayer').style.display = 'flex';
-                document.getElementById('emptyView').style.display = 'none';
-                v.src = URL.createObjectURL(group.video);
-                loadCards(group.id);
-            } else {
-                document.getElementById('mainPlayer').style.display = 'none';
-                document.getElementById('emptyView').style.display = 'block';
-            }
-        }
-
-        function loadCards(groupId) {
-            const list = document.getElementById('subList');
-            list.innerHTML = '';
-            const index = db.transaction('cards').objectStore('cards').index('groupId');
-            index.openCursor(IDBKeyRange.only(groupId)).onsuccess = (e) => {
-                const cursor = e.target.result;
-                if (cursor) {
-                    const c = cursor.value;
-                    const div = document.createElement('div');
-                    div.className = 'sentence-card';
-                    div.id = `card-${c.cardId}`;
-                    div.innerText = c.text;
-                    div.onclick = () => selectCard(c);
-                    list.appendChild(div);
-                    cursor.continue();
-                }
-            };
-        }
-
-        function selectCard(card) {
-            activeCardId = card.cardId;
-            // UI 反馈
-            document.querySelectorAll('.sentence-card').forEach(el => el.classList.remove('active'));
-            document.getElementById(`card-${card.cardId}`).classList.add('active');
-            
-            // 播放视频
-            const v = document.getElementById('vPlayer');
-            v.currentTime = card.start;
-            v.play();
-
-            // 显示评价按钮
-            document.getElementById('algoBar').style.display = 'flex';
-        }
-
-        // --- 4. 复习算法 (Anki SM-2) ---
-        function rateCard(quality) {
-            if (!activeCardId) return;
-            const tx = db.transaction('cards', 'readwrite');
-            const store = tx.objectStore('cards');
-            
-            store.get(activeCardId).onsuccess = (e) => {
-                const card = e.target.result;
-                // SM-2 算法实现
-                let { interval, repetition, efactor } = card;
-                if (quality >= 3) {
-                    if (repetition === 0) interval = 1;
-                    else if (repetition === 1) interval = 6;
-                    else interval = Math.round(interval * efactor);
-                    repetition++;
-                } else {
-                    repetition = 0;
-                    interval = 1;
-                }
-                efactor = efactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
-                if (efactor < 1.3) efactor = 1.3;
-                
-                card.interval = interval;
-                card.repetition = repetition;
-                card.efactor = efactor;
-                card.nextReview = Date.now() + (interval * 24 * 60 * 60 * 1000);
-                
-                store.put(card);
-            };
-
-            tx.oncomplete = () => {
-                document.getElementById('algoBar').style.display = 'none';
-                if (window.navigator.vibrate) window.navigator.vibrate(10);
-            };
-        }
-
-        // --- 5. 导入逻辑 ---
-        async function importContentToGroup() {
-            const input = document.createElement('input');
-            input.type = 'file'; input.multiple = true; input.accept = ".mp4,.srt";
-            input.onchange = async (e) => {
-                const files = Array.from(e.target.files);
-                const video = files.find(f => f.name.toLowerCase().endsWith('.mp4'));
-                const srt = files.find(f => f.name.toLowerCase().endsWith('.srt'));
-                if (!video || !srt) return alert("请同时选择 MP4 和 SRT");
-
-                const cards = parseSRT(await srt.text());
-                const tx = db.transaction(['groups', 'cards'], 'readwrite');
-                
-                // 更新分组
-                const groupStore = tx.objectStore('groups');
-                groupStore.get(activeGroupId).onsuccess = (ev) => {
-                    const g = ev.target.result;
-                    g.video = video; g.count = cards.length;
-                    groupStore.put(g);
+    }
+    selection.removeAllRanges();
+    saveCurrentTranscript(); // 保存本地
+    if (window.syncUpload) {
+        window.syncUpload(); // 上传云端 (Firebase)
+    }
+}
+function saveCurrentTranscript() {
+    const transcript = document.getElementById('transcript');
+    if (transcript) {
+        localStorage.setItem('last_subtitles_html', transcript.innerHTML);
+    }
+}
+    function rebindEvents() {
+        const lines = document.querySelectorAll('.line');
+        lines.forEach(line => {
+            const btn = line.querySelector('.play-btn');
+            if (btn) {
+                const cueStart = parseFloat(line.dataset.time);
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    video.currentTime = cueStart;
+                    video.play().catch(()=>{});
+                    document.querySelector('.line.active')?.classList.remove('active');
+                    line.classList.add('active');
                 };
-
-                // 写入卡片 (初始化 Anki 字段)
-                const cardStore = tx.objectStore('cards');
-                cards.forEach((c, i) => {
-                    cardStore.add({
-                        cardId: `${activeGroupId}_${i}`,
-                        groupId: activeGroupId,
-                        start: c.start,
-                        text: c.text,
-                        interval: 0, repetition: 0, efactor: 2.5, // 初始算法数据
-                        nextReview: Date.now()
-                    });
-                });
-
-                tx.oncomplete = () => { alert("导入成功！"); location.reload(); };
-            };
-            input.click();
-        }
-
-        function parseSRT(data) {
-            const regex = /(\d+)\n(\d{2}:\d{2}:\d{2},(\d{3})) --> (\d{2}:\d{2}:\d{2},(\d{3}))\n([\s\S]*?)(?=\n{2,}|\n*$)/g;
-            let res = []; let m;
-            while ((m = regex.exec(data)) !== null) {
-                const t = m[2].split(':');
-                res.push({ 
-                    start: (+t[0])*3600 + (+t[1])*60 + (+t[2].replace(',', '.')), 
-                    text: m[6].replace(/\n/g, ' ') 
-                });
             }
-            return res;
-        }
+            const contentArea = line.querySelector('.content');
+            if (contentArea) {
+                let clickTimer = null;
+                const cueText = contentArea.innerText; // 获取纯文本供复制
+                contentArea.onclick = (e) => {
+                    const selection = window.getSelection();
+                    if (clickTimer) { // 双击逻辑
+                        clearTimeout(clickTimer);
+                        clickTimer = null;
+                        const range = document.createRange();
+                        range.selectNodeContents(contentArea);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        copyToClipboard(cueText, "已复制整句");
+                    } else { // 单击逻辑
+                        clickTimer = setTimeout(() => {
+                            selection.modify('move', 'backward', 'word');
+                            selection.modify('extend', 'forward', 'word');
+                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                            if (word) copyToClipboard(word, "已复制单词: " + word);
+                            clickTimer = null;
+                        }, 200);
+                    }
+                };
+            }
+        });
+    }
+    function setActiveLine(currentTime) {
+        const lines = document.querySelectorAll('.line');
+        let targetLine = null;
 
-        function switchPage(id) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.getElementById('page-' + id).classList.add('active');
+        lines.forEach((line, i) => {
+            const start = parseFloat(line.dataset.time);
+            const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
+            if (currentTime >= start && currentTime < next) {
+                targetLine = line;
+            }
+        });
+        if (targetLine && !targetLine.classList.contains('active')) {
+            document.querySelector('.line.active')?.classList.remove('active');
+            targetLine.classList.add('active');
+            targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
+    }
+    function formatTime(s) {
+        return new Date(s * 1000).toISOString().substr(14, 5);
+    }
+video.addEventListener('timeupdate', () => {
+    const currentTime = video.currentTime;
+    const lines = document.querySelectorAll('.line');
+    const floatingText = document.getElementById('current-floating-text');
+    if (lines.length === 0) return;
+    const firstLineStart = parseFloat(lines[0].dataset.time);
+    const lastLine = lines[lines.length - 1];
+    const lastLineEnd = parseFloat(lastLine.dataset.time) + 3; 
+    if (currentTime > lastLineEnd || currentTime < firstLineStart - 1) {
+        video.currentTime = firstLineStart;
+        video.play().catch(() => {});
+        updateStatus("🔄 已回到字幕区间", true);
+        return; // 跳过本次后续逻辑，等待跳转完成
+    }
+    if (currentTime > 0) {
+        localStorage.setItem('last_video_time', currentTime);
+    }
+    let currentLine = null;
+    for (let i = 0; i < lines.length; i++) {
+        const start = parseFloat(lines[i].dataset.time);
+        const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : lastLineEnd;
 
-        function exitPlayer() {
-            const v = document.getElementById('vPlayer');
-            v.pause(); v.src = "";
-            document.getElementById('algoBar').style.display = 'none';
-            switchPage('library');
+        if (currentTime >= start && currentTime < next) {
+            currentLine = lines[i];
+            break;
         }
-    </script>
+    }
+    if (currentLine) {
+        if (!currentLine.classList.contains('active')) {
+            document.querySelector('.line.active')?.classList.remove('active');
+            currentLine.classList.add('active');
+            currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        if (floatingText) {
+            const newContent = currentLine.querySelector('.content').innerHTML;
+            if (floatingText.innerHTML !== newContent) {
+                floatingText.innerHTML = newContent;
+                floatingText.style.display = 'inline-block';
+            }
+        }
+    } else {
+        if (floatingText) {
+            floatingText.style.display = 'none';
+            floatingText.innerHTML = '';
+        }
+    }
+});
+    window.addEventListener('message', (event) => {
+        if (event.data.type === 'LOAD_SUBTITLES') {
+            processSubtitleContent(event.data.data);
+        }
+    });
+function searchGoogleImages() { // 保持原函数名或改为 searchBingImages
+    const selection = window.getSelection();
+    const selectedText = selection.toString().trim();
+    if (!selectedText) {
+        updateStatus("请先选中单词或短语", false);
+        return;
+    }
+    const query = selectedText.replace(/[.,!?;:"]/g, '');
+    const url = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&adlt=strict&form=HDRSC2`;
+    const container = document.getElementById('image-preview-container');
+    const iframe = document.getElementById('preview-iframe');
+    const title = document.getElementById('preview-word-title');
+    title.innerText = `Bing 图片搜索: ${query}`;
+    iframe.src = 'about:blank';
+    setTimeout(() => {
+        iframe.src = url;
+    }, 10);
+    container.style.top = '35px'; // 展开至 action-bar 下方
+    updateStatus(`正在 Bing 搜索: ${query}`, true);
+}
+function closeImagePreview() {
+    const container = document.getElementById('image-preview-container');
+    const iframe = document.getElementById('preview-iframe');
+    container.style.top = '100%'; 
+    setTimeout(() => { 
+        iframe.src = 'about:blank'; 
+        updateStatus("视频已加载", true); // 恢复状态显示
+    }, 300);
+}
+    window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
+</script>
 </body>
 </html>
