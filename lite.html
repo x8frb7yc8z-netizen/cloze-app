@@ -302,7 +302,6 @@
 
 <!-- ===================== Firebase 模块（ES Module） ===================== -->
 <script type="module">
-    window.isDataInitialized = false; // 初始状态：未同步
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
@@ -318,28 +317,9 @@
 
     const fbApp = initializeApp(firebaseConfig);
     const db = getDatabase(fbApp);
-window.syncDownload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-    try {
-        const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
-        if (snapshot.exists()) {
-            const data = snapshot.val();
-            window.boldPositions = data.boldIndices || []; 
-            applyBoldFromPositions(); 
-            // ... 滚动位置还原逻辑 ...
-        } else {
-            // 如果云端没数据，说明是新文档，也允许上传
-            window.boldPositions = [];
-        }
-        
-        // --- 关键：数据已就绪，允许以后的上传操作 ---
-        window.isDataInitialized = true; 
-        updateStatus("✨ 同步就绪", true);
-    } catch(e) { 
-        console.error("同步下载失败:", e); 
-    }
-};
+
+    // ✅ 新增：初始化锁。防止下载完成前自动上传覆盖云端。
+    window.isDataInitialized = false;
 
     // 从 URL 参数获取文档 ID
     window.getDocId = function() {
@@ -348,12 +328,46 @@ window.syncDownload = async function() {
         return (customId && customId.trim()) ? "anki_" + customId.trim() : null;
     };
 
-    // ☁️ 上传：将加粗词的文本内容列表同步到云端
-    window.syncUpload = async function() {
-        if (!window.isDataInitialized) {
-            console.log("⚠️ 拒绝上传：本地数据尚未与云端同步，防止覆盖。");
-            return;
+    // ☁️ 唯一下载函数：彻底清理旧逻辑，只保留索引模式
+    window.syncDownload = async function() {
+        const id = window.getDocId();
+        if (!id) return;
+        
+        try {
+            const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                
+                // 1. 还原加粗索引
+                window.boldPositions = data.boldIndices || []; 
+                if (typeof applyBoldFromPositions === 'function') {
+                    applyBoldFromPositions(); 
+                }
+                
+                // 2. 还原滚动位置 (仅当用户没在手动操作时)
+                const transcript = document.getElementById('transcript');
+                if (data.scrollPos !== undefined && !window.userIsScrolling) {
+                    setTimeout(() => {
+                        transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                        updateStatus("✨ 进度与标记已同步", true);
+                    }, 300);
+                }
+            } else {
+                window.boldPositions = [];
+                console.log("云端尚无此文档记录");
+            }
+
+            // ✅ 下载结束，允许后续的上传操作
+            window.isDataInitialized = true;
+
+        } catch(e) { 
+            console.error("同步下载失败:", e); 
         }
+    };
+
+    // ☁️ 上传：带锁检查
+    window.syncUpload = async function() {
+        if (!window.isDataInitialized) return; // 🔒 没同步过不准上传
 
         const id = window.getDocId();
         if (!id) return;
@@ -363,103 +377,45 @@ window.syncDownload = async function() {
 
         try {
             await set(ref(db, 'video_reader_sync/' + id), {
-                boldIndices: window.boldPositions || [], // 存储索引
+                boldIndices: window.boldPositions || [], 
                 scrollPos: scrollPercent,
                 ts: Date.now()
             });
             updateStatus("☁️ 进度已同步", true);
-        } catch(e) { console.error(e); }
+        } catch(e) { console.error("同步上传失败:", e); }
     };
 
-    // ☁️ 下载：根据云端文本内容列表还原加粗和滚动位置
-    window.syncDownload = async function() {
+    // ☁️ 实时监听：保持跨设备同步
+    window.startRealtimeSync = function() {
         const id = window.getDocId();
         if (!id) return;
-
-        try {
-            const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
-            if (!snapshot.exists()) return;
-
-            const data = snapshot.val();
-            const transcript = document.getElementById('transcript');
-
-            // A. 还原加粗（兼容旧版 boldIndices 格式）
-            if (data.boldTexts && Array.isArray(data.boldTexts)) {
-                const boldSet = new Set(data.boldTexts);
-                // 遍历所有内容节点，将匹配文本的节点加粗
-                transcript.querySelectorAll('.content').forEach(contentEl => {
-                    wrapMatchingWords(contentEl, boldSet);
-                });
-            } else if (data.boldIndices && Array.isArray(data.boldIndices)) {
-                // 兼容旧版：按索引还原（旧版用 .word span）
-                const allWords = transcript.querySelectorAll('.word');
-                allWords.forEach(span => span.classList.remove('custom-bold'));
-                data.boldIndices.forEach(idx => {
-                    if (allWords[idx]) allWords[idx].classList.add('custom-bold');
-                });
+        const dbRef = ref(db, 'video_reader_sync/' + id);
+        onValue(dbRef, (snapshot) => {
+            if (snapshot.exists() && window.isDataInitialized) {
+                const data = snapshot.val();
+                // 只有当本地没有选区时才覆盖，防止打断用户操作
+                if (data.boldIndices && !window.getSelection()?.toString()) {
+                    window.boldPositions = data.boldIndices;
+                    if (typeof applyBoldFromPositions === 'function') applyBoldFromPositions();
+                }
             }
-
-            // B. 还原滚动位置
-            if (data.scrollPos !== undefined) {
-                setTimeout(() => {
-                    transcript.scrollTop =
-                        data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                    updateStatus("✨ 已加载上次阅读位置", true);
-                }, 300);
-            }
-        } catch(e) {
-            console.error("Firebase Download Error:", e);
-        }
+        });
     };
 
-    // 工具：在纯文本节点中找到匹配词并包裹 <span class="custom-bold">
-    function wrapMatchingWords(container, boldSet) {
-        // 已有加粗的先清除，重新标记
-        container.querySelectorAll('.custom-bold').forEach(el => {
-            el.replaceWith(document.createTextNode(el.textContent));
-        });
-        container.normalize();
+    // 停止滚动 2秒 后自动上传
+    let scrollSyncTimer;
+    document.getElementById('transcript').addEventListener('scroll', () => {
+        if (!window.isDataInitialized) return; // 🔒 初始加载触发的滚动不予理睬
+        clearTimeout(scrollSyncTimer);
+        scrollSyncTimer = setTimeout(() => window.syncUpload(), 2000);
+    });
 
-        // 遍历文本节点，按词匹配
-        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-        const nodesToProcess = [];
-        let node;
-        while ((node = walker.nextNode())) nodesToProcess.push(node);
-
-        nodesToProcess.forEach(textNode => {
-            const words = textNode.textContent.split(/(\s+)/);
-            if (words.length <= 1) return;
-            const frag = document.createDocumentFragment();
-            words.forEach(part => {
-                const clean = part.trim().replace(/[.,!?;:"]/g, '');
-                if (boldSet.has(clean) && clean.length > 0) {
-                    const span = document.createElement('span');
-                    span.className = 'custom-bold';
-                    span.textContent = part;
-                    frag.appendChild(span);
-                } else {
-                    frag.appendChild(document.createTextNode(part));
-                }
-            });
-            textNode.parentNode.replaceChild(frag, textNode);
-        });
-    }
-
-let scrollSyncTimer;
-document.getElementById('transcript').addEventListener('scroll', () => {
-    // 只有用户初始化完成后，滚动才触发同步
-    if (!window.isDataInitialized) return; 
-
-    clearTimeout(scrollSyncTimer);
-    scrollSyncTimer = setTimeout(() => window.syncUpload(), 2000); // 稍微延长到2秒
-})
-
-// 修改 window.onload 或相关的初始化位置
-window.addEventListener('load', () => {
+    window.addEventListener('load', () => {
+        // 适当延时确保主逻辑的渲染函数已就绪
         setTimeout(() => {
-            window.syncDownload();     // 先执行一次全量拉取
-            window.startRealtimeSync(); // 开启持续监听
-        }, 1000);
+            window.syncDownload();     
+            window.startRealtimeSync(); 
+        }, 800);
     });
 </script>
 
