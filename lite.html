@@ -171,17 +171,19 @@ window.getDocId = function () {
     console.warn("未检测到 customid，Firebase 同步已禁用。");
     return null;
 };
-// 修改后的上传函数：支持按需同步
+// 2. 修改后的上传函数：支持按需同步
 window.syncUpload = async function(type = 'all') {
     const id = window.getDocId();
     if (!id) return;
 
-    const transcript = document.getElementById('transcript');
-    const updates = { ts: Date.now() }; // 每次更新带上时间戳
+    // 统一获取 transcript 容器（注意 ID 或变量名要对齐）
+    const transcriptElem = document.getElementById('transcript');
+    const containerElem = document.querySelector('.transcript-container'); 
+    const updates = { ts: Date.now() };
 
-    // 逻辑：只有当 type 为 'all' 或 'scroll' 时，才计算并上传滚动位置
+    // 逻辑：只有当 type 为 'all' 或 'scroll' 时，才计算滚动位置
     if (type === 'all' || type === 'scroll') {
-        const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
+        const scrollPercent = containerElem.scrollTop / (containerElem.scrollHeight - containerElem.clientHeight);
         if (!isNaN(scrollPercent)) {
             updates['scrollPos'] = scrollPercent;
         }
@@ -189,13 +191,18 @@ window.syncUpload = async function(type = 'all') {
 
     // 逻辑：只有当 type 为 'all' 或 'content' 时，才上传 HTML 内容
     if (type === 'all' || type === 'content') {
-        updates['htmlContent'] = transcript.innerHTML;
+        updates['htmlContent'] = transcriptElem.innerHTML;
     }
 
-    // --- 关键修改：使用 update 替代 set，实现增量更新 ---
-    // 注意：需要确保顶部 import 了 { update } from "firebase-database"
-    const { update, ref: dbRef } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js");
-    update(ref(db, 'video_sync/' + id), updates);
+    try {
+        // 动态导入 update 方法
+        const { update: fbUpdate } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js");
+        // 使用 update 而不是 set，实现增量更新
+        await fbUpdate(ref(db, 'video_sync/' + id), updates);
+        console.log(`同步成功 [${type}]`);
+    } catch (e) {
+        console.error("同步失败:", e);
+    }
 };
 
   // 3. 下载同步：恢复进度和滚动位置
@@ -336,8 +343,16 @@ document.addEventListener('touchend', (e) => {
     }
 }, { passive: true });
     //
-    transcriptContainer.addEventListener('scroll', () => {
+// 修正滚动监听器的变量名
+transcriptContainer.addEventListener('scroll', () => {
+    // 原有的 localStorage 记录
     localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
+    
+    // Firebase 同步防抖
+    clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+        if (window.syncUpload) window.syncUpload('scroll'); 
+    }, 1500); 
 });
     function updateStatus(msg, active = false) {
         status.innerText = msg;
