@@ -302,9 +302,8 @@
 
 <!-- ===================== Firebase 模块（ES Module） ===================== -->
 <script type="module">
-    let lastLocalWriteTime = 0;
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-    import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
     const firebaseConfig = {
         apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
@@ -319,6 +318,52 @@
     const fbApp = initializeApp(firebaseConfig);
     const db = getDatabase(fbApp);
 
+    // --- 新增：定义实时同步函数 ---
+    window.startRealtimeSync = function() {
+        const id = window.getDocId();
+        if (!id) return;
+
+        const dbRef = ref(db, 'video_reader_sync/' + id);
+        
+        // 使用 onValue 监听，只要云端数据一变，回调就会执行
+        onValue(dbRef, (snapshot) => {
+            if (snapshot.exists()) {
+                const data = snapshot.val();
+                
+                // 1. 只有当远程时间戳更新时，才执行同步，防止循环触发
+                // 或者通过判断数据内容是否一致来决定是否更新
+                
+                // 同步加粗单词
+                if (data.boldTexts) {
+                    const boldSet = new Set(data.boldTexts);
+                    const transcript = document.getElementById('transcript');
+                    // 只有在用户没在操作选区时才静默更新，避免打断用户
+                    if (window.getSelection()?.isCollapsed) {
+                        transcript.querySelectorAll('.content').forEach(contentEl => {
+                            // 调用你原有的工具函数
+                            wrapMatchingWords(contentEl, boldSet);
+                        });
+                    }
+                }
+
+                // 2. 同步滚动进度（仅当用户当前没在手动滚动时）
+                if (data.scrollPos !== undefined && !window.userIsScrolling) {
+                    const transcript = document.getElementById('transcript');
+                    const targetScroll = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                    
+                    // 如果偏差大于 50px 才同步，防止震荡
+                    if (Math.abs(transcript.scrollTop - targetScroll) > 50) {
+                        transcript.scrollTo({
+                            top: targetScroll,
+                            behavior: 'smooth'
+                        });
+                        updateStatus("✨ 进度已实时同步", true);
+                    }
+                }
+            }
+        });
+    };
+
     // 从 URL 参数获取文档 ID
     window.getDocId = function() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -327,76 +372,71 @@
     };
 
     // ☁️ 上传：将加粗词的文本内容列表同步到云端
-window.syncUpload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-
-    const transcript = document.getElementById('transcript');
-    const boldTexts = Array.from(transcript.querySelectorAll('.custom-bold'))
-        .map(el => el.textContent.trim());
-
-    const scrollPercent = transcript.scrollTop /
-        (transcript.scrollHeight - transcript.clientHeight || 1);
-
-    const now = Date.now();
-    lastLocalWriteTime = now; // 更新本地最后写入时间
-
-    try {
-        await set(ref(db, 'video_reader_sync/' + id), {
-            boldTexts,
-            scrollPos: scrollPercent,
-            ts: now // 写入当前服务器/本地时间
-        });
-        updateStatus("☁️ 已同步至云端", true);
-    } catch(e) {
-        console.error("Firebase Upload Error:", e);
-    }
-};
-
-    // ☁️ 下载：根据云端文本内容列表还原加粗和滚动位置
-window.syncDownload = async function(isAutoTrigger = false) {
-    const id = window.getDocId();
-    if (!id) return;
-
-    try {
-        const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
-        if (!snapshot.exists()) return;
-
-        const data = snapshot.val();
-        
-        // 【核心冲突检查】：如果云端数据比本地最后一次写入还要旧，则不执行下载
-        if (data.ts && data.ts <= lastLocalWriteTime) {
-            return; 
-        }
+    // 使用"文本内容"而非"DOM索引"，避免字幕重渲染后索引失效
+    window.syncUpload = async function() {
+        const id = window.getDocId();
+        if (!id) return;
 
         const transcript = document.getElementById('transcript');
+        // 收集所有加粗 span 的文本内容（保留重复词）
+        const boldTexts = Array.from(transcript.querySelectorAll('.custom-bold'))
+            .map(el => el.textContent.trim());
 
-        // A. 还原加粗
-        if (data.boldTexts && Array.isArray(data.boldTexts)) {
-            const boldSet = new Set(data.boldTexts);
-            transcript.querySelectorAll('.content').forEach(contentEl => {
-                wrapMatchingWords(contentEl, boldSet);
+        const scrollPercent = transcript.scrollTop /
+            (transcript.scrollHeight - transcript.clientHeight || 1);
+
+        try {
+            await set(ref(db, 'video_reader_sync/' + id), {
+                boldTexts,
+                scrollPos: scrollPercent,
+                ts: Date.now()
             });
+            updateStatus("☁️ 阅读进度已同步", true);
+        } catch(e) {
+            console.error("Firebase Upload Error:", e);
         }
+    };
 
-        // B. 还原滚动位置
-        // 如果是自动触发（比如定时器），且用户正在操作，则不强行滚动防止冲突
-        if (data.scrollPos !== undefined) {
-            if (isAutoTrigger && (userIsScrolling || window.getSelection()?.toString())) {
-                return; 
+    // ☁️ 下载：根据云端文本内容列表还原加粗和滚动位置
+    window.syncDownload = async function() {
+        const id = window.getDocId();
+        if (!id) return;
+
+        try {
+            const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
+            if (!snapshot.exists()) return;
+
+            const data = snapshot.val();
+            const transcript = document.getElementById('transcript');
+
+            // A. 还原加粗（兼容旧版 boldIndices 格式）
+            if (data.boldTexts && Array.isArray(data.boldTexts)) {
+                const boldSet = new Set(data.boldTexts);
+                // 遍历所有内容节点，将匹配文本的节点加粗
+                transcript.querySelectorAll('.content').forEach(contentEl => {
+                    wrapMatchingWords(contentEl, boldSet);
+                });
+            } else if (data.boldIndices && Array.isArray(data.boldIndices)) {
+                // 兼容旧版：按索引还原（旧版用 .word span）
+                const allWords = transcript.querySelectorAll('.word');
+                allWords.forEach(span => span.classList.remove('custom-bold'));
+                data.boldIndices.forEach(idx => {
+                    if (allWords[idx]) allWords[idx].classList.add('custom-bold');
+                });
             }
-            
-            setTimeout(() => {
-                const targetPos = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                // 使用 smooth 滚动减少突兀感
-                transcript.scrollTo({ top: targetPos, behavior: 'smooth' });
-                updateStatus("✨ 已同步他端进度", true);
-            }, 300);
+
+            // B. 还原滚动位置
+            if (data.scrollPos !== undefined) {
+                setTimeout(() => {
+                    transcript.scrollTop =
+                        data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                    updateStatus("✨ 已加载上次阅读位置", true);
+                }, 300);
+            }
+        } catch(e) {
+            console.error("Firebase Download Error:", e);
         }
-    } catch(e) {
-        console.error("Firebase Download Error:", e);
-    }
-};
+    };
 
     // 工具：在纯文本节点中找到匹配词并包裹 <span class="custom-bold">
     function wrapMatchingWords(container, boldSet) {
@@ -431,17 +471,20 @@ window.syncDownload = async function(isAutoTrigger = false) {
         });
     }
 
-// 3. 滚动停止上传保持不变
-let scrollSyncTimer;
-document.getElementById('transcript').addEventListener('scroll', () => {
-    clearTimeout(scrollSyncTimer);
-    scrollSyncTimer = setTimeout(() => window.syncUpload(), 2000); // 延长到2秒，减少冲突频率
-})
+    // 停止滚动 1.5s 后自动上传
+    let scrollSyncTimer;
+    document.getElementById('transcript').addEventListener('scroll', () => {
+        clearTimeout(scrollSyncTimer);
+        scrollSyncTimer = setTimeout(() => window.syncUpload(), 1500);
+    });
 
- // 1. 初始加载：强制下载
+// 修改 window.onload 或相关的初始化位置
 window.addEventListener('load', () => {
-    setTimeout(() => window.syncDownload(false), 800);
-})
+        setTimeout(() => {
+            window.syncDownload();     // 先执行一次全量拉取
+            window.startRealtimeSync(); // 开启持续监听
+        }, 1000);
+    });
 </script>
 
 <!-- ===================== 主逻辑 ===================== -->
@@ -463,12 +506,12 @@ window.addEventListener('load', () => {
     const touchOverlay = document.getElementById('video-touch-overlay');
 
     // 监听用户主动滚动
-    transcriptContainer.addEventListener('scroll', () => {
-        localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
-        userIsScrolling = true;
-        clearTimeout(userScrollTimer);
-        userScrollTimer = setTimeout(() => { userIsScrolling = false; }, 2000);
-    });
+transcriptContainer.addEventListener('scroll', () => {
+    localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
+    window.userIsScrolling = true; // 挂载到 window
+    clearTimeout(userScrollTimer);
+    userScrollTimer = setTimeout(() => { window.userIsScrolling = false; }, 3000); 
+});
 
     // ── 全局触摸：左划快退，右划播放/暂停 ──
     document.addEventListener('touchstart', (e) => {
