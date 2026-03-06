@@ -653,28 +653,56 @@
             const contentArea = div.querySelector('.content');
             let clickTimer = null;
 
-            contentArea.onclick = (e) => {
-                const sel = window.getSelection();
-                if (clickTimer) {
-                    // 双击：整句复制
-                    clearTimeout(clickTimer);
-                    clickTimer = null;
-                    const range = document.createRange();
-                    range.selectNodeContents(contentArea);
-                    sel.removeAllRanges();
-                    sel.addRange(range);
-                    copyToClipboard(cue.text, "已复制整句");
-                } else {
-                    // 单击：选词复制（200ms 内无第二次点击则触发）
-                    clickTimer = setTimeout(() => {
-                        sel.modify('move', 'backward', 'word');
-                        sel.modify('extend', 'forward', 'word');
-                        const word = sel.toString().trim().replace(/[.,!?;:"]/g, '');
-                        if (word) copyToClipboard(word, "已复制单词: " + word);
-                        clickTimer = null;
-                    }, 200);
-                }
-            };
+// ── 优化后的点击/双击处理代码块 ──
+   contentArea.onclick = (e) => {
+    // 获取点击的具体坐标
+    const x = e.clientX;
+    const y = e.clientY;
+
+    const sel = window.getSelection();
+    let range;
+
+    // 标准 API 与 WebKit 兼容性处理
+    if (document.caretRangeFromPoint) {
+        range = document.caretRangeFromPoint(x, y);
+    } else if (document.caretPositionFromPoint) {
+        const pos = document.caretPositionFromPoint(x, y);
+        range = document.createRange();
+        range.setStart(pos.offsetNode, pos.offset);
+        range.collapse(true);
+    }
+
+    if (!range) return;
+
+    if (clickTimer) {
+        // --- 双击逻辑：整句复制 ---
+        clearTimeout(clickTimer);
+        clickTimer = null;
+        const fullRange = document.createRange();
+        fullRange.selectNodeContents(contentArea);
+        sel.removeAllRanges();
+        sel.addRange(fullRange);
+        copyToClipboard(cue.text, "已复制整句");
+    } else {
+        // --- 单击逻辑：精准坐标选词 ---
+        clickTimer = setTimeout(() => {
+            sel.removeAllRanges();
+            sel.addRange(range);
+            
+            // 此时光标已精准落在点击处，再执行扩展
+            sel.modify('move', 'backward', 'word');
+            sel.modify('extend', 'forward', 'word');
+            
+            let word = sel.toString().trim().replace(/[.,!?;:"]/g, '');
+            
+            // 边界检查：防止在换行符附近点空
+            if (word && word.length < 30) { 
+                copyToClipboard(word, "已复制单词: " + word);
+            }
+            clickTimer = null;
+        }, 250); // 稍微延长判定时间以提高移动端识别率
+    }
+   };
 
             transcript.appendChild(div);
         });
