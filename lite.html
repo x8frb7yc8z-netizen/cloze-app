@@ -312,7 +312,7 @@ html, body {
 .content {
     flex: 1;
     line-height: 1;
-    font-size: 24px;
+    font-size: 28px;
     color: #1d1d1f;
     word-wrap: break-word;
     white-space: normal;
@@ -626,12 +626,9 @@ function parseSubtitle(data) {
         return (+parts[0]) * 60 + (+parts[1]);
     }
 
-function renderSubtitles(cues) {
-    // 确保 transcript 容器存在
+    function renderSubtitles(cues) {
     const transcript = document.getElementById('transcript');
     if (!transcript) return;
-
-    // 清空旧字幕内容 (不影响外部的 action-bar)
     transcript.innerHTML = ''; 
     
     if (!cues || cues.length === 0) {
@@ -639,34 +636,35 @@ function renderSubtitles(cues) {
         return;
     }
 
-    cues.forEach(cue => {
+    cues.forEach((cue, index) => {
         const div = document.createElement('div');
         div.className = 'line';
         div.dataset.time = cue.start;
         
-        // 组装行内容：播放按钮 + 文本区
+        const nextTime = cues[index + 1] ? cues[index + 1].start : cue.start + 5;
+        div.dataset.endTime = nextTime;
+
         div.innerHTML = `
-            <div class="play-btn" title="从此处播放">▶</div>
+            <div class="play-btn" title="播放本句">▶</div>
             <div class="content">${cue.text}</div>
         `;
 
-        // 绑定点击播放逻辑
         const btn = div.querySelector('.play-btn');
         btn.onclick = (e) => {
             e.stopPropagation();
+            video.dataset.singlePlayMode = "true";
+            video.dataset.stopAt = nextTime;
             video.currentTime = cue.start;
             video.play().catch(()=>{});
-            // 立即切换高亮状态
             document.querySelector('.line.active')?.classList.remove('active');
             div.classList.add('active');
         };
 
-        // 绑定内容点击逻辑 (单击选词，双击选句)
         const contentArea = div.querySelector('.content');
         let clickTimer = null;
         contentArea.onclick = (e) => {
             const selection = window.getSelection();
-            if (clickTimer) { // 双击
+            if (clickTimer) {
                 clearTimeout(clickTimer);
                 clickTimer = null;
                 const range = document.createRange();
@@ -674,14 +672,14 @@ function renderSubtitles(cues) {
                 selection.removeAllRanges();
                 selection.addRange(range);
                 copyToClipboard(cue.text, "已复制整句");
-            } else { // 单击
+            } else {
                 clickTimer = setTimeout(() => {
                     selection.modify('move', 'backward', 'word');
                     selection.modify('extend', 'forward', 'word');
                     const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
                     if (word) copyToClipboard(word, "已复制单词: " + word);
                     clickTimer = null;
-                }, 200); 
+                }, 200);
             }
         };
 
@@ -805,49 +803,54 @@ function saveCurrentTranscript() {
 
 // 1. 实时记录位置 (每当播放时间改变时)
     // 1. 实时记录位置并同步更新（列表高亮 + 视频内悬浮字幕）
-video.addEventListener('timeupdate', () => {
+    video.addEventListener('timeupdate', () => {
     const currentTime = video.currentTime;
     const floatingText = document.getElementById('current-floating-text');
-    
-    // 1. 记录进度
+
+    // --- 1. 单句播放停止逻辑 ---
+    if (video.dataset.singlePlayMode === "true") {
+        const stopAt = parseFloat(video.dataset.stopAt);
+        if (currentTime >= stopAt - 0.1) {
+            video.pause();
+            video.currentTime = stopAt - 0.1;
+            video.dataset.singlePlayMode = "false";
+            return;
+        }
+    }
+
+    // --- 2. 记录进度 ---
     if (currentTime > 0) {
         localStorage.setItem('last_video_time', currentTime);
     }
-    
+
     const lines = document.querySelectorAll('.line');
     let currentLine = null;
 
-    // 2. 查找当前匹配的行
+    // --- 3. 查找当前匹配的行 ---
     for (let i = 0; i < lines.length; i++) {
         const start = parseFloat(lines[i].dataset.time);
         const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
-        
         if (currentTime >= start && currentTime < next) {
             currentLine = lines[i];
             break;
         }
     }
 
-    // 3. 执行同步
+    // --- 4. 高亮与悬浮字幕 ---
     if (currentLine) {
-        // 如果行切换了，更新列表高亮和滚动
         if (!currentLine.classList.contains('active')) {
             document.querySelector('.line.active')?.classList.remove('active');
             currentLine.classList.add('active');
             currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-
-        // --- 核心修复：强制同步画面字幕 ---
         if (floatingText) {
             const newContent = currentLine.querySelector('.content').innerHTML;
-            // 只有内容不一致时才更新，防止频繁操作 DOM 导致闪烁
             if (floatingText.innerHTML !== newContent) {
                 floatingText.innerHTML = newContent;
                 floatingText.style.display = 'inline-block';
             }
         }
     } else {
-        // 4. 没字幕时隐藏
         if (floatingText) {
             floatingText.style.display = 'none';
             floatingText.innerHTML = '';
