@@ -103,6 +103,7 @@ video {
 .line:hover{background:var(--line-hover);border-color:var(--border);}
 .time-box{display:inline-block!important;font-family:"SF Mono",monospace;font-size:10px;color:#ccc;background:#f0f0f2;padding:2px 6px;border-radius:4px;margin-bottom:8px;opacity:0.6;}
 .content {
+    touch-action: manipulation;
     line-height: 1;
     font-size: 30px;
     transition: none !important;
@@ -479,38 +480,46 @@ function renderSubtitles(cues) {
             updateStatus("🔂 单句播放中...", true);
         };
 
-        const contentArea = div.querySelector('.content');
-        let clickTimer = null;
- // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
- contentArea.onclick = (e) => {
+ const contentArea = div.querySelector('.content');
+let lastTapTime = 0; // 记录上次点击时间
+
+contentArea.addEventListener('touchend', (e) => {
+    const currentTime = new Date().getTime();
+    const tapInterval = currentTime - lastTapTime;
     const selection = window.getSelection();
-    
-    // 1. 处理双击 (e.detail === 2)
-    if (e.detail === 2) {
-        // 取消单击触发的定时器（如果有）
+
+    // --- 双击逻辑判定 (300ms 内) ---
+    if (tapInterval < 300 && tapInterval > 0) {
+        // 1. 彻底取消单击定时器
         if (clickTimer) {
             clearTimeout(clickTimer);
             clickTimer = null;
         }
-        
-        // 选中整句并复制
+
+        // 2. 选中整句
         const range = document.createRange();
         range.selectNodeContents(contentArea);
         selection.removeAllRanges();
         selection.addRange(range);
-        
+
+        // 3. 执行复制
         const fullText = contentArea.innerText.trim();
         copyToClipboard(fullText, "已复制整句内容");
-        return; // 双击逻辑结束
+
+        // 4. 阻止 iOS 默认的缩放行为
+        e.preventDefault(); 
+        lastTapTime = 0; 
+        return;
     }
 
-    // 2. 处理单击 (e.detail === 1)
-    // 使用短延迟确保不会误触双击
+    // --- 单击逻辑准备 ---
+    lastTapTime = currentTime;
+
+    // 使用定时器确保单击逻辑在确认不是双击后再执行
     clickTimer = setTimeout(() => {
-        // 只有当用户没有手动拉取长选区时，才执行自动选词
         if (selection.isCollapsed) {
             try {
-                // 自动扩展选中光标所在的单词
+                // 尝试自动选词
                 selection.modify('move', 'backward', 'word');
                 selection.modify('extend', 'forward', 'word');
                 const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
@@ -518,12 +527,12 @@ function renderSubtitles(cues) {
                     copyToClipboard(word, "已复制单词: " + word);
                 }
             } catch (err) {
-                console.log("自动选词暂不支持此设备");
+                console.log("自动选词受限");
             }
         }
         clickTimer = null;
-    }, 200); 
- };
+    }, 300); // 略微加长延迟，给双击留出判定空间
+});
 
         transcript.appendChild(div);
     });
