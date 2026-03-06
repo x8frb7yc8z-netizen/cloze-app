@@ -55,34 +55,8 @@ input[type="file"]{display:none;}
 .action-bar .action-btn:active{background:#eeeeee;}
 .action-btn{padding:6px 14px;border-radius:8px;border:1px solid #d2d2d7;background:#fff;font-size:13px;color:#1d1d1f;cursor:pointer;transition:all 0.2s;font-family:inherit;}
 .action-btn:hover{background:#f5f5f7;border-color:var(--primary);color:var(--primary);}
-.video-wrapper {
-    padding-top: env(safe-area-inset-top); 
-    width: 100vw;
-    background: #000 !important; /* 核心：确保背景色为黑，消除白边感 */
-    flex: 0 0 auto;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    position: relative;
-    overflow: hidden; /* 裁剪微量溢出 */
-    /* 解决 Safari 行高间隙 */
-    line-height: 0;
-    font-size: 0;
-}
-video {
-    /* 核心补丁：微调宽度至 101% 并居中，强制覆盖 Safari 的像素缝隙 */
-    width: 101% !important;
-    margin-left: -0.5% !important; 
-    
-    margin-top: 0;
-    margin-bottom: 0;
-    object-fit: contain;
-    max-height: 45vh;
-    display: block;
-    
-    /* 移除 Safari 默认样式干扰 */
-    border: none !important;
-    outline: none !important;
-    -webkit-tap-highlight-color: transparent;
-}/* 2. 移除最大宽度限制，让每一行文本横向铺满 */
+.video-wrapper {padding-top: env(safe-area-inset-top); width: 100vw;background: #000 !important;flex: 0 0 auto;box-shadow:position: relative;overflow: hidden;line-height: 0;font-size: 0;}
+video {width: 101% !important;margin-left: -0.5% !important; margin-top: 0; margin-bottom: 0;object-fit: contain;max-height: 45vh;display: block;border: none !important;outline: none !important;-webkit-tap-highlight-color: transparent;}
 .line {
     box-sizing: border-box; /* 确保 padding 不撑破宽度 */
     padding: 3px 0;         /* 仅保留上下间距，左右设为 0 */
@@ -140,97 +114,99 @@ video {
 <div id="image-preview-container" style="position:fixed;top:100%;left:0;width:100%;height:100%;background:#fff;z-index:2000;transition:top 0.3s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;"><div class="preview-header" style="display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:#f1f3f4;border-bottom:1px solid #ddd;flex-shrink:0;"><span id="preview-word-title" style="font-weight:bold;color:#0288d1;font-size:14px;">图片搜索</span><button onclick="closeImagePreview()" style="border:none;background:#eee;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;">关闭</button></div><div class="preview-content" style="flex:1;overflow:hidden;"><iframe id="preview-iframe" style="width:100%;height:100%;border:none;" src=""></iframe></div></div>
 
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-  import { getDatabase, ref, update, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-    
-  const firebaseConfig = {
-    // 请替换为你自己的配置
-    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
-    authDomain: "cloze-master-pro.firebaseapp.com",
-    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "cloze-master-pro",
-    storageBucket: "cloze-master-pro.firebasestorage.app",
-    messagingSenderId: "697808901954",
-    appId: "1:697808901954:web:32455d94bf67e522e01adb"
-  };
-
-  const fbApp = initializeApp(firebaseConfig);
-  const db = getDatabase(fbApp);
-
-// 1. 生成文档唯一 ID (严格基于 Anki 传入的 customid)
-window.getDocId = function () {
-    // 仅从 URL 获取 customid
-    const urlParams = new URLSearchParams(window.location.search);
-    const customId = urlParams.get('customid');
-
-    if (customId && customId.trim() !== "") {
-        return "anki_" + customId.trim();
-    }
-
-    // 如果没有 customid，不再使用正文生成备用 ID
-    console.warn("未检测到 customid，Firebase 同步已禁用。");
-    return null;
-};
-
-// --- 仅同步：文字标记 (HTML 结构) ---
-window.syncContentUpload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-    const transcript = document.getElementById('transcript');
-    
-    // 使用 update 仅覆盖 htmlContent 字段
-    update(ref(db, 'video_sync/' + id), {
-        htmlContent: transcript.innerHTML,
-        content_ts: Date.now()
-    });
-};
-
-/ --- 仅同步：阅读位置 (滚动百分比) ---
-window.syncProgressUpload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-    const transcript = document.getElementById('transcript');
-    
-    const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
-    if (isNaN(scrollPercent)) return;
-
-    // 使用 update 仅覆盖 scrollPos 字段
-    update(ref(db, 'video_sync/' + id), {
-        scrollPos: scrollPercent,
-        progress_ts: Date.now()
-    });
-};
-
-  // 3. 下载同步：恢复进度和滚动位置
-window.syncDownload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-    
-    const snapshot = await get(child(ref(db), 'video_sync/' + id));
-    if (snapshot.exists()) {
-        const data = snapshot.val();
-        
-        // 1. 仅恢复加粗标记内容
-        if (data.htmlContent) {
-            document.getElementById('transcript').innerHTML = data.htmlContent;
-            if(typeof rebindEvents === 'function') rebindEvents(); 
-        }
-
-        // 2. 仅恢复阅读滚动位置
-        if (data.scrollPos !== undefined) {
-            const transcript = document.getElementById('transcript');
-            setTimeout(() => {
-                transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                updateStatus("同步已就绪", true);
-            }, 300);
-        }
-        
-        // --- 已删除：data.lastTime 相关的视频跳转逻辑 ---
-    }
-};
-</script>
-
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, update, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+      
+    const firebaseConfig = {
+      apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+      authDomain: "cloze-master-pro.firebaseapp.com",
+      databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "cloze-master-pro",
+      storageBucket: "cloze-master-pro.firebasestorage.app",
+      messagingSenderId: "697808901954",
+      appId: "1:697808901954:web:32455d94bf67e522e01adb"
+    };
+  
+    const fbApp = initializeApp(firebaseConfig);
+    const db = getDatabase(fbApp);
+  
+    // --- 全局状态锁 ---
+    let isSyncingFromServer = false;
+  
+    window.getDocId = function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      const customId = urlParams.get('customid');
+      return (customId && customId.trim() !== "") ? "anki_" + customId.trim() : null;
+    };
+  
+    window.syncContentUpload = async function() {
+      if (isSyncingFromServer) return; // 下载期间禁止上传
+      const id = window.getDocId();
+      if (!id) return;
+      const transcript = document.getElementById('transcript');
+      
+      const boldSegments = Array.from(transcript.querySelectorAll('.line'))
+          .filter(line => line.querySelector('.custom-bold')) 
+          .map(line => ({
+              time: line.dataset.time,
+              html: line.querySelector('.content').innerHTML
+          }));
+  
+      update(ref(db, 'video_sync/' + id), {
+          markedLines: boldSegments,
+          content_ts: Date.now()
+      });
+    };
+  
+    window.syncProgressUpload = async function() {
+      if (isSyncingFromServer) return; // 下载期间禁止上传
+      const id = window.getDocId();
+      if (!id) return;
+      const transcript = document.getElementById('transcript');
+      const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
+      if (isNaN(scrollPercent)) return;
+  
+      update(ref(db, 'video_sync/' + id), {
+          scrollPos: scrollPercent,
+          progress_ts: Date.now()
+      });
+    };
+  
+    window.syncDownload = async function() {
+      const id = window.getDocId();
+      if (!id) return;
+      
+      isSyncingFromServer = true; // 【加锁】
+  
+      try {
+          const snapshot = await get(child(ref(db), 'video_sync/' + id));
+          if (snapshot.exists()) {
+              const data = snapshot.val();
+              
+              if (data.markedLines) {
+                  data.markedLines.forEach(item => {
+                      const targetLine = document.querySelector(`.line[data-time="${item.time}"] .content`);
+                      if (targetLine) targetLine.innerHTML = item.html;
+                  });
+                  if(typeof rebindEvents === 'function') rebindEvents(); 
+              }
+  
+              if (data.scrollPos !== undefined) {
+                  const transcript = document.getElementById('transcript');
+                  setTimeout(() => {
+                      transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                      if(typeof updateStatus === 'function') updateStatus("云端同步完成", true);
+                  }, 400);
+              }
+          }
+      } catch (e) {
+          console.error("同步下载失败", e);
+      } finally {
+          // 等待一段时间再解锁，防止滚动事件触发 syncProgressUpload
+          setTimeout(() => { isSyncingFromServer = false; }, 1500);
+      }
+    };
+  </script>
 <script>
     let scrollTimer = null;
     let controlsTimer = null;
