@@ -790,76 +790,58 @@ transcriptContainer.addEventListener('scroll', () => {
     }
 
     // ── 加粗/取消加粗（来自文档2的 Range 方案，支持跨词操作） ──
-// ── 优化后的加粗/取消加粗（支持多词和跨节点） ──
-function boldSelectedText() {
+    function boldSelectedText() {
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
         updateStatus("请先选中文字", false);
         return;
     }
 
-    const range = sel.getRangeAt(0);
-    
-    // 1. 检查选区内是否已经包含加粗元素
-    // 逻辑：如果选区内有任何 custom-bold 元素，则视为“清理”操作
-    const container = range.commonAncestorContainer;
-    const parentElement = container.nodeType === 3 ? container.parentElement : container;
-    
-    if (!parentElement.closest('.content')) {
+    const range = sel.getRangeAt(0).cloneRange();
+
+    const container = range.commonAncestorContainer.nodeType === 3
+        ? range.commonAncestorContainer.parentElement
+        : range.commonAncestorContainer;
+
+    if (!container.closest('.content')) {
         updateStatus("只能在字幕正文内操作", false);
         return;
     }
 
-    // 寻找选区内的所有加粗标签
-    const fragment = range.cloneContents();
-    const existingInSelection = fragment.querySelectorAll('.custom-bold');
-    const isWithinBold = parentElement.closest('.custom-bold');
-
-    if (existingInSelection.length > 0 || isWithinBold) {
-        // --- 逻辑 A: 取消加粗 ---
-        // 简单处理：移除选中区域内及父级的加粗效果
-        const target = isWithinBold || parentElement;
-        const bolds = target.querySelectorAll('.custom-bold');
-        
-        // 如果是点击在已加粗的词内部
-        if (isWithinBold) {
-            const p = isWithinBold.parentNode;
-            while (isWithinBold.firstChild) p.insertBefore(isWithinBold.firstChild, isWithinBold);
-            p.removeChild(isWithinBold);
-            p.normalize();
-        } else {
-            // 如果选中了包含加粗的多个词
-            existingInSelection.forEach(el => {
-                const actualEl = document.evaluate(`//span[text()='${el.textContent}']`, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-                if (actualEl) {
-                    const p = actualEl.parentNode;
-                    while (actualEl.firstChild) p.insertBefore(actualEl.firstChild, actualEl);
-                    p.removeChild(actualEl);
-                }
-            });
+    // 判断选区是否与已有加粗重叠
+    const existingBolds = document.querySelectorAll('.custom-bold');
+    let matched = [];
+    existingBolds.forEach(bold => {
+        const br = document.createRange();
+        br.selectNodeContents(bold);
+        if (range.compareBoundaryPoints(Range.END_TO_START, br) < 0 &&
+            range.compareBoundaryPoints(Range.START_TO_END, br) > 0) {
+            matched.push(bold);
         }
-        updateStatus("已清理选中区域的标记", true);
+    });
+
+    if (matched.length > 0) {
+        matched.forEach(bold => {
+            const p = bold.parentNode;
+            while (bold.firstChild) p.insertBefore(bold.firstChild, bold);
+            p.removeChild(bold);
+            p.normalize();
+        });
+        updateStatus("已取消标记", true);
     } else {
-        // --- 逻辑 B: 新增加粗 ---
         const span = document.createElement('span');
         span.className = 'custom-bold';
-        
         try {
-            // 使用 extractContents 移动内容到新 span
             span.appendChild(range.extractContents());
             range.insertNode(span);
+            span.parentNode.normalize();
             updateStatus("已成功标记重点", true);
-        } catch (e) {
-            // 降级方案：针对跨节点选取的极端情况
-            console.warn("Standard bold failed, trying fallback", e);
-            updateStatus("选区跨度太大，请尝试分段选择", false);
+        } catch(e) {
+            updateStatus("选区太复杂，请重新选择", false);
         }
     }
 
     sel.removeAllRanges();
-    parentElement.normalize(); // 合并相邻文本节点
-
-    // 同步到 Firebase
     if (window.syncUpload) window.syncUpload();
 }
 
