@@ -463,7 +463,7 @@ function parseSubtitle(data) {
         if (parts.length === 3) return (+parts[0]) * 3600 + (+parts[1]) * 60 + (+parts[2]);
         return (+parts[0]) * 60 + (+parts[1]);
     }
-    function renderSubtitles(cues) {
+function renderSubtitles(cues) {
     const transcript = document.getElementById('transcript');
     if (!transcript) return;
     transcript.innerHTML = ''; 
@@ -544,7 +544,6 @@ function parseSubtitle(data) {
         transcript.appendChild(div);
     });
 }
-
 async function copyToClipboard(text, msg) {
     try {
         await navigator.clipboard.writeText(text);
