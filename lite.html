@@ -567,49 +567,69 @@ function rebindEvents() {
         const contentArea = line.querySelector('.content');
         if (!contentArea) return;
 
-        // 核心：先清除旧事件监听，防止重复叠加
+        // 清除旧监听
         const newContent = contentArea.cloneNode(true);
         contentArea.parentNode.replaceChild(newContent, contentArea);
 
+        let lastClickTime = 0;
         let clickTimer = null;
 
         newContent.addEventListener('click', (e) => {
-            e.stopPropagation();
+            // 阻止系统默认选词，由我们逻辑接管
+            const currentTime = new Date().getTime();
+            const clickDelay = currentTime - lastClickTime;
+            lastClickTime = currentTime;
 
-            // e.detail 在电脑和手机 Safari/Chrome 上均代表点击次数
-            if (e.detail === 1) {
-                clickTimer = setTimeout(() => {
-                    const selection = window.getSelection();
-                    // 仅在未手动选择大段文字时执行单词提取
-                    if (selection.toString().trim().length === 0) {
-                        let range = document.caretRangeFromPoint ? 
-                                    document.caretRangeFromPoint(e.clientX, e.clientY) : null;
-                        if (range) {
-                            selection.removeAllRanges();
-                            selection.addRange(range);
-                            selection.modify('move', 'backward', 'word');
-                            selection.modify('extend', 'forward', 'word');
-                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                            if (word && word.length < 25) {
-                                copyToClipboard(word, "已复制单词: " + word);
-                            }
-                        }
-                    }
+            if (clickDelay < 300) {
+                // 【双击逻辑】
+                if (clickTimer) {
+                    clearTimeout(clickTimer);
                     clickTimer = null;
-                }, 250); // 延迟 250ms 等待双击
-            } 
-            else if (e.detail === 2) {
-                // 双击：清除单击定时器，执行整句复制
-                if (clickTimer) clearTimeout(clickTimer);
+                }
+                
                 const fullText = newContent.innerText.trim();
                 copyToClipboard(fullText, "已复制整句内容");
-                
+
                 // 视觉全选效果
                 const selection = window.getSelection();
                 const range = document.createRange();
                 range.selectNodeContents(newContent);
                 selection.removeAllRanges();
                 selection.addRange(range);
+                
+            } else {
+                // 【单击逻辑】
+                clickTimer = setTimeout(() => {
+                    const selection = window.getSelection();
+                    // 仅在未手动拖拽选择大段文字时执行单词提取
+                    if (selection.toString().trim().length === 0) {
+                        let range = null;
+                        if (document.caretRangeFromPoint) {
+                            range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                        } else if (e.rangeParent) {
+                            range = document.createRange();
+                            range.setStart(e.rangeParent, e.rangeOffset);
+                        }
+
+                        if (range) {
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            // 针对移动端优化：尝试扩展选中单词
+                            try {
+                                selection.modify('move', 'backward', 'word');
+                                selection.modify('extend', 'forward', 'word');
+                            } catch(err) {
+                                // 部分浏览器不支持 modify
+                            }
+                            
+                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                            if (word && word.length < 25 && word.length > 0) {
+                                copyToClipboard(word, "已复制单词: " + word);
+                            }
+                        }
+                    }
+                    clickTimer = null;
+                }, 300); 
             }
         });
 
