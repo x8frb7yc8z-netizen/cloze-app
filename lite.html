@@ -171,54 +171,56 @@ window.getDocId = function () {
     console.warn("未检测到 customid，Firebase 同步已禁用。");
     return null;
 };
-// 2. 上传同步：增加 scrollPos (滚动百分比)
-  window.syncUpload = async function() {
-      const id = window.getDocId();
-      if (!id) return;
+// 修改后的上传函数：支持按需同步
+window.syncUpload = async function(type = 'all') {
+    const id = window.getDocId();
+    if (!id) return;
 
-      const video = document.getElementById('videoPlayer');
-      const transcript = document.getElementById('transcript');
-      
-      // 计算滚动百分比
-      const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
+    const transcript = document.getElementById('transcript');
+    const updates = { ts: Date.now() }; // 每次更新带上时间戳
 
-      set(ref(db, 'video_sync/' + id), {
-          lastTime: video.currentTime || 0,
-          htmlContent: transcript.innerHTML,
-          scrollPos: scrollPercent, // 新增：滚动位置百分比
-          ts: Date.now()
-      });
-  };
+    // 逻辑：只有当 type 为 'all' 或 'scroll' 时，才计算并上传滚动位置
+    if (type === 'all' || type === 'scroll') {
+        const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
+        if (!isNaN(scrollPercent)) {
+            updates['scrollPos'] = scrollPercent;
+        }
+    }
+
+    // 逻辑：只有当 type 为 'all' 或 'content' 时，才上传 HTML 内容
+    if (type === 'all' || type === 'content') {
+        updates['htmlContent'] = transcript.innerHTML;
+    }
+
+    // --- 关键修改：使用 update 替代 set，实现增量更新 ---
+    // 注意：需要确保顶部 import 了 { update } from "firebase-database"
+    const { update, ref: dbRef } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js");
+    update(ref(db, 'video_sync/' + id), updates);
+};
 
   // 3. 下载同步：恢复进度和滚动位置
-  window.syncDownload = async function() {
-      const id = window.getDocId();
-      const snapshot = await get(child(ref(db), 'video_sync/' + id));
-      if (snapshot.exists()) {
-          const data = snapshot.val();
-          
-          // 1. 恢复加粗状态
-          if (data.htmlContent) {
-              document.getElementById('transcript').innerHTML = data.htmlContent;
-              rebindEvents(); 
-          }
+window.syncDownload = async function() {
+    const id = window.getDocId();
+    const snapshot = await get(child(ref(db), 'video_sync/' + id));
+    if (snapshot.exists()) {
+        const data = snapshot.val();
+        
+        // 1. 恢复加粗状态
+        if (data.htmlContent) {
+            document.getElementById('transcript').innerHTML = data.htmlContent;
+            rebindEvents(); 
+        }
 
-          // 2. 恢复视频进度 (如果有视频)
-          if (data.lastTime && !isNaN(data.lastTime)) {
-              const v = document.getElementById('videoPlayer');
-              v.currentTime = data.lastTime;
-          }
-
-          // 3. 恢复滚动位置 (延迟执行确保 DOM 渲染完毕)
-          if (data.scrollPos !== undefined) {
-              const transcript = document.getElementById('transcript');
-              setTimeout(() => {
-                  transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                  updateStatus("已同步阅读进度", true);
-              }, 200);
-          }
-      }
-  };
+        // 2. 恢复滚动位置
+        if (data.scrollPos !== undefined) {
+            const transcript = document.getElementById('transcript');
+            setTimeout(() => {
+                transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                updateStatus("已同步阅读进度", true);
+            }, 200);
+        }
+    }
+};
 </script>
 
 <script>
@@ -284,14 +286,13 @@ touchOverlay.addEventListener('touchend', (e) => {
     }
 });
 
-// 监听字幕容器滚动
-const transcriptDiv = document.getElementById('transcript');
+// 滚动停止时 (仅同步滚动)
 transcriptDiv.addEventListener('scroll', () => {
     clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
-        console.log("检测到滚动停止，同步阅读进度...");
-        if (window.syncUpload) window.syncUpload();
-    }, 1500); // 停止滚动 1.5 秒后同步
+        console.log("仅同步滚动位置...");
+        if (window.syncUpload) window.syncUpload('scroll'); // 👈 传 'scroll'
+    }, 1500); 
 });
 
 document.addEventListener('touchstart', (e) => {
@@ -588,7 +589,7 @@ function boldSelectedText() {
     selection.removeAllRanges();
     saveCurrentTranscript(); // 保存本地
     if (window.syncUpload) {
-        window.syncUpload(); // 上传云端 (Firebase)
+        window.syncUpload('content'); // 👈 传 'content'
     }
 }
 function saveCurrentTranscript() {
