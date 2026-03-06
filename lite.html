@@ -489,59 +489,40 @@ function renderSubtitles(cues) {
   const contentArea = div.querySelector('.content');
   let timer = null;
 
-contentArea.addEventListener('click', (e) => {
+  contentArea.addEventListener('click', (e) => {
     e.stopPropagation();
-
+    
     if (e.detail === 1) {
         // 单击逻辑：延迟执行，给双击留出判断时间
         timer = setTimeout(() => {
             const selection = window.getSelection();
-
-            // 如果用户没有拖动选区
+            // 如果用户只是点一下，没有拉动选区
             if (selection.toString().trim().length === 0) {
-
-                let range = null;
-
-                // 兼容不同浏览器
+                let range;
                 if (document.caretRangeFromPoint) {
                     range = document.caretRangeFromPoint(e.clientX, e.clientY);
-                } else if (document.caretPositionFromPoint) {
-                    const pos = document.caretPositionFromPoint(e.clientX, e.clientY);
-                    if (pos) {
-                        range = document.createRange();
-                        range.setStart(pos.offsetNode, pos.offset);
-                        range.collapse(true);
-                    }
                 }
-
-                if (!range) return;
-
-                selection.removeAllRanges();
-                selection.addRange(range);
-
-                try {
-                    // 扩展到单词
+                if (range) {
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    // 选词逻辑
                     selection.modify('move', 'backward', 'word');
                     selection.modify('extend', 'forward', 'word');
-                } catch (err) {}
-
-                const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-
-                if (word && word.length < 25) {
-                    copyToClipboard(word, "已复制单词: " + word);
+                    
+                    const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                    if (word && word.length < 25) {
+                        copyToClipboard(word, "已复制单词: " + word);
+                    }
                 }
             }
-
-        }, 250);
-    }
-
-    else if (e.detail === 2) {
+        }, 250); // 250ms 是标准双击间隔
+    } else if (e.detail === 2) {
         // 双击逻辑：立即清除单击定时器
         if (timer) clearTimeout(timer);
-
+        
         const textToCopy = contentArea.innerText.trim();
         copyToClipboard(textToCopy, "已复制整句内容");
-
+        
         // 视觉反馈：全选整句
         const selection = window.getSelection();
         const range = document.createRange();
@@ -549,7 +530,11 @@ contentArea.addEventListener('click', (e) => {
         selection.removeAllRanges();
         selection.addRange(range);
     }
-});
+    });
+
+        transcript.appendChild(div);
+    });
+}
 
 async function copyToClipboard(text, msg) {
     try {
