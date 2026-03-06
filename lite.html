@@ -1,107 +1,266 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>AI 意群同步播放器 - White Edition</title>
-<style>
-#current-floating-text .custom-bold{color:#ffffff!important;text-shadow:0 0 3px rgba(0,0,0,0.8);}
-#current-floating-text{background:transparent!important;box-shadow:none!important;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,2px 2px 4px rgba(0,0,0,0.8);}
-html,body{width:100%;margin:0;padding:0;overflow-x:hidden!important;position:relative;}
-#status,.status-dot{display:none!important;}
-/* 1. 移除容器内边距，允许内容撑满全屏 */
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta charset="UTF-8">
+    <title>AI 意群同步播放器 - White Edition</title>
+    <style>
+    /* 针对：视频上方悬浮字幕 (维持白色) */
+#current-floating-text .custom-bold {
+    color: #ffffff !important;
+    /* 给视频里的加粗词加一点阴影，防止背景太白看不清 */
+    text-shadow: 0px 0px 3px rgba(0,0,0,0.8);
+}
+
+#current-floating-text {
+    background: transparent !important; /* 去掉背景框 */
+    box-shadow: none !important;      /* 去掉边框阴影（如果有） */
+    line-height: 1 !important;
+    /* 核心：添加清晰的文字阴影 */
+    text-shadow: 
+        1px 1px 0 #000,
+       -1px -1px 0 #000,
+        1px -1px 0 #000,
+       -1px 1px 0 #000,
+        2px 2px 4px rgba(0,0,0,0.8); /* 增加描边和柔和阴影 */
+}
+
+html, body {
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden !important; 
+    position: relative;
+}
+
+#status, .status-dot {
+    display: none !important;
+}
+
+/* 修正容器高度，防止被顶部条遮挡 */
 .transcript-container {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden !important;
-    padding: 0 !important; /* 原为 20px，改为 0 */
-    background: #ffffff;
+    padding: 10px 0 !important; /* 左右设为 0 */
+    background: #ffffff; 
     box-sizing: border-box;
 }
-.custom-bold{font-weight:700!important;color:#000!important;text-underline-offset:4px;}
-:root{--primary:#00a1d6;--primary-light:rgba(0,161,214,0.08);--bg:#ffffff;--header-bg:rgba(255,255,255,0.9);--panel:#f5f5f7;--text-main:#1d1d1f;--text-dim:#86868b;--border:#d2d2d7;--line-hover:#f0f0f2;}
-body {
-    font-family: -apple-system, "SF Pro Display", "PingFang SC", sans-serif;
-    background: var(--bg);
-    color: var(--text-main);
-    margin: 0;
+
+/* 4. 加粗词样式 */
+.custom-bold {
+    font-weight: 700 !important;
+    color: #000 !important;
+    text-underline-offset: 4px;
+}
+        :root {
+            --primary: #00a1d6;
+            --primary-light: rgba(0, 161, 214, 0.08);
+            --bg: #ffffff;
+            --header-bg: rgba(255, 255, 255, 0.9);
+            --panel: #f5f5f7;
+            --text-main: #1d1d1f;
+            --text-dim: #86868b;
+            --border: #d2d2d7;
+            --line-hover: #f0f0f2;
+        }
+
+        body {
+            font-family: -apple-system, "SF Pro Display", "PingFang SC", sans-serif;
+            background: var(--bg);
+            color: var(--text-main);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            height: 100dvh
+            overflow: hidden;
+        }
+
+.header {
+    height: 0;
+    padding: 0;
+    border: none;
+}
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #d2d2d7;
+            display: inline-block;
+        }
+        .status-dot.active { background: #34c759; box-shadow: 0 0 6px rgba(52, 199, 89, 0.5); }
+
+        #status { font-size: 13px; color: var(--text-dim); flex-grow: 1; }
+
+.btn-upload {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 200;
+    background: rgba(255, 255, 255, 0.2) !important;
+    color: white !important;
+    border: none !important;
+    backdrop-filter: blur(5px);
+    opacity: 0.3;
+    transition: opacity 0.3s;
+}
+.btn-upload:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.4) !important;
+}
+
+.controls-group {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 200;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.controls-group .btn-upload {
+    position: static;
+}
+
+/* 视频提醒气泡 */
+#video-hint {
+    background: rgba(0, 161, 214, 0.9);
+    color: white;
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    white-space: nowrap;
+    display: none;
+}
+
+        input[type="file"] { display: none; }
+
+/* 1. 调整主容器布局 */
+.main-content {
+    flex: 1;
     display: flex;
     flex-direction: column;
-    /* 核心修复：使用 dvh 适配动态工具栏 */
-    height: 100vh;
-    height: 100dvh; 
     overflow: hidden;
-    /* 必须保留 fixed，否则 iOS 滑动字幕时容易带动整个网页 */
-    position: fixed; 
+}
+/* --- 顶部功能条重构 --- */
+.action-bar {
+    position: sticky;
+    top: 0;
+    left: 0;
     width: 100%;
-}
-.header{height:0;padding:0;border:none;}
-.status-dot{width:8px;height:8px;border-radius:50%;background:#d2d2d7;display:inline-block;}
-.status-dot.active{background:#34c759;box-shadow:0 0 6px rgba(52,199,89,0.5);}
-#status{font-size:13px;color:var(--text-dim);flex-grow:1;}
-.btn-upload{position:absolute;top:10px;right:10px;z-index:200;background:rgba(255,255,255,0.2)!important;color:white!important;border:none!important;backdrop-filter:blur(5px);opacity:0.3;transition:opacity 0.3s;}
-.btn-upload:hover{opacity:1;background:rgba(255,255,255,0.4)!important;}
-.controls-group{position:absolute;top:10px;right:10px;z-index:200;display:flex;gap:8px;align-items:center;}
-.controls-group .btn-upload{position:static;}
-#video-hint{background:rgba(0,161,214,0.9);color:white;font-size:12px;padding:4px 10px;border-radius:4px;white-space:nowrap;display:none;}
-input[type="file"]{display:none;}
-.main-content{flex:1;display:flex;flex-direction:column;overflow:hidden;}
-.action-bar{border-bottom: 1px solid #eee;position:sticky;top:0;left:0;width:100%;height:35px;z-index:1000;display:flex;background:#fff;border-bottom:1px solid #eee;box-shadow:0 2px 5px rgba(0,0,0,0.02);padding:0;}
-.action-bar .action-btn:nth-child(1){background:#e3f2fd;color:#1d1d1f;}
-.action-bar .action-btn:nth-child(2){background:#e8f5e9;color:#1d1d1f;}
-.action-bar .action-btn{flex:1;height:100%;border:none;border-right:1px solid #f0f0f0;background:#fff;font-size:13px;font-weight:600;color:#444;cursor:pointer;transition:all 0.2s ease;display:flex;align-items:center;justify-content:center;padding:0;border-radius:0;}
-.action-bar .action-btn:nth-child(3):hover{background:#fff8e1;color:#f57c00;}
-.action-bar .action-btn:hover{background:#f5f5f7;color:var(--primary);}
-.action-bar .action-btn:active{background:#eeeeee;}
-.action-btn{padding:6px 14px;border-radius:8px;border:1px solid #d2d2d7;background:#fff;font-size:13px;color:#1d1d1f;cursor:pointer;transition:all 0.2s;font-family:inherit;}
-.action-btn:hover{background:#f5f5f7;border-color:var(--primary);color:var(--primary);}
-.video-wrapper {
-    padding-top: env(safe-area-inset-top); 
-    width: 100vw;
-    background: #000 !important; /* 核心：确保背景色为黑，消除白边感 */
-    flex: 0 0 auto;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    position: relative;
-    overflow: hidden; /* 裁剪微量溢出 */
-    /* 解决 Safari 行高间隙 */
-    line-height: 0;
-    font-size: 0;
-}
-video {
-    /* 核心补丁：微调宽度至 101% 并居中，强制覆盖 Safari 的像素缝隙 */
-    width: 101% !important;
-    margin-left: -0.5% !important; 
-    
-    margin-top: 0;
-    margin-bottom: 0;
-    object-fit: contain;
-    max-height: 45vh;
-    display: block;
-    
-    /* 移除 Safari 默认样式干扰 */
-    border: none !important;
-    outline: none !important;
-    -webkit-tap-highlight-color: transparent;
-}/* 2. 移除最大宽度限制，让每一行文本横向铺满 */
-.line {
-    box-sizing: border-box; /* 确保 padding 不撑破宽度 */
-    padding: 3px 0;         /* 仅保留上下间距，左右设为 0 */
-    margin: 0;              /* 移除居中边距 */
-    border-bottom: 1px solid #f2f2f7;
-    width: 100%;            /* 撑满父容器宽度 */
-    max-width: none;        /* 移除原有的 800px 限制 */
-    cursor: default;
-    text-align: center;     /* 保持文字水平居中，如果想靠左可改为 left */
-    background: transparent !important;
+    height: 35px; /* 统一高度 */
+    z-index: 1000;
     display: flex;
-    flex-direction: column; 
+    background: #fff;
+    border-bottom: 1px solid #eee;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+    padding: 0; /* 移除原本的内边距 */
+}
+.action-bar .action-btn:nth-child(1) {
+    background: #e3f2fd; /* 浅蓝背景 */
+    color: #1d1d1f;      /* 保持你原本的字体颜色 */
+}
+/* 第二个按钮：参考“加粗”功能，使用类似 Cloze Master 的绿色系 */
+.action-bar .action-btn:nth-child(2) {
+    background: #e8f5e9; /* 浅绿背景 */
+    color: #1d1d1f;      /* 保持字体颜色不变 */
+}
+.action-bar .action-btn {
+    flex: 1; /* 等分宽度 */
+    height: 100%;
+    border: none;
+    border-right: 1px solid #f0f0f0; /* 按钮间的细分隔线 */
+    background: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    color: #444;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
     align-items: center;
     justify-content: center;
+    padding: 0;
+    border-radius: 0; /* 移除圆角，使其充满容器 */
 }
+
+/* 为图片搜索按钮设置一个特殊的悬停颜色（可选） */
+.action-bar .action-btn:nth-child(3):hover {
+    background: #fff8e1; /* 浅黄色背景 */
+    color: #f57c00;
+}
+
+/* 按钮悬停与激活状态 */
+.action-bar .action-btn:hover {
+    background: #f5f5f7;
+    color: var(--primary);
+}
+
+.action-bar .action-btn:active {
+    background: #eeeeee;
+}
+
+
+.action-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 1px solid #d2d2d7;
+    background: #fff;
+    font-size: 13px;
+    color: #1d1d1f;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: inherit;
+}
+
+.action-btn:hover {
+    background: #f5f5f7;
+    border-color: var(--primary);
+    color: var(--primary);
+}
+
+        .video-wrapper {
+            flex: 0 0 auto;
+            background: #000;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        video {
+            max-height: 45vh;
+            width: 100%;
+            display: block;
+        }
+
+        .transcript-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: var(--bg);
+        }
+
+
+/* 修正行样式：宽度 100%，去掉最大宽度限制 */
+.line {
+    width: 100%;
+    max-width: none; /* 去掉 800px 限制，实现真正的 0 留白 */
+    padding: 12px 10px; /* 增加一点内部微调，防止文字紧贴物理屏幕边缘 */
+    cursor: pointer;
+    text-align: left; /* 改为左对齐，配合 0 留白更自然 */
+    background: transparent !important;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start; /* 顶部对齐，适合多行文本 */
+    justify-content: flex-start;
+    margin: 0;
+    box-sizing: border-box;
+    border-bottom: 1px solid #f9f9f9; /* 可选：增加极淡的分割线 */
+}
+
+/* --- 2. 播放按钮样式 --- */
 .play-btn {
-    width: 32px;              /* 稍微缩小按钮尺寸 (原 40px) */
+    width: 32px;
     height: 32px;
-    margin: 4px 0 0 0;        /* 显著缩小文字与按钮之间的间距 (原 10px) */
+    margin-right: 5px;
     border-radius: 50%;
     border: 1px solid #d2d2d7;
     background: #fff;
@@ -110,215 +269,196 @@ video {
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    font-size: 14px;          /* 稍微缩小图标大小 */
+    font-size: 14px;
     transition: all 0.2s;
     flex-shrink: 0;
-    user-select: none;
-    -webkit-user-select: none;
+    user-select: none !important;
+    -webkit-user-select: none !important; /* 针对 iOS Anki */
+    -webkit-touch-callout: none !important; /* 禁用长按菜单 */
 }
-.play-btn:hover{background:#f5f5f7;color:var(--primary);border-color:var(--primary);}
-.line.active .play-btn{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 0 8px rgba(0,161,214,0.4);}
-.line:hover{background:var(--line-hover);border-color:var(--border);}
-.time-box{display:inline-block!important;font-family:"SF Mono",monospace;font-size:10px;color:#ccc;background:#f0f0f2;padding:2px 6px;border-radius:4px;margin-bottom:8px;opacity:0.6;}
+
+.play-btn:hover {
+    background: #f5f5f7;
+    color: var(--primary);
+    border-color: var(--primary);
+}
+
+/* --- 3. 正在播放的高亮状态：仅针对按钮 --- */
+.line.active .play-btn {
+    background: var(--primary);
+    color: #fff;
+    border-color: var(--primary);
+    box-shadow: 0 0 8px rgba(0, 161, 214, 0.4);
+}
+
+        .line:hover {
+            background: var(--line-hover);
+            border-color: var(--border);
+        }
+
+
+.time-box {
+    display: none !important;
+    font-family: "SF Mono", monospace;
+    font-size: 10px;
+    color: #ccc;
+    background: #f0f0f2;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    display: inline-block;
+    opacity: 0.6;
+}
+
+/* 修正内容区：填满剩余空间 */
 .content {
+    flex: 1;
     line-height: 1;
-    font-size: 30px;
-    transition: none !important;
-    font-weight: 400 !important;
+    font-size: 28px;
     color: #1d1d1f;
-    width: 100%; /* 确保文字宽度撑满 */
+    word-wrap: break-word;
+    white-space: normal;
+    margin: 0 !important;
 }
-.line.active .content{font-weight:400!important;transform:none!important;color:#000;}
-.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-dim);text-align:center;}
+
+.line.active .content {
+    font-weight: 400 !important;
+    transform: none !important;
+    color: #000;
+}
+
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-dim);
+            text-align: center;
+        }
     </style>
 </head>
 <body>
-<div class="header"><div class="status-dot" id="dot"></div><span id="status">等待加载...</span><div class="controls-group"><div id="video-hint"></div><label class="btn-upload">🎥<input type="file" id="videoInput" accept="video/*"></label><label class="btn-upload">📝<input type="file" id="subtitleManualInput" accept=".srt,.txt,.vtt"></label></div></div>
-<div class="video-wrapper" style="position: relative; width: 100%; background: #000; overflow: hidden;"><video id="videoPlayer" playsinline webkit-playsinline></video><div id="video-touch-overlay" style="position:absolute;top:0;left:0;width:100%;height:100%;z-index:5;background:rgba(0,0,0,0);-webkit-tap-highlight-color:transparent;"></div><div id="video-overlay-subtitle" style="position:absolute;bottom:0%;left:0;width:100%;text-align:center;pointer-events:none;z-index:10;padding:0 20px;box-sizing:border-box;"><div id="current-floating-text" style="display:none;background:rgba(0,0,0,0.6);color:white;font-size:24px;padding:5px 15px;border-radius:8px;pointer-events:auto;user-select:text;-webkit-user-select:text;line-height:1;cursor:text;max-width:85%;word-wrap:break-word;margin:0 auto;"></div></div></div>
-<div class="action-bar"><button class="action-btn" onclick="scrollToActive()">🎯 当前</button><button class="action-btn" id="toggle-controls-btn" onclick="toggleNativeControls()">▶️ 控件</button><button class="action-btn" onclick="boldSelectedText()"><b>B</b> 粗体</button><button class="action-btn" onclick="searchGoogleImages()">🖼️ 图片</button></div>
-<div class="transcript-container" id="transcript"><div class="empty-state"><p>请在 Anki 中填写“字幕内容”<br>或手动上传视频与字幕</p></div></div>
-<div id="image-preview-container" style="position:fixed;top:100%;left:0;width:100%;height:100%;background:#fff;z-index:2000;transition:top 0.3s cubic-bezier(0.4,0,0.2,1);display:flex;flex-direction:column;"><div class="preview-header" style="display:flex;justify-content:space-between;align-items:center;padding:10px 15px;background:#f1f3f4;border-bottom:1px solid #ddd;flex-shrink:0;"><span id="preview-word-title" style="font-weight:bold;color:#0288d1;font-size:14px;">图片搜索</span><button onclick="closeImagePreview()" style="border:none;background:#eee;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;">关闭</button></div><div class="preview-content" style="flex:1;overflow:hidden;"><iframe id="preview-iframe" style="width:100%;height:100%;border:none;" src=""></iframe></div></div>
 
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+<div class="header">
+    <div class="status-dot" id="dot"></div>
+    <span id="status">等待加载...</span>
+    <div class="controls-group">
+        <div id="video-hint"></div>
+        <label class="btn-upload">🎥<input type="file" id="videoInput" accept="video/*"></label>
+        <label class="btn-upload">📝<input type="file" id="subtitleManualInput" accept=".srt,.txt,.vtt"></label>
+    </div>
+</div>
 
-  const firebaseConfig = {
-    // 请替换为你自己的配置
-    apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
-    authDomain: "cloze-master-pro.firebaseapp.com",
-    databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "cloze-master-pro",
-    storageBucket: "cloze-master-pro.firebasestorage.app",
-    messagingSenderId: "697808901954",
-    appId: "1:697808901954:web:32455d94bf67e522e01adb"
-  };
+<div class="main-content">
+    <div class="video-wrapper" style="position: relative; width: 100%; background: #000; overflow: hidden;">
+        <video id="videoPlayer" playsinline webkit-playsinline style="width: 100%; display: block;"></video>
+        
+        <div id="video-touch-overlay" style="
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 5; 
+            background: rgba(0,0,0,0); 
+            -webkit-tap-highlight-color: transparent;
+        "></div>
+        
+        <div id="video-overlay-subtitle" style="
+            position: absolute;
+            bottom: 0%;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            pointer-events: none; 
+            z-index: 10;
+            padding: 0 20px;
+            box-sizing: border-box;
+        ">
+            <div id="current-floating-text" style="
+                display: none;
+                background: rgba(0, 0, 0, 0.6); 
+                color: white;
+                font-size: 24px;
+                padding: 5px 15px;
+                border-radius: 8px;
+                pointer-events: auto; 
+                user-select: text;
+                -webkit-user-select: text;
+                line-height: 1.4;
+                cursor: text;
+                max-width: 85%;
+                word-wrap: break-word;
+                margin: 0 auto;
+            "></div>
+        </div>
+    </div>
 
-  const fbApp = initializeApp(firebaseConfig);
-  const db = getDatabase(fbApp);
-
-// 1. 生成文档唯一 ID (严格基于 Anki 传入的 customid)
-window.getDocId = function () {
-    // 仅从 URL 获取 customid
-    const urlParams = new URLSearchParams(window.location.search);
-    const customId = urlParams.get('customid');
-
-    if (customId && customId.trim() !== "") {
-        return "anki_" + customId.trim();
-    }
-
-    // 如果没有 customid，不再使用正文生成备用 ID
-    console.warn("未检测到 customid，Firebase 同步已禁用。");
-    return null;
-};
-// 2. 上传同步：增加 scrollPos (滚动百分比)
-  window.syncUpload = async function() {
-      const id = window.getDocId();
-      if (!id) return;
-
-      const video = document.getElementById('videoPlayer');
-      const transcript = document.getElementById('transcript');
-      
-      // 计算滚动百分比
-      const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
-
-      set(ref(db, 'video_sync/' + id), {
-          lastTime: video.currentTime || 0,
-          htmlContent: transcript.innerHTML,
-          scrollPos: scrollPercent, // 新增：滚动位置百分比
-          ts: Date.now()
-      });
-  };
-
-  // 3. 下载同步：恢复进度和滚动位置
-  window.syncDownload = async function() {
-      const id = window.getDocId();
-      const snapshot = await get(child(ref(db), 'video_sync/' + id));
-      if (snapshot.exists()) {
-          const data = snapshot.val();
-          
-          // 1. 恢复加粗状态
-          if (data.htmlContent) {
-              document.getElementById('transcript').innerHTML = data.htmlContent;
-              rebindEvents(); 
-          }
-
-          // 2. 恢复视频进度 (如果有视频)
-          if (data.lastTime && !isNaN(data.lastTime)) {
-              const v = document.getElementById('videoPlayer');
-              v.currentTime = data.lastTime;
-          }
-
-          // 3. 恢复滚动位置 (延迟执行确保 DOM 渲染完毕)
-          if (data.scrollPos !== undefined) {
-              const transcript = document.getElementById('transcript');
-              setTimeout(() => {
-                  transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                  updateStatus("已同步阅读进度", true);
-              }, 200);
-          }
-      }
-  };
-</script>
-
+    <div class="action-bar">
+        <button class="action-btn" onclick="scrollToActive()">🎯 定位当前</button>
+        <button class="action-btn" onclick="boldSelectedText()"><b>B</b> 单词加粗</button>
+        <button class="action-btn" id="toggle-controls-btn" onclick="toggleNativeControls()">▶️ 控件</button>
+        <button class="action-btn" onclick="searchGoogleImages()">🖼️ 图片搜索</button>
+    </div>
+    <div class="transcript-container" id="transcript">
+        <div class="empty-state">
+            <p>请在 Anki 中填写“字幕内容”<br>或手动上传视频与字幕</p>
+        </div>
+    </div>
+</div>
+<div id="image-preview-container" style="position: fixed; top: 100%; left: 0; width: 100%; height: 100%; background: #fff; z-index: 2000; transition: top 0.3s cubic-bezier(0.4, 0, 0.2, 1); display: flex; flex-direction: column;">
+    <div class="preview-header" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background: #f1f3f4; border-bottom: 1px solid #ddd; flex-shrink: 0;">
+        <span id="preview-word-title" style="font-weight:bold; color:#0288d1; font-size:14px;">图片搜索</span>
+        <button onclick="closeImagePreview()" style="border:none; background:#eee; border-radius:4px; padding:4px 12px; font-size:12px; cursor:pointer;">关闭</button>
+    </div>
+    <div class="preview-content" style="flex: 1; overflow: hidden;">
+        <iframe id="preview-iframe" style="width: 100%; height: 100%; border: none;" src=""></iframe>
+    </div>
+</div>
 <script>
-    let scrollTimer = null;
-    let controlsTimer = null;
-    let isLongPress = false;
     let touchStartX = 0;
     let touchStartY = 0;
-    const container = document.querySelector('.transcript-container');
+    let controlsTimer = null;
     const SWIPE_THRESHOLD = 40; // 划动最小像素阈值
     const video = document.getElementById('videoPlayer');
-    const touchOverlay = document.getElementById('video-touch-overlay');
     const transcript = document.getElementById('transcript');
     const status = document.getElementById('status');
     const dot = document.getElementById('dot');
     const videoHint = document.getElementById('video-hint');
     const transcriptContainer = document.querySelector('.transcript-container');
-function toggleNativeControls() {
-    const video = document.getElementById('videoPlayer');
     const touchOverlay = document.getElementById('video-touch-overlay');
-    const btn = document.getElementById('toggle-controls-btn');
-    if (controlsTimer) clearTimeout(controlsTimer);
-    video.controls = true;
-    touchOverlay.style.pointerEvents = 'none';
-    btn.style.color = 'var(--primary)';
-    btn.innerText = "🔒 控件已开";
-    updateStatus("已唤起系统控件，5秒后自动关闭", true);
-    controlsTimer = setTimeout(() => {
-        video.controls = false;
-        touchOverlay.style.pointerEvents = 'auto';
-        btn.style.color = '';
-        btn.innerText = "🛠️ 播放控件";
-        updateStatus("已恢复纯净模式", true);
-    }, 5000);
-}
-touchOverlay.addEventListener('touchstart', (e) => {
-    touchStartX = e.touches[0].clientX;
-    touchStartY = e.touches[0].clientY;
-}, { passive: true });
-    //
-touchOverlay.addEventListener('touchend', (e) => {
-    // 拦截：如果正在选词，直接跳出
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 0) return;
-
-    const touchEndX = e.changedTouches[0].clientX;
-    const touchEndY = e.changedTouches[0].clientY;
-    const deltaX = touchEndX - touchStartX;
-    const deltaY = touchEndY - touchStartY;
-
-    if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
-        if (video.paused) {
-            video.play().catch(err => console.log("播放被拦截", err));
-        } else {
-            video.pause();
-        }
-    } else if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > SWIPE_THRESHOLD) {
-        if (deltaX < 0) {
-            video.currentTime = Math.max(0, video.currentTime - 2);
-        } else {
-            video.pause();
-        }
-    }
-});
-
-// 监听字幕容器滚动
-const transcriptDiv = document.getElementById('transcript');
-transcriptDiv.addEventListener('scroll', () => {
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(() => {
-        console.log("检测到滚动停止，同步阅读进度...");
-        if (window.syncUpload) window.syncUpload();
-    }, 1500); // 停止滚动 1.5 秒后同步
-});
 
 document.addEventListener('touchstart', (e) => {
+    // 记录初始点
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 }, { passive: true });
-    //
+
 document.addEventListener('touchend', (e) => {
-    // 关键拦截：如果用户正在选中文字，则不执行任何视频控制逻辑
+    // 【新增判定】：如果用户当前选中了文字，则不触发划动播放/快退逻辑
     const selection = window.getSelection();
     if (selection && selection.toString().trim().length > 0) {
-        // 发现有选中的内容，直接退出函数，不执行下面的播放/暂停逻辑
-        return; 
+        return; // 直接跳出，不执行下方的视频控制逻辑
     }
 
     const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
+    
     const deltaX = touchEndX - touchStartX;
     const deltaY = touchEndY - touchStartY;
 
-    // 只有在没有选中文字的情况下，才判断是否执行划动手势
+    // 逻辑判定：
+    // 1. 水平滑动距离必须大于垂直滑动距离（防止干扰字幕滚动）
+    // 2. 水平滑动距离必须超过阈值
     if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+        
         if (deltaX < 0) {
+            // 【左滑】：快退 2 秒
             video.currentTime = Math.max(0, video.currentTime - 2);
             updateStatus("⏪ 快退 2s", true);
         } else {
-            // 这里是控制播放/暂停的核心点
+            // 【右滑】：播放/暂停切换
             if (video.paused) {
                 video.play();
                 updateStatus("▶️ 播放", true);
@@ -327,85 +467,127 @@ document.addEventListener('touchend', (e) => {
                 updateStatus("⏸ 暂停", true);
             }
         }
-        
+
+        // 提示后恢复状态
         setTimeout(() => {
             const lastVideoName = localStorage.getItem('last_video_name');
             updateStatus(lastVideoName ? "视频已加载" : "准备就绪", true);
         }, 1000);
     }
 }, { passive: true });
-    //
+
     transcriptContainer.addEventListener('scroll', () => {
+    // 只有当不是因为“自动滚动到活跃行”触发的滚动时才记录（可选）
+    // 这里简单处理：记录用户最后的滚动位置
     localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
 });
+
     function updateStatus(msg, active = false) {
         status.innerText = msg;
         dot.className = active ? 'status-dot active' : 'status-dot';
     }
 
-
-window.addEventListener('DOMContentLoaded', () => {
-    const cachedSubs = localStorage.getItem('last_subtitles');
-    if (cachedSubs) {
-        processSubtitleContent(cachedSubs, true);
-    }
-    const lastVideoName = localStorage.getItem('last_video_name');
-    
-    // 移除 lastTime 相关的提示
-    if (lastVideoName) {
-        videoHint.innerText = `待加载: ${lastVideoName}`; // 不再显示上次时间
-        videoHint.style.display = 'block';
-    }
-});
-
-
-video.addEventListener('pause', () => {
-    if (window.syncUpload) {
-        window.syncUpload();
-        lastSyncTime = Date.now();
-    }
-});
-
-document.getElementById('videoInput').addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-        localStorage.setItem('last_video_name', file.name);
-        videoHint.style.display = 'none';
-        video.src = URL.createObjectURL(file);
-        updateStatus("视频已加载", true);
+// 3. 页面加载时恢复字幕和提示
+    window.addEventListener('DOMContentLoaded', () => {
+        // 恢复字幕
+        const cachedSubs = localStorage.getItem('last_subtitles');
+        if (cachedSubs) {
+            processSubtitleContent(cachedSubs, true);
+        }
         
-        // 移除原有的 loadeddata 恢复进度逻辑，仅保留基础加载
-        video.addEventListener('loadeddata', function onLoaded() {
-            console.log("视频已就绪，从 00:00 开始播放");
-            video.removeEventListener('loadeddata', onLoaded);
-        });
+        // 恢复视频名提示
+        const lastVideoName = localStorage.getItem('last_video_name');
+        const lastTime = localStorage.getItem('last_video_time');
+        if (lastVideoName) {
+            let timeStr = lastTime ? ` (上次看到 ${formatTime(parseFloat(lastTime))})` : '';
+            videoHint.innerText = `待加载: ${lastVideoName}${timeStr}`;
+            videoHint.style.display = 'block';
+        }
+    });
+
+    // 记录播放位置
+// 1. 实时记录位置并同步高亮 (不自动滚动)
+video.addEventListener('timeupdate', () => {
+    if (video.currentTime > 0) {
+        localStorage.setItem('last_video_time', video.currentTime);
     }
+    
+    const currentTime = video.currentTime;
+    const lines = document.querySelectorAll('.line');
+    lines.forEach((line, i) => {
+        const start = parseFloat(line.dataset.time);
+        const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
+        
+        if (currentTime >= start && currentTime < next) {
+            if (!line.classList.contains('active')) {
+                document.querySelector('.line.active')?.classList.remove('active');
+                line.classList.add('active');
+                // 【已删除】 line.scrollIntoView 这一行被去掉了，页面不再自动跳转
+            }
+        }
+    });
 });
 
+// 2. 加载视频文件时的恢复逻辑
+    document.getElementById('videoInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            // 记录视频名以便下次提示
+            localStorage.setItem('last_video_name', file.name);
+            videoHint.style.display = 'none';
+            
+            // 创建播放地址
+            video.src = URL.createObjectURL(file);
+            updateStatus("视频已加载", true);
+
+            // 【关键修改】使用 loadeddata 确保视频元数据和首帧已准备好
+            video.addEventListener('loadeddata', function onLoaded() {
+                const lastTime = localStorage.getItem('last_video_time');
+                if (lastTime) {
+                    console.log("恢复播放位置至:", lastTime);
+                    video.currentTime = parseFloat(lastTime);
+                }
+                // 移除监听器防止重复执行
+                video.removeEventListener('loadeddata', onLoaded);
+            });
+        }
+    });
+
+// 监听手动上传字幕文件
 document.getElementById('subtitleManualInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
         const reader = new FileReader();
         reader.onload = (event) => {
             const content = event.target.result;
+            // 调用现有的处理函数
             processSubtitleContent(content); 
             updateStatus("字幕已手动加载", true);
+            
+            // 可选：清除之前视频记录的进度，从头开始新字幕
+            // localStorage.setItem('last_video_time', 0);
         };
         reader.readAsText(file);
     }
 });
+
 function processSubtitleContent(content, isFromCache = false) {
     if (!isFromCache) {
         localStorage.setItem('last_subtitles', content);
     }
     const cues = parseSubtitle(content);
     renderSubtitles(cues);
+    
+    // --- 修改：优先恢复手动滚动位置，如果没有则滚动到活跃行 ---
     const lastScrollPos = localStorage.getItem('last_scroll_pos');
     const lastTime = localStorage.getItem('last_video_time');
+
     setTimeout(() => {
         if (lastScrollPos) {
+            // 恢复上次精确的滚动像素位置
             transcriptContainer.scrollTop = parseFloat(lastScrollPos);
         } else if (lastTime) {
+            // 如果没有滚动记录，则按时间定位活跃行
             const savedTime = parseFloat(lastTime);
             const lines = document.querySelectorAll('.line');
             for (let i = 0; i < lines.length; i++) {
@@ -419,34 +601,39 @@ function processSubtitleContent(content, isFromCache = false) {
             }
         }
     }, 150); // 稍微延长延迟，确保 DOM 布局计算完成
-    setTimeout(() => {
-        if(window.syncDownload) window.syncDownload();
-    }, 500);
 }
+
 function parseSubtitle(data) {
     let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
                         .replace(/<\/p>|<\/div>/gi, "\n")
                         .replace(/<\/?[^>]+(>|$)/g, "");
     const doc = new DOMParser().parseFromString(cleanData, 'text/html');
     cleanData = doc.documentElement.textContent;
+    
     const cues = [];
     const lines = cleanData.split('\n').map(l => l.trim()).filter(l => l !== "");
+
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
+        // 匹配时间轴行 (00:00:00 --> 00:00:00)
         const timeMatch = line.match(/(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/);
+        
         if (timeMatch) {
             const start = timeToSeconds(timeMatch[1]);
             let textParts = [];
             let j = i + 1;
+
+            // 收集直到下一个时间轴或文件结束前的所有非数字行
             while (j < lines.length && !lines[j].match(/-->/)) {
                 const contentLine = lines[j];
+                // 关键点：如果这一行不是纯数字（排除序号行），才加入文本内容
                 if (!/^\d+$/.test(contentLine)) {
                     textParts.push(contentLine);
                 }
                 j++;
             }
-            // 关键修改：使用 <br> 连接多行文本以保留分行效果
-            const text = textParts.join('<br>').trim();
+
+            const text = textParts.join(' ').trim();
             if (text) {
                 cues.push({ start, text });
             }
@@ -460,11 +647,12 @@ function parseSubtitle(data) {
         if (parts.length === 3) return (+parts[0]) * 3600 + (+parts[1]) * 60 + (+parts[2]);
         return (+parts[0]) * 60 + (+parts[1]);
     }
-function renderSubtitles(cues) {
+
+    function renderSubtitles(cues) {
     const transcript = document.getElementById('transcript');
     if (!transcript) return;
     transcript.innerHTML = ''; 
-
+    
     if (!cues || cues.length === 0) {
         transcript.innerHTML = '<div class="empty-state"><p>暂无字幕内容</p></div>';
         return;
@@ -476,87 +664,64 @@ function renderSubtitles(cues) {
         div.dataset.time = cue.start;
         
         const nextTime = cues[index + 1] ? cues[index + 1].start : cue.start + 5;
-        div.dataset.endTime = nextTime; 
+        div.dataset.endTime = nextTime;
 
-        // 修改布局顺序：Content 在上，Play-btn 在下
         div.innerHTML = `
-          <div class="content">${cue.text}</div>
-          <div class="play-btn" title="播放本句" contenteditable="false">▶</div>
+            <div class="play-btn" title="播放本句">▶</div>
+            <div class="content">${cue.text}</div>
         `;
 
         const btn = div.querySelector('.play-btn');
         btn.onclick = (e) => {
             e.stopPropagation();
             video.dataset.singlePlayMode = "true";
-            video.dataset.stopAt = nextTime; 
+            video.dataset.stopAt = nextTime;
             video.currentTime = cue.start;
             video.play().catch(()=>{});
-            
             document.querySelector('.line.active')?.classList.remove('active');
             div.classList.add('active');
-            updateStatus("🔂 单句播放中...", true);
         };
 
         const contentArea = div.querySelector('.content');
         let clickTimer = null;
- // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
- contentArea.onclick = (e) => {
-    const selection = window.getSelection();
-    
-    // 1. 处理双击 (e.detail === 2)
-    if (e.detail === 2) {
-        // 取消单击触发的定时器（如果有）
-        if (clickTimer) {
-            clearTimeout(clickTimer);
-            clickTimer = null;
-        }
-        
-        // 选中整句并复制
-        const range = document.createRange();
-        range.selectNodeContents(contentArea);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        const fullText = contentArea.innerText.trim();
-        copyToClipboard(fullText, "已复制整句内容");
-        return; // 双击逻辑结束
-    }
-
-    // 2. 处理单击 (e.detail === 1)
-    // 使用短延迟确保不会误触双击
-    clickTimer = setTimeout(() => {
-        // 只有当用户没有手动拉取长选区时，才执行自动选词
-        if (selection.isCollapsed) {
-            try {
-                // 自动扩展选中光标所在的单词
-                selection.modify('move', 'backward', 'word');
-                selection.modify('extend', 'forward', 'word');
-                const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                if (word) {
-                    copyToClipboard(word, "已复制单词: " + word);
-                }
-            } catch (err) {
-                console.log("自动选词暂不支持此设备");
+        contentArea.onclick = (e) => {
+            const selection = window.getSelection();
+            if (clickTimer) {
+                clearTimeout(clickTimer);
+                clickTimer = null;
+                const range = document.createRange();
+                range.selectNodeContents(contentArea);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                copyToClipboard(cue.text, "已复制整句");
+            } else {
+                clickTimer = setTimeout(() => {
+                    selection.modify('move', 'backward', 'word');
+                    selection.modify('extend', 'forward', 'word');
+                    const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                    if (word) copyToClipboard(word, "已复制单词: " + word);
+                    clickTimer = null;
+                }, 200);
             }
-        }
-        clickTimer = null;
-    }, 250); 
- };
+        };
 
         transcript.appendChild(div);
     });
 }
-
+// 辅助：执行复制
 async function copyToClipboard(text, msg) {
     try {
         await navigator.clipboard.writeText(text);
         updateStatus(msg, true);
+        // 1.5秒后恢复状态显示
         setTimeout(() => updateStatus("视频已加载", true), 1500);
     } catch (err) {}
 }
+
 function scrollToActive() {
     const activeLine = document.querySelector('.line.active');
     if (activeLine) {
+        // block: 'center' 确保行显示在屏幕中央，behavior: 'smooth' 提供平滑动画
         activeLine.scrollIntoView({ 
             behavior: 'smooth', 
             block: 'center' 
@@ -566,22 +731,27 @@ function scrollToActive() {
         updateStatus("视频未在播放匹配的字幕行", false);
     }
 }
+
 function boldSelectedText() {
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
         updateStatus("请先选中单词", false);
         return;
     }
+
     const range = selection.getRangeAt(0);
     const container = range.commonAncestorContainer.nodeType === 3
         ? range.commonAncestorContainer.parentElement
         : range.commonAncestorContainer;
+
     if (!container.closest('.content')) {
         updateStatus("只能在字幕正文内操作", false);
         return;
     }
+
     const bolds = document.querySelectorAll('.custom-bold');
     let matchedBold = [];
+
     bolds.forEach(bold => {
         const boldRange = document.createRange();
         boldRange.selectNodeContents(bold);
@@ -590,6 +760,7 @@ function boldSelectedText() {
             matchedBold.push(bold);
         }
     });
+
     if (matchedBold.length > 0) {
         matchedBold.forEach(bold => {
             const parent = bold.parentNode;
@@ -610,96 +781,24 @@ function boldSelectedText() {
             updateStatus("选区太复杂", false);
         }
     }
+    
     selection.removeAllRanges();
-    saveCurrentTranscript(); // 保存本地
-    if (window.syncUpload) {
-        window.syncUpload(); // 上传云端 (Firebase)
-    }
-}
-function saveCurrentTranscript() {
+    
+    // 【新增】操作完成后立即保存带标签的 HTML 结构
     const transcript = document.getElementById('transcript');
     if (transcript) {
         localStorage.setItem('last_subtitles_html', transcript.innerHTML);
     }
 }
-function rebindEvents() {
-    const lines = document.querySelectorAll('.line');
-    lines.forEach((line, i) => { // 传入 i 以获取索引
-        const btn = line.querySelector('.play-btn');
-        if (btn) {
-            const cueStart = parseFloat(line.dataset.time);
-            
-            // --- 关键：计算本句结束时间（即下一句的开始时间） ---
-            const nextLine = lines[i + 1];
-            const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : cueStart + 5;
-
-            btn.onclick = (e) => {
-                e.stopPropagation();
-                
-                // --- 关键：触发单句播放标记 ---
-                video.dataset.singlePlayMode = "true";
-                video.dataset.stopAt = nextTime;
-                
-                video.currentTime = cueStart;
-                video.play().catch(()=>{});
-                
-                document.querySelector('.line.active')?.classList.remove('active');
-                line.classList.add('active');
-                updateStatus("🔂 单句播放中...", true);
-            };
-        }
-
-        const contentArea = line.querySelector('.content');
-        if (contentArea) {
-            let clickTimer = null;
-            const cueText = contentArea.innerText; 
- // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
- contentArea.onclick = (e) => {
-    const selection = window.getSelection();
-    
-    // 1. 处理双击 (e.detail === 2)
-    if (e.detail === 2) {
-        // 取消单击触发的定时器（如果有）
-        if (clickTimer) {
-            clearTimeout(clickTimer);
-            clickTimer = null;
-        }
-        
-        // 选中整句并复制
-        const range = document.createRange();
-        range.selectNodeContents(contentArea);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        const fullText = contentArea.innerText.trim();
-        copyToClipboard(fullText, "已复制整句内容");
-        return; // 双击逻辑结束
+// 提取一个统一的保存函数，确保 HTML 结构被正确缓存
+function saveCurrentTranscript() {
+    const transcript = document.getElementById('transcript');
+    if (transcript) {
+        // 保存整个 innerHTML 包含加粗的标签
+        localStorage.setItem('last_subtitles_html', transcript.innerHTML);
     }
-
-    // 2. 处理单击 (e.detail === 1)
-    // 使用短延迟确保不会误触双击
-    clickTimer = setTimeout(() => {
-        // 只有当用户没有手动拉取长选区时，才执行自动选词
-        if (selection.isCollapsed) {
-            try {
-                // 自动扩展选中光标所在的单词
-                selection.modify('move', 'backward', 'word');
-                selection.modify('extend', 'forward', 'word');
-                const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                if (word) {
-                    copyToClipboard(word, "已复制单词: " + word);
-                }
-            } catch (err) {
-                console.log("自动选词暂不支持此设备");
-            }
-        }
-        clickTimer = null;
-    }, 250); 
- };
-        }
-    });
 }
-    
+// 统一高亮逻辑
     function setActiveLine(currentTime) {
         const lines = document.querySelectorAll('.line');
         let targetLine = null;
@@ -707,72 +806,59 @@ function rebindEvents() {
         lines.forEach((line, i) => {
             const start = parseFloat(line.dataset.time);
             const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
+            
             if (currentTime >= start && currentTime < next) {
                 targetLine = line;
             }
         });
+
         if (targetLine && !targetLine.classList.contains('active')) {
             document.querySelector('.line.active')?.classList.remove('active');
             targetLine.classList.add('active');
             targetLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }
+
     function formatTime(s) {
         return new Date(s * 1000).toISOString().substr(14, 5);
     }
-video.addEventListener('timeupdate', () => {
-    const currentTime = video.currentTime;
-    const lines = document.querySelectorAll('.line');
-    const floatingText = document.getElementById('current-floating-text');
-    
-    if (lines.length === 0) return;
 
-    // --- 1. 单句播放停止逻辑 (强制截断，防止溢出到下一句) ---
+// 1. 实时记录位置 (每当播放时间改变时)
+    // 1. 实时记录位置并同步更新（列表高亮 + 视频内悬浮字幕）
+    video.addEventListener('timeupdate', () => {
+    const currentTime = video.currentTime;
+    const floatingText = document.getElementById('current-floating-text');
+
+    // --- 1. 单句播放停止逻辑 ---
     if (video.dataset.singlePlayMode === "true") {
         const stopAt = parseFloat(video.dataset.stopAt);
-        
-        // 提前 0.1s 判定，并在暂停时强制回退到 stopAt 之前
-        if (currentTime >= stopAt - 0.1) { 
+        if (currentTime >= stopAt - 0.1) {
             video.pause();
-            video.currentTime = stopAt - 0.1; // 【关键】强制拉回当前句尾，防止判定为下一句
-            video.dataset.singlePlayMode = "false"; 
-            updateStatus("✅ 播放完毕", true);
-            return; 
+            video.currentTime = stopAt - 0.1;
+            video.dataset.singlePlayMode = "false";
+            return;
         }
     }
 
-    // --- 2. 基础变量准备 ---
-    const firstLineStart = parseFloat(lines[0].dataset.time);
-    const lastLine = lines[lines.length - 1];
-    const lastLineEnd = parseFloat(lastLine.dataset.time) + 5; 
-
-    // --- 3. 自动回滚逻辑 ---
-    if (video.dataset.singlePlayMode !== "true") {
-        if (currentTime > lastLineEnd + 1 || currentTime < firstLineStart - 2) {
-            video.currentTime = firstLineStart;
-            video.play().catch(() => {});
-            return; 
-        }
-    }
-
-    // --- 4. 进度记忆 ---
+    // --- 2. 记录进度 ---
     if (currentTime > 0) {
         localStorage.setItem('last_video_time', currentTime);
     }
 
-    // --- 5. 高亮与悬浮文字逻辑 ---
+    const lines = document.querySelectorAll('.line');
     let currentLine = null;
+
+    // --- 3. 查找当前匹配的行 ---
     for (let i = 0; i < lines.length; i++) {
         const start = parseFloat(lines[i].dataset.time);
-        // 注意：这里的 next 判定逻辑要准确
-        const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : lastLineEnd;
-
+        const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
         if (currentTime >= start && currentTime < next) {
             currentLine = lines[i];
             break;
         }
     }
 
+    // --- 4. 高亮与悬浮字幕 ---
     if (currentLine) {
         if (!currentLine.classList.contains('active')) {
             document.querySelector('.line.active')?.classList.remove('active');
@@ -786,42 +872,120 @@ video.addEventListener('timeupdate', () => {
                 floatingText.style.display = 'inline-block';
             }
         }
+    } else {
+        if (floatingText) {
+            floatingText.style.display = 'none';
+            floatingText.innerHTML = '';
+        }
     }
 });
+
     window.addEventListener('message', (event) => {
         if (event.data.type === 'LOAD_SUBTITLES') {
             processSubtitleContent(event.data.data);
         }
     });
+// 在内部 iframe 中打开 Bing 图片搜索
 function searchGoogleImages() { // 保持原函数名或改为 searchBingImages
     const selection = window.getSelection();
     const selectedText = selection.toString().trim();
+
     if (!selectedText) {
         updateStatus("请先选中单词或短语", false);
         return;
     }
+
+    // 过滤掉标点符号
     const query = selectedText.replace(/[.,!?;:"]/g, '');
+    
+    // 改用 Bing 搜索，并加入针对 iframe 的参数
+    // adlt=strict 开启安全搜索，确保学习环境纯净
     const url = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&adlt=strict&form=HDRSC2`;
+
     const container = document.getElementById('image-preview-container');
     const iframe = document.getElementById('preview-iframe');
     const title = document.getElementById('preview-word-title');
+
     title.innerText = `Bing 图片搜索: ${query}`;
+    
+    // 在加载前清空 src 避免缓存闪烁
     iframe.src = 'about:blank';
+    
+    // 设置新的搜索地址
     setTimeout(() => {
         iframe.src = url;
     }, 10);
+
     container.style.top = '35px'; // 展开至 action-bar 下方
     updateStatus(`正在 Bing 搜索: ${query}`, true);
 }
 function closeImagePreview() {
     const container = document.getElementById('image-preview-container');
     const iframe = document.getElementById('preview-iframe');
+    
+    // 1. 先将窗口滑出屏幕
     container.style.top = '100%'; 
+    
+    // 2. 延迟清空 src，确保滑动动画流畅完成后再停止页面脚本
     setTimeout(() => { 
         iframe.src = 'about:blank'; 
         updateStatus("视频已加载", true); // 恢复状态显示
     }, 300);
 }
+// --- 逻辑 A: 临时唤起原生控件 ---
+function toggleNativeControls() {
+    const video = document.getElementById('videoPlayer');
+    const btn = document.getElementById('toggle-controls-btn');
+    
+    if (controlsTimer) clearTimeout(controlsTimer);
+
+    // 开启控件，并允许穿透遮罩层操作进度条
+    video.controls = true;
+    touchOverlay.style.pointerEvents = 'none'; 
+    
+    btn.style.color = 'var(--primary)';
+    btn.innerText = "🔒 控件已开";
+    updateStatus("已唤起系统控件，5秒后自动关闭", true);
+
+    // 5秒后自动恢复纯净模式
+    controlsTimer = setTimeout(() => {
+        video.controls = false;
+        touchOverlay.style.pointerEvents = 'auto'; // 重新拦截点击
+        btn.style.color = '';
+        btn.innerText = "▶️ 控件";
+        updateStatus("已恢复纯净模式", true);
+    }, 5000);
+}
+// --- 逻辑 B: 在遮罩层上处理手势 ---
+touchOverlay.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+touchOverlay.addEventListener('touchend', (e) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+
+    // 如果是轻点 (Tap)
+    if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
+        if (video.paused) {
+            video.play().catch(err => console.log("播放被拦截", err));
+        } else {
+            video.pause();
+        }
+    } 
+    // 如果是水平划动
+    else if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+        if (deltaX < 0) {
+            video.currentTime = Math.max(0, video.currentTime - 2); // 左划快退
+            updateStatus("⏪ 快退 2s", true);
+        } else {
+            video.pause(); // 右划暂停（或根据需求自定义）
+        }
+    }
+});
     window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
 </script>
 </body>
