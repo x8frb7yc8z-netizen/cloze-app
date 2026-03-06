@@ -10,14 +10,7 @@
 html,body{width:100%;margin:0;padding:0;overflow-x:hidden!important;position:relative;}
 #status,.status-dot{display:none!important;}
 /* 1. 移除容器内边距，允许内容撑满全屏 */
-.transcript-container {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden !important;
-    padding: 0 !important; /* 原为 20px，改为 0 */
-    background: #ffffff;
-    box-sizing: border-box;
-}
+.transcript-container {flex: 1;overflow-y: auto;overflow-x: hidden !important;padding: 0 !important; /* 原为 20px，改为 0 */background: #ffffff;box-sizing: border-box;}
 .custom-bold{font-weight:700!important;color:#000!important;text-underline-offset:4px;}
 :root{--primary:#00a1d6;--primary-light:rgba(0,161,214,0.08);--bg:#ffffff;--header-bg:rgba(255,255,255,0.9);--panel:#f5f5f7;--text-main:#1d1d1f;--text-dim:#86868b;--border:#d2d2d7;--line-hover:#f0f0f2;}
 body {
@@ -492,52 +485,52 @@ function renderSubtitles(cues) {
         });
 
         // --- 2. 内容区域交互 (单击选词 + 双击复制) ---
-        const contentArea = div.querySelector('.content');
-        let clickTimer = null;
+        // --- 2. 内容区域交互 (电脑+移动端通用修复版) ---
+  const contentArea = div.querySelector('.content');
+  let timer = null;
 
-        contentArea.addEventListener('click', (e) => {
-            e.stopPropagation();
+  contentArea.addEventListener('click', (e) => {
+    e.stopPropagation();
+    
+    if (e.detail === 1) {
+        // 单击逻辑：延迟执行，给双击留出判断时间
+        timer = setTimeout(() => {
             const selection = window.getSelection();
-
-            if (e.detail === 2) { 
-                // --- 双击逻辑 ---
-                if (clickTimer) clearTimeout(clickTimer); // 阻止单击逻辑触发
-                clickTimer = null;
-
-                const range = document.createRange();
-                range.selectNodeContents(contentArea);
-                selection.removeAllRanges();
-                selection.addRange(range);
-                
-                const textToCopy = contentArea.innerText.trim();
-                copyToClipboard(textToCopy, "已复制整句内容");
-            } 
-            else if (e.detail === 1) {
-                // --- 单击逻辑 ---
-                clickTimer = setTimeout(() => {
-                    // 如果用户正在手动拉取选区，则不干扰
-                    if (selection.toString().trim().length > 0 && !selection.isCollapsed) return;
-
-                    let range;
-                    if (document.caretRangeFromPoint) {
-                        range = document.caretRangeFromPoint(e.clientX, e.clientY);
+            // 如果用户只是点一下，没有拉动选区
+            if (selection.toString().trim().length === 0) {
+                let range;
+                if (document.caretRangeFromPoint) {
+                    range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                }
+                if (range) {
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    // 选词逻辑
+                    selection.modify('move', 'backward', 'word');
+                    selection.modify('extend', 'forward', 'word');
+                    
+                    const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                    if (word && word.length < 25) {
+                        copyToClipboard(word, "已复制单词: " + word);
                     }
-                    if (range) {
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                        // iOS/移动端优化选词
-                        selection.modify('move', 'backward', 'word');
-                        selection.modify('extend', 'forward', 'word');
-                        
-                        const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                        if (word && word.length < 25) {
-                            copyToClipboard(word, "已复制单词: " + word);
-                        }
-                    }
-                    clickTimer = null;
-                }, 250); // 250ms 延迟足以区分双击
+                }
             }
-        });
+        }, 250); // 250ms 是标准双击间隔
+    } else if (e.detail === 2) {
+        // 双击逻辑：立即清除单击定时器
+        if (timer) clearTimeout(timer);
+        
+        const textToCopy = contentArea.innerText.trim();
+        copyToClipboard(textToCopy, "已复制整句内容");
+        
+        // 视觉反馈：全选整句
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(contentArea);
+        selection.removeAllRanges();
+        selection.addRange(range);
+    }
+    });
 
         transcript.appendChild(div);
     });
