@@ -526,25 +526,71 @@ function renderSubtitles(cues) {
 }
 
 async function copyToClipboard(text, msg) {
-  try {
-    await navigator.clipboard.writeText(text);
-    updateStatus(msg, true);
-  } catch (err) {
-    // 降级方案：execCommand（旧式但兼容性好）
-    const el = document.createElement('textarea');
-    el.value = text;
-    el.style.position = 'fixed';
-    el.style.opacity = '0';
-    document.body.appendChild(el);
-    el.focus();
-    el.select();
-    document.execCommand('copy');
-    document.body.removeChild(el);
-    updateStatus(msg + " (兼容模式)", true);
-  }
-  setTimeout(() => updateStatus("视频已加载", true), 1500);
+    // Safari 专用：ClipboardItem 方式
+    if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+        try {
+            await navigator.clipboard.write([
+                new ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }) })
+            ]);
+            updateStatus(msg, true);
+            setTimeout(() => updateStatus("视频已加载", true), 1500);
+            return;
+        } catch (err) {}
+    }
+
+    // Brave / Chrome
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+        try {
+            await navigator.clipboard.writeText(text);
+            updateStatus(msg, true);
+            setTimeout(() => updateStatus("视频已加载", true), 1500);
+            return;
+        } catch (err) {}
+    }
+
+    // Anki WebView 降级：execCommand
+    try {
+        const el = document.createElement('textarea');
+        el.value = text;
+        el.style.cssText = 'position:fixed;top:0;left:0;opacity:0;pointer-events:none;';
+        document.body.appendChild(el);
+        el.focus();
+        el.select();
+        el.setSelectionRange(0, 99999); // iOS 必须加
+        const ok = document.execCommand('copy');
+        document.body.removeChild(el);
+        if (ok) {
+            updateStatus(msg, true);
+            setTimeout(() => updateStatus("视频已加载", true), 1500);
+            return;
+        }
+    } catch (err) {}
+
+    // 三种都失败：弹出可手动长按复制的提示框
+    showCopyFallback(text);
 }
 
+function showCopyFallback(text) {
+    let box = document.getElementById('copy-fallback-box');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'copy-fallback-box';
+        box.style.cssText = `
+            position:fixed;bottom:80px;left:50%;transform:translateX(-50%);
+            background:#fff;border:1px solid #ccc;border-radius:8px;
+            padding:10px 14px;z-index:9999;
+            box-shadow:0 4px 12px rgba(0,0,0,0.15);
+            font-size:16px;max-width:80vw;text-align:center;
+        `;
+        document.body.appendChild(box);
+    }
+    box.innerHTML = `
+        <div style="font-size:11px;color:#888;margin-bottom:4px;">长按复制</div>
+        <span style="user-select:text;-webkit-user-select:text;font-weight:bold;">${text}</span>
+    `;
+    box.style.display = 'block';
+    setTimeout(() => { box.style.display = 'none'; }, 4000);
+}
 function boldSelectedText() {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) return;
