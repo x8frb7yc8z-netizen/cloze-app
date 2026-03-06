@@ -480,46 +480,38 @@ function renderSubtitles(cues) {
             updateStatus("🔂 单句播放中...", true);
         };
 
- const contentArea = div.querySelector('.content');
-let lastTapTime = 0; // 记录上次点击时间
-
-contentArea.addEventListener('touchend', (e) => {
-    const currentTime = new Date().getTime();
-    const tapInterval = currentTime - lastTapTime;
+        const contentArea = div.querySelector('.content');
+        let clickTimer = null;
+ // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
+ contentArea.onclick = (e) => {
     const selection = window.getSelection();
-
-    // --- 双击逻辑判定 (300ms 内) ---
-    if (tapInterval < 300 && tapInterval > 0) {
-        // 1. 彻底取消单击定时器
+    
+    // 1. 处理双击 (e.detail === 2)
+    if (e.detail === 2) {
+        // 取消单击触发的定时器（如果有）
         if (clickTimer) {
             clearTimeout(clickTimer);
             clickTimer = null;
         }
-
-        // 2. 选中整句
+        
+        // 选中整句并复制
         const range = document.createRange();
         range.selectNodeContents(contentArea);
         selection.removeAllRanges();
         selection.addRange(range);
-
-        // 3. 执行复制
+        
         const fullText = contentArea.innerText.trim();
         copyToClipboard(fullText, "已复制整句内容");
-
-        // 4. 阻止 iOS 默认的缩放行为
-        e.preventDefault(); 
-        lastTapTime = 0; 
-        return;
+        return; // 双击逻辑结束
     }
 
-    // --- 单击逻辑准备 ---
-    lastTapTime = currentTime;
-
-    // 使用定时器确保单击逻辑在确认不是双击后再执行
+    // 2. 处理单击 (e.detail === 1)
+    // 使用短延迟确保不会误触双击
     clickTimer = setTimeout(() => {
+        // 只有当用户没有手动拉取长选区时，才执行自动选词
         if (selection.isCollapsed) {
             try {
-                // 尝试自动选词
+                // 自动扩展选中光标所在的单词
                 selection.modify('move', 'backward', 'word');
                 selection.modify('extend', 'forward', 'word');
                 const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
@@ -527,12 +519,12 @@ contentArea.addEventListener('touchend', (e) => {
                     copyToClipboard(word, "已复制单词: " + word);
                 }
             } catch (err) {
-                console.log("自动选词受限");
+                console.log("自动选词暂不支持此设备");
             }
         }
         clickTimer = null;
-    }, 300); // 略微加长延迟，给双击留出判定空间
-});
+    }, 200); 
+ };
 
         transcript.appendChild(div);
     });
@@ -615,20 +607,24 @@ function saveCurrentTranscript() {
 }
 function rebindEvents() {
     const lines = document.querySelectorAll('.line');
-    lines.forEach((line, i) => {
-        // --- 1. 重新绑定播放按钮逻辑 ---
+    lines.forEach((line, i) => { // 传入 i 以获取索引
         const btn = line.querySelector('.play-btn');
         if (btn) {
             const cueStart = parseFloat(line.dataset.time);
+            
+            // --- 关键：计算本句结束时间（即下一句的开始时间） ---
             const nextLine = lines[i + 1];
             const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : cueStart + 5;
 
             btn.onclick = (e) => {
                 e.stopPropagation();
+                
+                // --- 关键：触发单句播放标记 ---
                 video.dataset.singlePlayMode = "true";
                 video.dataset.stopAt = nextTime;
+                
                 video.currentTime = cueStart;
-                video.play().catch(() => {});
+                video.play().catch(()=>{});
                 
                 document.querySelector('.line.active')?.classList.remove('active');
                 line.classList.add('active');
@@ -636,59 +632,53 @@ function rebindEvents() {
             };
         }
 
-        // --- 2. 重新绑定字幕内容点击/双击逻辑 (iOS 适配版) ---
         const contentArea = line.querySelector('.content');
         if (contentArea) {
-            let lastTapTime = 0;
             let clickTimer = null;
+            const cueText = contentArea.innerText; 
+ // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
+ contentArea.onclick = (e) => {
+    const selection = window.getSelection();
+    
+    // 1. 处理双击 (e.detail === 2)
+    if (e.detail === 2) {
+        // 取消单击触发的定时器（如果有）
+        if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+        }
+        
+        // 选中整句并复制
+        const range = document.createRange();
+        range.selectNodeContents(contentArea);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        const fullText = contentArea.innerText.trim();
+        copyToClipboard(fullText, "已复制整句内容");
+        return; // 双击逻辑结束
+    }
 
-            // 移除旧的 onclick 干扰，统一改用 touchend
-            contentArea.onclick = null; 
-
-            contentArea.addEventListener('touchend', (e) => {
-                const currentTime = new Date().getTime();
-                const tapInterval = currentTime - lastTapTime;
-                const selection = window.getSelection();
-
-                // 判定双击
-                if (tapInterval < 300 && tapInterval > 0) {
-                    if (clickTimer) {
-                        clearTimeout(clickTimer);
-                        clickTimer = null;
-                    }
-                    
-                    const range = document.createRange();
-                    range.selectNodeContents(contentArea);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                    
-                    const fullText = contentArea.innerText.trim();
-                    copyToClipboard(fullText, "已复制整句内容");
-                    
-                    e.preventDefault(); 
-                    lastTapTime = 0;
-                    return;
+    // 2. 处理单击 (e.detail === 1)
+    // 使用短延迟确保不会误触双击
+    clickTimer = setTimeout(() => {
+        // 只有当用户没有手动拉取长选区时，才执行自动选词
+        if (selection.isCollapsed) {
+            try {
+                // 自动扩展选中光标所在的单词
+                selection.modify('move', 'backward', 'word');
+                selection.modify('extend', 'forward', 'word');
+                const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                if (word) {
+                    copyToClipboard(word, "已复制单词: " + word);
                 }
-
-                lastTapTime = currentTime;
-
-                // 判定单击
-                clickTimer = setTimeout(() => {
-                    if (selection.isCollapsed) {
-                        try {
-                            selection.modify('move', 'backward', 'word');
-                            selection.modify('extend', 'forward', 'word');
-                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                            if (word) {
-                                copyToClipboard(word, "已复制单词: " + word);
-                            }
-                        } catch (err) {
-                            console.log("自动选词受限");
-                        }
-                    }
-                    clickTimer = null;
-                }, 250);
-            });
+            } catch (err) {
+                console.log("自动选词暂不支持此设备");
+            }
+        }
+        clickTimer = null;
+    }, 250); 
+ };
         }
     });
 }
