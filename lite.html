@@ -88,17 +88,12 @@ video {width: 101% !important;margin-left: -0.5% !important; margin-top: 0; marg
 .line:hover{background:var(--line-hover);border-color:var(--border);}
 .time-box{display:inline-block!important;font-family:"SF Mono",monospace;font-size:10px;color:#ccc;background:#f0f0f2;padding:2px 6px;border-radius:4px;margin-bottom:8px;opacity:0.6;}
 .content {
-    line-height: 1; /* 稍微增加行高，方便点击 */
+    line-height: 1;
     font-size: 30px;
     transition: none !important;
     font-weight: 400 !important;
     color: #1d1d1f;
-    width: 100%;
-    /* 核心修复：禁用 Safari 双击缩放，允许立即触发 JS 事件 */
-    touch-action: manipulation !important;
-    -webkit-user-select: text !important;
-    user-select: text !important;
-    cursor: pointer;
+    width: 100%; /* 确保文字宽度撑满 */
 }
 .line.active .content{font-weight:400!important;transform:none!important;color:#000;}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-dim);text-align:center;}
@@ -451,6 +446,113 @@ function parseSubtitle(data) {
 function renderSubtitles(cues) {
     const transcript = document.getElementById('transcript');
     if (!transcript) return;
+    
+    // 清空现有内容
+    transcript.innerHTML = ''; 
+
+    if (!cues || cues.length === 0) {
+        transcript.innerHTML = '<div class="empty-state"><p>暂无字幕内容</p></div>';
+        return;
+    }
+
+    // 1. 纯净构建 DOM 结构
+    cues.forEach((cue) => {
+        const div = document.createElement('div');
+        div.className = 'line';
+        div.dataset.time = cue.start;
+
+        div.innerHTML = `
+          <div class="content">${cue.text}</div>
+          <div class="play-btn" title="从此处播放">▶</div>
+        `;
+        transcript.appendChild(div);
+    });
+
+    // 2. 统一绑定交互逻辑 (包含单击取词、双击复制、单句播放)
+    // 这将引用我们刚才修复的、逻辑最稳健的 rebindEvents
+    rebindEvents();
+}
+
+function rebindEvents() {
+    const lines = document.querySelectorAll('.line');
+    lines.forEach((line, i) => {
+        const contentArea = line.querySelector('.content');
+        if (!contentArea) return;
+
+        // --- 核心：使用克隆节点彻底清除旧的内联/监听事件，防止逻辑重叠 ---
+        const newContent = contentArea.cloneNode(true);
+        contentArea.parentNode.replaceChild(newContent, contentArea);
+
+        let clickTimer = null;
+
+        newContent.addEventListener('click', (e) => {
+            e.stopPropagation();
+
+            // e.detail 在电脑和手机上均代表短时间内连续点击的次数
+            if (e.detail === 1) {
+                // 单击：等待双击判定
+                clickTimer = setTimeout(() => {
+                    const selection = window.getSelection();
+                    // 仅在用户未手动拉动选择大段文字时执行取词
+                    if (selection.toString().trim().length === 0) {
+                        let range = document.caretRangeFromPoint ? 
+                                    document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+                        if (range) {
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            // 选词逻辑
+                            selection.modify('move', 'backward', 'word');
+                            selection.modify('extend', 'forward', 'word');
+                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                            if (word && word.length < 25) {
+                                copyToClipboard(word, "已复制单词: " + word);
+                            }
+                        }
+                    }
+                    clickTimer = null;
+                }, 250); 
+            } 
+            else if (e.detail === 2) {
+                // 双击：清除单击定时器，执行整句复制
+                if (clickTimer) clearTimeout(clickTimer);
+                const fullText = newContent.innerText.trim();
+                copyToClipboard(fullText, "已复制整句内容");
+                
+                // 视觉全选效果
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(newContent);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        });
+
+        // 重新绑定播放按钮（确保每个 line 的按钮逻辑正确）
+        const btn = line.querySelector('.play-btn');
+        if (btn) {
+            btn.onclick = (e) => {
+                e.stopPropagation();
+                const cueStart = parseFloat(line.dataset.time);
+                const nextLine = lines[i + 1];
+                const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : cueStart + 5;
+
+                video.dataset.singlePlayMode = "true";
+                video.dataset.stopAt = nextTime;
+                video.currentTime = cueStart;
+                video.play();
+                
+                document.querySelector('.line.active')?.classList.remove('active');
+                line.classList.add('active');
+                updateStatus("🔂 单句播放中...", true);
+            };
+        }
+    });
+}
+
+// 确保在 renderSubtitles 的最后调用 rebindEvents
+function renderSubtitles(cues) {
+    const transcript = document.getElementById('transcript');
+    if (!transcript) return;
     transcript.innerHTML = ''; 
 
     if (!cues || cues.length === 0) {
@@ -469,35 +571,20 @@ function renderSubtitles(cues) {
         transcript.appendChild(div);
     });
 
-    // 渲染完毕后，统一由 rebindEvents 绑定所有交互
+    // 渲染完毕后，统一绑定事件
     rebindEvents();
 }
 
+// 补充：更稳健的复制函数（兼容移动端 Safari）
 function copyToClipboard(text, msg) {
-    if (!text) return;
-
-    // 1. 创建 TextArea
     const textArea = document.createElement("textarea");
     textArea.value = text;
-    
-    // 2. 核心：必须确保元素在可视区域内，否则 iOS 不执行复制
     textArea.style.position = "fixed";
-    textArea.style.left = "0";
+    textArea.style.left = "-9999px";
     textArea.style.top = "0";
-    textArea.style.width = "1px";
-    textArea.style.height = "1px";
-    textArea.style.padding = "0";
-    textArea.style.border = "none";
-    textArea.style.outline = "none";
-    textArea.style.boxShadow = "none";
-    textArea.style.background = "transparent";
-    
     document.body.appendChild(textArea);
-    
-    // 3. 选中逻辑
     textArea.focus();
     textArea.select();
-    // 兼容 iOS 的选中范围设置
     textArea.setSelectionRange(0, 9999);
 
     let success = false;
@@ -506,32 +593,17 @@ function copyToClipboard(text, msg) {
     } catch (err) {
         success = false;
     }
-
     document.body.removeChild(textArea);
 
-    if (success) {
-        updateStatus(msg, true);
-    } else {
-        // 退而求其次使用现代 API
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(text).then(() => {
-                updateStatus(msg, true);
-            });
-        }
+    if (!success && navigator.clipboard) {
+        navigator.clipboard.writeText(text).catch(() => {});
     }
-}
-    
-function scrollToActive() {
-    const activeLine = document.querySelector('.line.active');
-    if (activeLine) {
-        activeLine.scrollIntoView({ 
-            behavior: 'smooth', 
-            block: 'center' 
-        });
-        updateStatus("已定位到当前播放位置", true);
-    } else {
-        updateStatus("视频未在播放匹配的字幕行", false);
-    }
+
+    updateStatus(msg, true);
+    setTimeout(() => {
+        const lastVideoName = localStorage.getItem('last_video_name');
+        updateStatus(lastVideoName ? "视频已加载" : "准备就绪", true);
+    }, 1500);
 }
 
 function boldSelectedText() {
@@ -573,88 +645,89 @@ function saveCurrentTranscript() {
         localStorage.setItem('last_subtitles_html', transcript.innerHTML);
     }
 }
-
 function rebindEvents() {
     const lines = document.querySelectorAll('.line');
+    const video = document.getElementById('videoPlayer');
+
     lines.forEach((line, i) => {
         const contentArea = line.querySelector('.content');
         if (!contentArea) return;
 
-        // 彻底清除旧监听器
+        // --- 1. 彻底重置内容区：克隆节点以清除所有旧的事件监听器 ---
         const newContent = contentArea.cloneNode(true);
         contentArea.parentNode.replaceChild(newContent, contentArea);
 
-        let lastClickTime = 0;
+        let clickTimer = null;
 
+        // --- 2. 绑定内容交互 (单击取词 / 双击整句) ---
         newContent.addEventListener('click', (e) => {
-            const currentTime = Date.now();
-            const clickDelay = currentTime - lastClickTime;
-            lastClickTime = currentTime;
+            e.stopPropagation();
 
-            // 获取当前的选区
-            const selection = window.getSelection();
+            if (e.detail === 1) {
+                // 单击逻辑：延迟执行，确保不是双击的一部分
+                clickTimer = setTimeout(() => {
+                    const selection = window.getSelection();
+                    // 只有在用户没有手动拉动选区的情况下，才执行自动取词
+                    if (selection.toString().trim().length === 0) {
+                        let range = null;
+                        // 兼容不同浏览器的坐标取点
+                        if (document.caretRangeFromPoint) {
+                            range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                        } else if (e.rangeParent) {
+                            range = document.createRange();
+                            range.setStart(e.rangeParent, e.rangeOffset);
+                        }
 
-            if (clickDelay < 350) {
-                // 【双击：复制整句】 - 同步执行
-                const fullText = newContent.innerText.trim();
+                        if (range) {
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            // 核心取词算法
+                            selection.modify('move', 'backward', 'word');
+                            selection.modify('extend', 'forward', 'word');
+                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                            if (word && word.length < 25) {
+                                copyToClipboard(word, "已复制单词: " + word);
+                            }
+                        }
+                    }
+                    clickTimer = null;
+                }, 250); 
+            } 
+            else if (e.detail === 2) {
+                // 双击逻辑：立即清除单击定时器
+                if (clickTimer) clearTimeout(clickTimer);
                 
-                // 视觉选中全句
+                const fullText = newContent.innerText.trim();
+                copyToClipboard(fullText, "已复制整句内容");
+                
+                // 视觉反馈：全选整句
+                const selection = window.getSelection();
                 const range = document.createRange();
                 range.selectNodeContents(newContent);
                 selection.removeAllRanges();
                 selection.addRange(range);
-
-                // 立即执行复制（必须同步）
-                copyToClipboard(fullText, "已复制整句内容");
-                
-                // 阻止系统默认的双击放大
-                e.preventDefault();
-            } else {
-                // 【单击：选词】
-                // 注意：由于我们要支持双击，单击逻辑不能有 setTimeout
-                // 我们利用用户的点击位置直接计算单词
-                
-                // 如果用户已经手动拖拽选了一段话，就不执行单次选词
-                if (selection.toString().trim().length === 0) {
-                    let range = null;
-                    if (document.caretRangeFromPoint) {
-                        range = document.caretRangeFromPoint(e.clientX, e.clientY);
-                    }
-
-                    if (range) {
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                        try {
-                            // 扩展到单词边界
-                            selection.modify('move', 'backward', 'word');
-                            selection.modify('extend', 'forward', 'word');
-                            
-                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                            if (word && word.length > 0 && word.length < 25) {
-                                copyToClipboard(word, "已复制单词: " + word);
-                            }
-                        } catch(err) {
-                            console.log("Browser doesn't support selection.modify");
-                        }
-                    }
-                }
             }
         });
 
-        // 重新绑定播放按钮
+        // --- 3. 绑定播放按钮 (单句播放逻辑) ---
         const btn = line.querySelector('.play-btn');
         if (btn) {
             btn.onclick = (e) => {
                 e.stopPropagation();
                 const cueStart = parseFloat(line.dataset.time);
+                
+                // 计算结束时间：下一句开始时间，或当前句+5秒
                 const nextLine = lines[i + 1];
                 const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : cueStart + 5;
 
+                // 设置视频状态标记
                 video.dataset.singlePlayMode = "true";
                 video.dataset.stopAt = nextTime;
-                video.currentTime = cueStart;
-                video.play();
                 
+                video.currentTime = cueStart;
+                video.play().catch(err => console.log("播放启动失败:", err));
+                
+                // 更新高亮状态
                 document.querySelector('.line.active')?.classList.remove('active');
                 line.classList.add('active');
                 updateStatus("🔂 单句播放中...", true);
