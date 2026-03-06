@@ -73,7 +73,6 @@ html, body {
             display: flex;
             flex-direction: column;
             height: 100vh;
-            height: 100dvh
             overflow: hidden;
         }
 
@@ -243,7 +242,7 @@ html, body {
 .line {
     width: 100%;
     max-width: none; /* 去掉 800px 限制，实现真正的 0 留白 */
-    padding: 12px 10px; /* 增加一点内部微调，防止文字紧贴物理屏幕边缘 */
+    padding: 10px 2px; /* 增加一点内部微调，防止文字紧贴物理屏幕边缘 */
     cursor: pointer;
     text-align: left; /* 改为左对齐，配合 0 留白更自然 */
     background: transparent !important;
@@ -396,10 +395,10 @@ html, body {
     </div>
 
     <div class="action-bar">
-        <button class="action-btn" onclick="scrollToActive()">🎯 定位当前</button>
-        <button class="action-btn" onclick="boldSelectedText()"><b>B</b> 单词加粗</button>
+        <button class="action-btn" onclick="scrollToActive()">🎯 当前</button>
+        <button class="action-btn" onclick="boldSelectedText()"><b>B</b> 加粗</button>
+        <button class="action-btn" onclick="searchGoogleImages()">🖼️ 图片</button>
         <button class="action-btn" id="toggle-controls-btn" onclick="toggleNativeControls()">▶️ 控件</button>
-        <button class="action-btn" onclick="searchGoogleImages()">🖼️ 图片搜索</button>
     </div>
     <div class="transcript-container" id="transcript">
         <div class="empty-state">
@@ -416,6 +415,121 @@ html, body {
         <iframe id="preview-iframe" style="width: 100%; height: 100%; border: none;" src=""></iframe>
     </div>
 </div>
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  
+    // Firebase 配置 (已保留你提供的配置)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+      authDomain: "cloze-master-pro.firebaseapp.com",
+      databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "cloze-master-pro",
+      storageBucket: "cloze-master-pro.firebasestorage.app",
+      messagingSenderId: "697808901954",
+      appId: "1:697808901954:web:32455d94bf67e522e01adb"
+    };
+  
+    const fbApp = initializeApp(firebaseConfig);
+    const db = getDatabase(fbApp);
+  
+    // 1. 生成唯一 ID
+    window.getDocId = function () {
+      const urlParams = new URLSearchParams(window.location.search);
+      const customId = urlParams.get('customid');
+      if (customId && customId.trim() !== "") {
+          return "anki_" + customId.trim();
+      }
+      console.warn("未检测到 customid，Firebase 同步已禁用。");
+      return null;
+    };
+  
+    // 2. 上传同步：仅记录加粗单词索引和滚动位置
+    window.syncUpload = async function() {
+      const id = window.getDocId();
+      if (!id) return;
+  
+      const transcript = document.getElementById('transcript');
+      // 获取 transcript 下所有的单词 span (假设类名为 word 或 word-span)
+      const allWords = transcript.querySelectorAll('.word, .word-span');
+      const boldIndices = [];
+  
+      // 遍历并记录加粗的索引
+      allWords.forEach((span, index) => {
+        if (span.classList.contains('custom-bold')) {
+          boldIndices.push(index);
+        }
+      });
+  
+      // 计算滚动百分比
+      const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight || 1);
+  
+      try {
+        await set(ref(db, 'video_reader_sync/' + id), {
+          boldIndices: boldIndices,
+          scrollPos: scrollPercent,
+          ts: Date.now()
+        });
+        // 调用你原有的状态更新函数
+        if (typeof updateStatus === 'function') updateStatus("☁️ 阅读进度已同步", true);
+      } catch (e) {
+        console.error("Firebase Upload Error:", e);
+      }
+    };
+  
+    // 3. 下载同步：还原加粗状态和滚动位置
+    window.syncDownload = async function() {
+      const id = window.getDocId();
+      if (!id) return;
+  
+      try {
+        const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
+        if (snapshot.exists()) {
+          const data = snapshot.val();
+          const transcript = document.getElementById('transcript');
+          const allWords = transcript.querySelectorAll('.word, .word-span');
+  
+          // A. 还原加粗
+          if (data.boldIndices && Array.isArray(data.boldIndices)) {
+            // 先统一移除本地加粗
+            allWords.forEach(span => span.classList.remove('custom-bold'));
+            // 根据云端索引重新加粗
+            data.boldIndices.forEach(idx => {
+              if (allWords[idx]) allWords[idx].classList.add('custom-bold');
+            });
+          }
+  
+          // B. 还原滚动条位置 (延迟执行确保 DOM 渲染完毕)
+          if (data.scrollPos !== undefined) {
+            setTimeout(() => {
+              transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+              if (typeof updateStatus === 'function') updateStatus("✨ 已加载上次阅读位置", true);
+            }, 300);
+          }
+        }
+      } catch (e) {
+        console.error("Firebase Download Error:", e);
+      }
+    };
+  
+    // 4. 自动化监听：当用户加粗单词或停止滚动时自动同步
+    // 请在你的加粗函数执行完后手动调用 window.syncUpload()
+    let scrollTimer;
+    document.getElementById('transcript').addEventListener('scroll', () => {
+      clearTimeout(scrollTimer);
+      scrollTimer = setTimeout(() => {
+        window.syncUpload();
+      }, 1500); // 停止滚动1.5秒后自动上传
+    });
+  
+    // 初始加载
+    window.addEventListener('load', () => {
+      // 延迟 500ms 确保字幕文件解析渲染完成
+      setTimeout(() => {
+        window.syncDownload();
+      }, 500);
+    });
+  </script>
 <script>
     let touchStartX = 0;
     let touchStartY = 0;
@@ -478,15 +592,27 @@ document.addEventListener('touchend', (e) => {
 
     transcriptContainer.addEventListener('scroll', () => {
     // 只有当不是因为“自动滚动到活跃行”触发的滚动时才记录（可选）
-    // 这里简单处理：记录用户最后的滚动位置
-    localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
+
 });
 
-    function updateStatus(msg, active = false) {
-        status.innerText = msg;
-        dot.className = active ? 'status-dot active' : 'status-dot';
-    }
+function updateStatus(msg, active = false) {
+    const statusEl = document.getElementById('status');
+    const dotEl = document.getElementById('dot');
+    if (!statusEl || !dotEl) return;
 
+    statusEl.innerText = msg;
+    dotEl.className = active ? 'status-dot active' : 'status-dot';
+
+    // 如果是临时提示，3秒后自动恢复到视频名称
+    if (active && msg !== "视频已加载") {
+        clearTimeout(window.statusTimer);
+        window.statusTimer = setTimeout(() => {
+            const lastVideoName = localStorage.getItem('last_video_name');
+            statusEl.innerText = lastVideoName ? "视频已加载" : "准备就绪";
+            dotEl.className = 'status-dot active';
+        }, 3000);
+    }
+}
 // 3. 页面加载时恢复字幕和提示
     window.addEventListener('DOMContentLoaded', () => {
         // 恢复字幕
@@ -508,9 +634,6 @@ document.addEventListener('touchend', (e) => {
     // 记录播放位置
 // 1. 实时记录位置并同步高亮 (不自动滚动)
 video.addEventListener('timeupdate', () => {
-    if (video.currentTime > 0) {
-        localStorage.setItem('last_video_time', video.currentTime);
-    }
     
     const currentTime = video.currentTime;
     const lines = document.querySelectorAll('.line');
@@ -563,18 +686,12 @@ document.getElementById('subtitleManualInput').addEventListener('change', (e) =>
             // 调用现有的处理函数
             processSubtitleContent(content); 
             updateStatus("字幕已手动加载", true);
-            
-            // 可选：清除之前视频记录的进度，从头开始新字幕
-            // localStorage.setItem('last_video_time', 0);
         };
         reader.readAsText(file);
     }
 });
 
 function processSubtitleContent(content, isFromCache = false) {
-    if (!isFromCache) {
-        localStorage.setItem('last_subtitles', content);
-    }
     const cues = parseSubtitle(content);
     renderSubtitles(cues);
     
@@ -648,7 +765,7 @@ function parseSubtitle(data) {
         return (+parts[0]) * 60 + (+parts[1]);
     }
 
-    function renderSubtitles(cues) {
+function renderSubtitles(cues) {
     const transcript = document.getElementById('transcript');
     if (!transcript) return;
     transcript.innerHTML = ''; 
@@ -662,15 +779,17 @@ function parseSubtitle(data) {
         const div = document.createElement('div');
         div.className = 'line';
         div.dataset.time = cue.start;
-        
         const nextTime = cues[index + 1] ? cues[index + 1].start : cue.start + 5;
-        div.dataset.endTime = nextTime;
+
+        // 【关键修改】：将文本按空格拆分成单词，并包裹 span.word
+        const wordsHTML = cue.text.split(' ').map(word => `<span class="word">${word}</span>`).join(' ');
 
         div.innerHTML = `
             <div class="play-btn" title="播放本句">▶</div>
-            <div class="content">${cue.text}</div>
+            <div class="content">${wordsHTML}</div>
         `;
 
+        // 绑定播放按钮逻辑 (保持不变)
         const btn = div.querySelector('.play-btn');
         btn.onclick = (e) => {
             e.stopPropagation();
@@ -682,26 +801,13 @@ function parseSubtitle(data) {
             div.classList.add('active');
         };
 
+        // 绑定单词点击逻辑
         const contentArea = div.querySelector('.content');
         let clickTimer = null;
         contentArea.onclick = (e) => {
-            const selection = window.getSelection();
-            if (clickTimer) {
-                clearTimeout(clickTimer);
-                clickTimer = null;
-                const range = document.createRange();
-                range.selectNodeContents(contentArea);
-                selection.removeAllRanges();
-                selection.addRange(range);
-                copyToClipboard(cue.text, "已复制整句");
-            } else {
-                clickTimer = setTimeout(() => {
-                    selection.modify('move', 'backward', 'word');
-                    selection.modify('extend', 'forward', 'word');
-                    const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                    if (word) copyToClipboard(word, "已复制单词: " + word);
-                    clickTimer = null;
-                }, 200);
+            if (e.target.classList.contains('word')) {
+                const word = e.target.innerText.replace(/[.,!?;:"]/g, '');
+                copyToClipboard(word, "已复制单词: " + word);
             }
         };
 
@@ -739,63 +845,32 @@ function boldSelectedText() {
         return;
     }
 
-    const range = selection.getRangeAt(0);
-    const container = range.commonAncestorContainer.nodeType === 3
-        ? range.commonAncestorContainer.parentElement
-        : range.commonAncestorContainer;
+    const transcript = document.getElementById('transcript');
+    const allWords = transcript.querySelectorAll('.word');
+    let hasChanged = false;
 
-    if (!container.closest('.content')) {
-        updateStatus("只能在字幕正文内操作", false);
-        return;
-    }
-
-    const bolds = document.querySelectorAll('.custom-bold');
-    let matchedBold = [];
-
-    bolds.forEach(bold => {
-        const boldRange = document.createRange();
-        boldRange.selectNodeContents(bold);
-        if (range.compareBoundaryPoints(Range.END_TO_START, boldRange) < 0 &&
-            range.compareBoundaryPoints(Range.START_TO_END, boldRange) > 0) {
-            matchedBold.push(bold);
+    // 遍历所有预埋的单词标签，判断是否在选区内
+    allWords.forEach(wordSpan => {
+        if (selection.containsNode(wordSpan, true)) {
+            wordSpan.classList.toggle('custom-bold');
+            hasChanged = true;
         }
     });
 
-    if (matchedBold.length > 0) {
-        matchedBold.forEach(bold => {
-            const parent = bold.parentNode;
-            while (bold.firstChild) { parent.insertBefore(bold.firstChild, bold); }
-            parent.removeChild(bold);
-            parent.normalize();
-        });
-        updateStatus("已取消标记", true);
-    } else {
-        const span = document.createElement('span');
-        span.className = 'custom-bold';
-        try {
-            const extracted = range.extractContents();
-            span.appendChild(extracted);
-            range.insertNode(span);
-            updateStatus("已成功标记重点", true);
-        } catch (e) {
-            updateStatus("选区太复杂", false);
+    if (hasChanged) {
+        updateStatus("标记已更新", true);
+        selection.removeAllRanges();
+        
+        // 【核心】：触发 Firebase 增量索引上传
+        if (window.syncUpload) {
+            window.syncUpload(); 
         }
     }
-    
-    selection.removeAllRanges();
-    
-    // 【新增】操作完成后立即保存带标签的 HTML 结构
-    const transcript = document.getElementById('transcript');
-    if (transcript) {
-        localStorage.setItem('last_subtitles_html', transcript.innerHTML);
-    }
 }
-// 提取一个统一的保存函数，确保 HTML 结构被正确缓存
+// 直接简化为调用 Firebase 同步
 function saveCurrentTranscript() {
-    const transcript = document.getElementById('transcript');
-    if (transcript) {
-        // 保存整个 innerHTML 包含加粗的标签
-        localStorage.setItem('last_subtitles_html', transcript.innerHTML);
+    if (window.syncUpload) {
+        window.syncUpload();
     }
 }
 // 统一高亮逻辑
@@ -838,11 +913,6 @@ function saveCurrentTranscript() {
             video.dataset.singlePlayMode = "false";
             return;
         }
-    }
-
-    // --- 2. 记录进度 ---
-    if (currentTime > 0) {
-        localStorage.setItem('last_video_time', currentTime);
     }
 
     const lines = document.querySelectorAll('.line');
@@ -986,6 +1056,36 @@ touchOverlay.addEventListener('touchend', (e) => {
         }
     }
 });
+
+const originalProcessSubtitleContent = processSubtitleContent;
+processSubtitleContent = function(content, isFromCache = false) {
+    // 执行原有的解析和渲染逻辑
+    originalProcessSubtitleContent(content, isFromCache);
+    
+    // 【关键补全】：渲染完 DOM 后，立即触发一次 Firebase 下载同步
+    // 这样可以确保“加粗标记”能从云端恢复回来
+    if (window.syncDownload) {
+        setTimeout(() => {
+            window.syncDownload();
+        }, 300); // 给渲染留出一点缓冲时间
+    }
+};
+
+/**
+ * 格式化时间辅助函数 (如果你还没定义的话)
+ * 用于在 videoHint 中显示“上次看到 02:30”
+ */
+if (typeof formatTime !== 'function') {
+    function formatTime(s) {
+        if (isNaN(s)) return "00:00";
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const sec = Math.floor(s % 60);
+        const res = [m.toString().padStart(2, '0'), sec.toString().padStart(2, '0')];
+        if (h > 0) res.unshift(h.toString().padStart(2, '0'));
+        return res.join(':');
+    }
+}
     window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
 </script>
 </body>
