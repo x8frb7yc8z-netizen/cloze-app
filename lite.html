@@ -1,989 +1,976 @@
-    <!DOCTYPE html>
-    <html lang="zh-CN">
-    <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-        <meta charset="UTF-8">
-        <title>AI 意群同步播放器 - White Edition</title>
-        <style>
-        #current-floating-text .custom-bold {
-            color: #ffffff !important;
-            text-shadow: 0px 0px 3px rgba(0,0,0,0.8);
-        }
-        #current-floating-text {
-            background: transparent !important;
-            box-shadow: none !important;
-            line-height: 1 !important;
-            text-shadow: 
-                1px 1px 0 #000,
-            -1px -1px 0 #000,
-                1px -1px 0 #000,
-            -1px 1px 0 #000,
-                2px 2px 4px rgba(0,0,0,0.8);
-        }
-        html, body {
-            width: 100%;
-            margin: 0;
-            padding: 0;
-            overflow-x: hidden !important;
-            position: relative;
-        }
-        #status, .status-dot {
-            display: none !important;
-        }
-        .transcript-container {
-            flex: 1;
-            overflow-y: auto;
-            overflow-x: hidden !important;
-            padding: 10px 0 !important;
-            background: #ffffff;
-            box-sizing: border-box;
-        }
-        .custom-bold {
-            font-weight: 700 !important;
-            color: #000 !important;
-            text-underline-offset: 4px;
-        }
-        :root {
-            --primary: #00a1d6;
-            --primary-light: rgba(0, 161, 214, 0.08);
-            --bg: #ffffff;
-            --panel: #f5f5f7;
-            --text-main: #1d1d1f;
-            --text-dim: #86868b;
-            --border: #d2d2d7;
-            --line-hover: #f0f0f2;
-        }
-        body {
-            font-family: -apple-system, "SF Pro Display", "PingFang SC", sans-serif;
-            background: var(--bg);
-            color: var(--text-main);
-            margin: 0;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
-        .header {
-            height: 0;
-            padding: 0;
-            border: none;
-        }
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #d2d2d7;
-            display: inline-block;
-        }
-        .status-dot.active { background: #34c759; box-shadow: 0 0 6px rgba(52,199,89,0.5); }
-        #status { font-size: 13px; color: var(--text-dim); flex-grow: 1; }
-        .btn-upload {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 200;
-            background: rgba(255,255,255,0.2) !important;
-            color: white !important;
-            border: none !important;
-            backdrop-filter: blur(5px);
-            opacity: 0.3;
-            transition: opacity 0.3s;
-        }
-        .btn-upload:hover { opacity: 1; background: rgba(255,255,255,0.4) !important; }
-        .controls-group {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            z-index: 200;
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-        .controls-group .btn-upload { position: static; }
-        #video-hint {
-            background: rgba(0,161,214,0.9);
-            color: white;
-            font-size: 12px;
-            padding: 4px 10px;
-            border-radius: 4px;
-            white-space: nowrap;
-            display: none;
-        }
-        input[type="file"] { display: none; }
-        .main-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-        .action-bar {
-            position: sticky;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 35px;
-            z-index: 1000;
-            display: flex;
-            background: #fff;
-            border-bottom: 1px solid #eee;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
-            padding: 0;
-        }
-        .action-bar .action-btn:nth-child(1) { background: #e3f2fd; color: #1d1d1f; }
-        .action-bar .action-btn:nth-child(2) { background: #e8f5e9; color: #1d1d1f; }
-        .action-bar .action-btn {
-            flex: 1;
-            height: 100%;
-            border: none;
-            border-right: 1px solid #f0f0f0;
-            background: #fff;
-            font-size: 13px;
-            font-weight: 600;
-            color: #444;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            border-radius: 0;
-        }
-        .action-bar .action-btn:nth-child(3):hover { background: #fff8e1; color: #f57c00; }
-        .action-bar .action-btn:hover { background: #f5f5f7; color: var(--primary); }
-        .action-bar .action-btn:active { background: #eeeeee; }
-        .action-btn {
-            padding: 6px 14px;
-            border-radius: 8px;
-            border: 1px solid #d2d2d7;
-            background: #fff;
-            font-size: 13px;
-            color: #1d1d1f;
-            cursor: pointer;
-            transition: all 0.2s;
-            font-family: inherit;
-        }
-        .action-btn:hover { background: #f5f5f7; border-color: var(--primary); color: var(--primary); }
-        .video-wrapper {
-            flex: 0 0 auto;
-            background: #000;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-        }
-        video { max-height: 45vh; width: 100%; display: block; }
-        .line {
-            width: 100%;
-            max-width: none;
-            padding: 10px 2px;
-            cursor: pointer;
-            text-align: left;
-            background: transparent !important;
-            display: flex;
-            flex-direction: row;
-            align-items: flex-start;
-            justify-content: flex-start;
-            margin: 0;
-            box-sizing: border-box;
-            border-bottom: 1px solid #f9f9f9;
-        }
-        .play-btn {
-            width: 32px;
-            height: 32px;
-            margin-right: 5px;
-            border-radius: 50%;
-            border: 1px solid #d2d2d7;
-            background: #fff;
-            color: #86868b;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 14px;
-            transition: all 0.2s;
-            flex-shrink: 0;
-            user-select: none !important;
-            -webkit-user-select: none !important;
-            -webkit-touch-callout: none !important;
-        }
-        .play-btn:hover { background: #f5f5f7; color: var(--primary); border-color: var(--primary); }
-        .line.active .play-btn {
-            background: var(--primary);
-            color: #fff;
-            border-color: var(--primary);
-            box-shadow: 0 0 8px rgba(0,161,214,0.4);
-        }
-        .line:hover { background: var(--line-hover); border-color: var(--border); }
-        .time-box { display: none !important; }
-        .content {
-            flex: 1;
-            line-height: 1;
-            font-size: 28px;
-            color: #1d1d1f;
-            word-wrap: break-word;
-            white-space: normal;
-            margin: 0 !important;
-        }
-        .line.active .content { font-weight: 400 !important; transform: none !important; color: #000; }
-        .empty-state {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: var(--text-dim);
-            text-align: center;
-        }
-        </style>
-    </head>
-    <body>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta charset="UTF-8">
+    <title>AI 意群同步播放器 - White Edition</title>
+    <style>
+    #current-floating-text .custom-bold {
+        color: #ffffff !important;
+        text-shadow: 0px 0px 3px rgba(0,0,0,0.8);
+    }
+    #current-floating-text {
+        background: transparent !important;
+        box-shadow: none !important;
+        line-height: 1 !important;
+        text-shadow: 
+            1px 1px 0 #000,
+           -1px -1px 0 #000,
+            1px -1px 0 #000,
+           -1px 1px 0 #000,
+            2px 2px 4px rgba(0,0,0,0.8);
+    }
+    html, body {
+        width: 100%;
+        margin: 0;
+        padding: 0;
+        overflow-x: hidden !important;
+        position: relative;
+    }
+    #status, .status-dot {
+        display: none !important;
+    }
+    .transcript-container {
+        flex: 1;
+        overflow-y: auto;
+        overflow-x: hidden !important;
+        padding: 10px 0 !important;
+        background: #ffffff;
+        box-sizing: border-box;
+    }
+    .custom-bold {
+        font-weight: 700 !important;
+        color: #000 !important;
+        text-underline-offset: 4px;
+    }
+    :root {
+        --primary: #00a1d6;
+        --primary-light: rgba(0, 161, 214, 0.08);
+        --bg: #ffffff;
+        --panel: #f5f5f7;
+        --text-main: #1d1d1f;
+        --text-dim: #86868b;
+        --border: #d2d2d7;
+        --line-hover: #f0f0f2;
+    }
+    body {
+        font-family: -apple-system, "SF Pro Display", "PingFang SC", sans-serif;
+        background: var(--bg);
+        color: var(--text-main);
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+    }
+    .header {
+        height: 0;
+        padding: 0;
+        border: none;
+    }
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #d2d2d7;
+        display: inline-block;
+    }
+    .status-dot.active { background: #34c759; box-shadow: 0 0 6px rgba(52,199,89,0.5); }
+    #status { font-size: 13px; color: var(--text-dim); flex-grow: 1; }
+    .btn-upload {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 200;
+        background: rgba(255,255,255,0.2) !important;
+        color: white !important;
+        border: none !important;
+        backdrop-filter: blur(5px);
+        opacity: 0.3;
+        transition: opacity 0.3s;
+    }
+    .btn-upload:hover { opacity: 1; background: rgba(255,255,255,0.4) !important; }
+    .controls-group {
+        position: absolute;
+        top: 10px;
+        right: 10px;
+        z-index: 200;
+        display: flex;
+        gap: 8px;
+        align-items: center;
+    }
+    .controls-group .btn-upload { position: static; }
+    #video-hint {
+        background: rgba(0,161,214,0.9);
+        color: white;
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 4px;
+        white-space: nowrap;
+        display: none;
+    }
+    input[type="file"] { display: none; }
+    .main-content {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .action-bar {
+        position: sticky;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 35px;
+        z-index: 1000;
+        display: flex;
+        background: #fff;
+        border-bottom: 1px solid #eee;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        padding: 0;
+    }
+    .action-bar .action-btn:nth-child(1) { background: #e3f2fd; color: #1d1d1f; }
+    .action-bar .action-btn:nth-child(2) { background: #e8f5e9; color: #1d1d1f; }
+    .action-bar .action-btn {
+        flex: 1;
+        height: 100%;
+        border: none;
+        border-right: 1px solid #f0f0f0;
+        background: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        color: #444;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border-radius: 0;
+    }
+    .action-bar .action-btn:nth-child(3):hover { background: #fff8e1; color: #f57c00; }
+    .action-bar .action-btn:hover { background: #f5f5f7; color: var(--primary); }
+    .action-bar .action-btn:active { background: #eeeeee; }
+    .action-btn {
+        padding: 6px 14px;
+        border-radius: 8px;
+        border: 1px solid #d2d2d7;
+        background: #fff;
+        font-size: 13px;
+        color: #1d1d1f;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+    }
+    .action-btn:hover { background: #f5f5f7; border-color: var(--primary); color: var(--primary); }
+    .video-wrapper {
+        flex: 0 0 auto;
+        background: #000;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    video { max-height: 45vh; width: 100%; display: block; }
+    .line {
+        width: 100%;
+        max-width: none;
+        padding: 10px 2px;
+        cursor: pointer;
+        text-align: left;
+        background: transparent !important;
+        display: flex;
+        flex-direction: row;
+        align-items: flex-start;
+        justify-content: flex-start;
+        margin: 0;
+        box-sizing: border-box;
+        border-bottom: 1px solid #f9f9f9;
+    }
+    .play-btn {
+        width: 32px;
+        height: 32px;
+        margin-right: 5px;
+        border-radius: 50%;
+        border: 1px solid #d2d2d7;
+        background: #fff;
+        color: #86868b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s;
+        flex-shrink: 0;
+        user-select: none !important;
+        -webkit-user-select: none !important;
+        -webkit-touch-callout: none !important;
+    }
+    .play-btn:hover { background: #f5f5f7; color: var(--primary); border-color: var(--primary); }
+    .line.active .play-btn {
+        background: var(--primary);
+        color: #fff;
+        border-color: var(--primary);
+        box-shadow: 0 0 8px rgba(0,161,214,0.4);
+    }
+    .line:hover { background: var(--line-hover); border-color: var(--border); }
+    .time-box { display: none !important; }
+    .content {
+        flex: 1;
+        line-height: 1;
+        font-size: 28px;
+        color: #1d1d1f;
+        word-wrap: break-word;
+        white-space: normal;
+        margin: 0 !important;
+    }
+    .line.active .content { font-weight: 400 !important; transform: none !important; color: #000; }
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: var(--text-dim);
+        text-align: center;
+    }
+    </style>
+</head>
+<body>
 
-    <div class="header">
-        <div class="status-dot" id="dot"></div>
-        <span id="status">等待加载...</span>
-        <div class="controls-group">
-            <div id="video-hint"></div>
-            <label class="btn-upload">🎥<input type="file" id="videoInput" accept="video/*"></label>
-            <label class="btn-upload">📝<input type="file" id="subtitleManualInput" accept=".srt,.txt,.vtt"></label>
-        </div>
+<div class="header">
+    <div class="status-dot" id="dot"></div>
+    <span id="status">等待加载...</span>
+    <div class="controls-group">
+        <div id="video-hint"></div>
+        <label class="btn-upload">🎥<input type="file" id="videoInput" accept="video/*"></label>
+        <label class="btn-upload">📝<input type="file" id="subtitleManualInput" accept=".srt,.txt,.vtt"></label>
     </div>
+</div>
 
-    <div class="main-content">
-        <div class="video-wrapper" style="position:relative;width:100%;background:#000;overflow:hidden;">
-            <video id="videoPlayer" playsinline webkit-playsinline style="width:100%;display:block;"></video>
+<div class="main-content">
+    <div class="video-wrapper" style="position:relative;width:100%;background:#000;overflow:hidden;">
+        <video id="videoPlayer" playsinline webkit-playsinline style="width:100%;display:block;"></video>
 
-            <div id="video-touch-overlay" style="
-                position:absolute;top:0;left:0;width:100%;height:100%;
-                z-index:5;background:rgba(0,0,0,0);
-                -webkit-tap-highlight-color:transparent;
+        <div id="video-touch-overlay" style="
+            position:absolute;top:0;left:0;width:100%;height:100%;
+            z-index:5;background:rgba(0,0,0,0);
+            -webkit-tap-highlight-color:transparent;
+        "></div>
+
+        <div id="video-overlay-subtitle" style="
+            position:absolute;bottom:0%;left:0;width:100%;
+            text-align:center;pointer-events:none;z-index:10;
+            padding:0 20px;box-sizing:border-box;
+        ">
+            <div id="current-floating-text" style="
+                display:none;background:rgba(0,0,0,0.6);color:white;
+                font-size:24px;padding:5px 15px;border-radius:8px;
+                pointer-events:auto;user-select:text;-webkit-user-select:text;
+                line-height:1.4;cursor:text;max-width:85%;
+                word-wrap:break-word;margin:0 auto;
             "></div>
-
-            <div id="video-overlay-subtitle" style="
-                position:absolute;bottom:0%;left:0;width:100%;
-                text-align:center;pointer-events:none;z-index:10;
-                padding:0 20px;box-sizing:border-box;
-            ">
-                <div id="current-floating-text" style="
-                    display:none;background:rgba(0,0,0,0.6);color:white;
-                    font-size:24px;padding:5px 15px;border-radius:8px;
-                    pointer-events:auto;user-select:text;-webkit-user-select:text;
-                    line-height:1.4;cursor:text;max-width:85%;
-                    word-wrap:break-word;margin:0 auto;
-                "></div>
-            </div>
-        </div>
-
-        <div class="action-bar">
-            <button class="action-btn" onclick="scrollToActive()">🎯 当前</button>
-            <button class="action-btn" onclick="boldSelectedText()"><b>B</b> 加粗</button>
-            <button class="action-btn" onclick="searchGoogleImages()">🖼️ 图片</button>
-            <button class="action-btn" id="toggle-controls-btn" onclick="toggleNativeControls()">▶️ 控件</button>
-        </div>
-
-        <div class="transcript-container" id="transcript">
-            <div class="empty-state">
-                <p>请在 Anki 中填写"字幕内容"<br>或手动上传视频与字幕</p>
-            </div>
         </div>
     </div>
 
-    <div id="image-preview-container" style="
-        position:fixed;top:100%;left:0;width:100%;height:100%;
-        background:#fff;z-index:2000;
-        transition:top 0.3s cubic-bezier(0.4,0,0.2,1);
-        display:flex;flex-direction:column;
-    ">
-        <div style="display:flex;justify-content:space-between;align-items:center;
-            padding:10px 15px;background:#f1f3f4;border-bottom:1px solid #ddd;flex-shrink:0;">
-            <span id="preview-word-title" style="font-weight:bold;color:#0288d1;font-size:14px;">图片搜索</span>
-            <button onclick="closeImagePreview()" style="border:none;background:#eee;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;">关闭</button>
-        </div>
-        <div style="flex:1;overflow:hidden;">
-            <iframe id="preview-iframe" style="width:100%;height:100%;border:none;" src=""></iframe>
-        </div>
+    <div class="action-bar">
+        <button class="action-btn" onclick="scrollToActive()">🎯 当前</button>
+        <button class="action-btn" onclick="boldSelectedText()"><b>B</b> 加粗</button>
+        <button class="action-btn" onclick="searchGoogleImages()">🖼️ 图片</button>
+        <button class="action-btn" id="toggle-controls-btn" onclick="toggleNativeControls()">▶️ 控件</button>
     </div>
 
-    <!-- ===================== Firebase 模块（ES Module） ===================== -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    <div class="transcript-container" id="transcript">
+        <div class="empty-state">
+            <p>请在 Anki 中填写"字幕内容"<br>或手动上传视频与字幕</p>
+        </div>
+    </div>
+</div>
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
-            authDomain: "cloze-master-pro.firebaseapp.com",
-            databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "cloze-master-pro",
-            storageBucket: "cloze-master-pro.firebasestorage.app",
-            messagingSenderId: "697808901954",
-            appId: "1:697808901954:web:32455d94bf67e522e01adb"
-        };
+<div id="image-preview-container" style="
+    position:fixed;top:100%;left:0;width:100%;height:100%;
+    background:#fff;z-index:2000;
+    transition:top 0.3s cubic-bezier(0.4,0,0.2,1);
+    display:flex;flex-direction:column;
+">
+    <div style="display:flex;justify-content:space-between;align-items:center;
+        padding:10px 15px;background:#f1f3f4;border-bottom:1px solid #ddd;flex-shrink:0;">
+        <span id="preview-word-title" style="font-weight:bold;color:#0288d1;font-size:14px;">图片搜索</span>
+        <button onclick="closeImagePreview()" style="border:none;background:#eee;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;">关闭</button>
+    </div>
+    <div style="flex:1;overflow:hidden;">
+        <iframe id="preview-iframe" style="width:100%;height:100%;border:none;" src=""></iframe>
+    </div>
+</div>
 
-        const fbApp = initializeApp(firebaseConfig);
-        const db = getDatabase(fbApp);
+<!-- ===================== Firebase 模块（ES Module） ===================== -->
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // --- 新增：定义实时同步函数 ---
-        window.startRealtimeSync = function() {
-            const id = window.getDocId();
-            if (!id) return;
+    const firebaseConfig = {
+        apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
+        authDomain: "cloze-master-pro.firebaseapp.com",
+        databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "cloze-master-pro",
+        storageBucket: "cloze-master-pro.firebasestorage.app",
+        messagingSenderId: "697808901954",
+        appId: "1:697808901954:web:32455d94bf67e522e01adb"
+    };
 
-            const dbRef = ref(db, 'video_reader_sync/' + id);
+    const fbApp = initializeApp(firebaseConfig);
+    const db = getDatabase(fbApp);
+
+    window.syncDownload = async function() {
+    const id = window.getDocId();
+    if (!id) return;
+    try {
+        const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            // 获取索引数组
+            window.boldPositions = data.boldIndices || []; 
+            // 立即刷新视觉效果
+            applyBoldFromPositions(); 
             
-            // 使用 onValue 监听，只要云端数据一变，回调就会执行
-            onValue(dbRef, (snapshot) => {
-                if (snapshot.exists()) {
-                    const data = snapshot.val();
-                    
-                    // 1. 只有当远程时间戳更新时，才执行同步，防止循环触发
-                    // 或者通过判断数据内容是否一致来决定是否更新
-                    
-                    // 同步加粗单词
-                    if (data.boldTexts) {
-                        const boldSet = new Set(data.boldTexts);
-                        const transcript = document.getElementById('transcript');
-                        // 只有在用户没在操作选区时才静默更新，避免打断用户
-                        if (window.getSelection()?.isCollapsed) {
-                            transcript.querySelectorAll('.content').forEach(contentEl => {
-                                // 调用你原有的工具函数
-                                wrapMatchingWords(contentEl, boldSet);
-                            });
-                        }
-                    }
+            // 如果云端有滚动位置，且本地没在滚动，则恢复
+            if (data.scrollPos !== undefined && !window.userIsScrolling) {
+                transcriptContainer.scrollTop = data.scrollPos * (transcriptContainer.scrollHeight - transcriptContainer.clientHeight);
+            }
+        }
+    } catch(e) { console.error("同步下载失败:", e); }
+};
 
-                    // 2. 同步滚动进度（仅当用户当前没在手动滚动时）
-                    if (data.scrollPos !== undefined && !window.userIsScrolling) {
-                        const transcript = document.getElementById('transcript');
-                        const targetScroll = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                        
-                        // 如果偏差大于 50px 才同步，防止震荡
-                        if (Math.abs(transcript.scrollTop - targetScroll) > 50) {
-                            transcript.scrollTo({
-                                top: targetScroll,
-                                behavior: 'smooth'
-                            });
-                            updateStatus("✨ 进度已实时同步", true);
-                        }
-                    }
-                }
+    // 从 URL 参数获取文档 ID
+    window.getDocId = function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const customId = urlParams.get('customid');
+        return (customId && customId.trim()) ? "anki_" + customId.trim() : null;
+    };
+
+    // ☁️ 上传：将加粗词的文本内容列表同步到云端
+    window.syncUpload = async function() {
+        const id = window.getDocId();
+        if (!id) return;
+
+        const transcript = document.getElementById('transcript');
+        const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight || 1);
+
+        try {
+            await set(ref(db, 'video_reader_sync/' + id), {
+                boldIndices: window.boldPositions || [], // 存储索引
+                scrollPos: scrollPercent,
+                ts: Date.now()
             });
-        };
+            updateStatus("☁️ 进度已同步", true);
+        } catch(e) { console.error(e); }
+    };
 
-        // 从 URL 参数获取文档 ID
-        window.getDocId = function() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const customId = urlParams.get('customid');
-            return (customId && customId.trim()) ? "anki_" + customId.trim() : null;
-        };
+    // ☁️ 下载：根据云端文本内容列表还原加粗和滚动位置
+    window.syncDownload = async function() {
+        const id = window.getDocId();
+        if (!id) return;
 
-        // ☁️ 上传：将加粗词的文本内容列表同步到云端
-        // 使用"文本内容"而非"DOM索引"，避免字幕重渲染后索引失效
-        window.syncUpload = async function() {
-            const id = window.getDocId();
-            if (!id) return;
+        try {
+            const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
+            if (!snapshot.exists()) return;
 
+            const data = snapshot.val();
             const transcript = document.getElementById('transcript');
-            // 收集所有加粗 span 的文本内容（保留重复词）
-            const boldTexts = Array.from(transcript.querySelectorAll('.custom-bold'))
-                .map(el => el.textContent.trim());
 
-            const scrollPercent = transcript.scrollTop /
-                (transcript.scrollHeight - transcript.clientHeight || 1);
-
-            try {
-                await set(ref(db, 'video_reader_sync/' + id), {
-                    boldTexts,
-                    scrollPos: scrollPercent,
-                    ts: Date.now()
+            // A. 还原加粗（兼容旧版 boldIndices 格式）
+            if (data.boldTexts && Array.isArray(data.boldTexts)) {
+                const boldSet = new Set(data.boldTexts);
+                // 遍历所有内容节点，将匹配文本的节点加粗
+                transcript.querySelectorAll('.content').forEach(contentEl => {
+                    wrapMatchingWords(contentEl, boldSet);
                 });
-                updateStatus("☁️ 阅读进度已同步", true);
-            } catch(e) {
-                console.error("Firebase Upload Error:", e);
-            }
-        };
-
-        // ☁️ 下载：根据云端文本内容列表还原加粗和滚动位置
-        window.syncDownload = async function() {
-            const id = window.getDocId();
-            if (!id) return;
-
-            try {
-                const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
-                if (!snapshot.exists()) return;
-
-                const data = snapshot.val();
-                const transcript = document.getElementById('transcript');
-
-                // A. 还原加粗（兼容旧版 boldIndices 格式）
-                if (data.boldTexts && Array.isArray(data.boldTexts)) {
-                    const boldSet = new Set(data.boldTexts);
-                    // 遍历所有内容节点，将匹配文本的节点加粗
-                    transcript.querySelectorAll('.content').forEach(contentEl => {
-                        wrapMatchingWords(contentEl, boldSet);
-                    });
-                } else if (data.boldIndices && Array.isArray(data.boldIndices)) {
-                    // 兼容旧版：按索引还原（旧版用 .word span）
-                    const allWords = transcript.querySelectorAll('.word');
-                    allWords.forEach(span => span.classList.remove('custom-bold'));
-                    data.boldIndices.forEach(idx => {
-                        if (allWords[idx]) allWords[idx].classList.add('custom-bold');
-                    });
-                }
-
-                // B. 还原滚动位置
-                if (data.scrollPos !== undefined) {
-                    setTimeout(() => {
-                        transcript.scrollTop =
-                            data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                        updateStatus("✨ 已加载上次阅读位置", true);
-                    }, 300);
-                }
-            } catch(e) {
-                console.error("Firebase Download Error:", e);
-            }
-        };
-
-        // 工具：在纯文本节点中找到匹配词并包裹 <span class="custom-bold">
-        function wrapMatchingWords(container, boldSet) {
-            // 已有加粗的先清除，重新标记
-            container.querySelectorAll('.custom-bold').forEach(el => {
-                el.replaceWith(document.createTextNode(el.textContent));
-            });
-            container.normalize();
-
-            // 遍历文本节点，按词匹配
-            const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-            const nodesToProcess = [];
-            let node;
-            while ((node = walker.nextNode())) nodesToProcess.push(node);
-
-            nodesToProcess.forEach(textNode => {
-                const words = textNode.textContent.split(/(\s+)/);
-                if (words.length <= 1) return;
-                const frag = document.createDocumentFragment();
-                words.forEach(part => {
-                    const clean = part.trim().replace(/[.,!?;:"]/g, '');
-                    if (boldSet.has(clean) && clean.length > 0) {
-                        const span = document.createElement('span');
-                        span.className = 'custom-bold';
-                        span.textContent = part;
-                        frag.appendChild(span);
-                    } else {
-                        frag.appendChild(document.createTextNode(part));
-                    }
+            } else if (data.boldIndices && Array.isArray(data.boldIndices)) {
+                // 兼容旧版：按索引还原（旧版用 .word span）
+                const allWords = transcript.querySelectorAll('.word');
+                allWords.forEach(span => span.classList.remove('custom-bold'));
+                data.boldIndices.forEach(idx => {
+                    if (allWords[idx]) allWords[idx].classList.add('custom-bold');
                 });
-                textNode.parentNode.replaceChild(frag, textNode);
-            });
-        }
+            }
 
-        // 停止滚动 1.5s 后自动上传
-        let scrollSyncTimer;
-        document.getElementById('transcript').addEventListener('scroll', () => {
-            clearTimeout(scrollSyncTimer);
-            scrollSyncTimer = setTimeout(() => window.syncUpload(), 1500);
-        });
-
-    // 修改 window.onload 或相关的初始化位置
-    window.addEventListener('load', () => {
-            setTimeout(() => {
-                window.syncDownload();     // 先执行一次全量拉取
-                window.startRealtimeSync(); // 开启持续监听
-            }, 1000);
-        });
-    </script>
-
-    <!-- ===================== 主逻辑 ===================== -->
-    <script>
-        let touchStartX = 0, touchStartY = 0;
-        let controlsTimer = null;
-
-        // ✅ 用户主动滚动标志：防止 scrollIntoView 在用户操作时打断复制
-        let userIsScrolling = false;
-        let userScrollTimer = null;
-
-        const SWIPE_THRESHOLD = 40;
-        const video       = document.getElementById('videoPlayer');
-        const transcript  = document.getElementById('transcript');
-        const status      = document.getElementById('status');
-        const dot         = document.getElementById('dot');
-        const videoHint   = document.getElementById('video-hint');
-        const transcriptContainer = document.querySelector('.transcript-container');
-        const touchOverlay = document.getElementById('video-touch-overlay');
-
-        // 监听用户主动滚动
-    transcriptContainer.addEventListener('scroll', () => {
-        localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
-        window.userIsScrolling = true; // 挂载到 window
-        clearTimeout(userScrollTimer);
-        userScrollTimer = setTimeout(() => { window.userIsScrolling = false; }, 3000); 
-    });
-
-        // ── 全局触摸：左划快退，右划播放/暂停 ──
-        document.addEventListener('touchstart', (e) => {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-        }, { passive: true });
-
-        document.addEventListener('touchend', (e) => {
-            // 有文字选中时不触发手势
-            if (window.getSelection()?.toString().trim().length > 0) return;
-
-            const dx = e.changedTouches[0].clientX - touchStartX;
-            const dy = e.changedTouches[0].clientY - touchStartY;
-
-            if (Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > SWIPE_THRESHOLD) {
-                if (dx < 0) {
-                    video.currentTime = Math.max(0, video.currentTime - 2);
-                    updateStatus("⏪ 快退 2s", true);
-                } else {
-                    video.paused ? video.play() : video.pause();
-                    updateStatus(video.paused ? "⏸ 暂停" : "▶️ 播放", true);
-                }
+            // B. 还原滚动位置
+            if (data.scrollPos !== undefined) {
                 setTimeout(() => {
-                    updateStatus(localStorage.getItem('last_video_name') ? "视频已加载" : "准备就绪", true);
-                }, 1000);
+                    transcript.scrollTop =
+                        data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                    updateStatus("✨ 已加载上次阅读位置", true);
+                }, 300);
             }
-        }, { passive: true });
-
-        // ── 状态栏更新（带自动恢复） ──
-        function updateStatus(msg, active = false) {
-            if (!status || !dot) return;
-            status.innerText = msg;
-            dot.className = active ? 'status-dot active' : 'status-dot';
-            if (active && msg !== "视频已加载") {
-                clearTimeout(window.statusTimer);
-                window.statusTimer = setTimeout(() => {
-                    status.innerText = localStorage.getItem('last_video_name') ? "视频已加载" : "准备就绪";
-                    dot.className = 'status-dot active';
-                }, 3000);
-            }
-        }
-
-        // ── 页面加载：恢复字幕缓存和视频提示 ──
-        window.addEventListener('DOMContentLoaded', () => {
-            const cachedSubs = localStorage.getItem('last_subtitles');
-            if (cachedSubs) processSubtitleContent(cachedSubs, true);
-
-            const lastVideoName = localStorage.getItem('last_video_name');
-            const lastTime      = localStorage.getItem('last_video_time');
-            if (lastVideoName) {
-                videoHint.innerText = `待加载: ${lastVideoName}` +
-                    (lastTime ? ` (上次看到 ${formatTime(parseFloat(lastTime))})` : '');
-                videoHint.style.display = 'block';
-            }
-        });
-
-        // ── 视频文件上传 ──
-        document.getElementById('videoInput').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            localStorage.setItem('last_video_name', file.name);
-            videoHint.style.display = 'none';
-            video.src = URL.createObjectURL(file);
-            updateStatus("视频已加载", true);
-            video.addEventListener('loadeddata', function onLoaded() {
-                const t = localStorage.getItem('last_video_time');
-                if (t) video.currentTime = parseFloat(t);
-                video.removeEventListener('loadeddata', onLoaded);
-            });
-        });
-
-        // ── 字幕文件手动上传 ──
-        document.getElementById('subtitleManualInput').addEventListener('change', (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                processSubtitleContent(ev.target.result);
-                updateStatus("字幕已手动加载", true);
-            };
-            reader.readAsText(file);
-        });
-
-        // ── 字幕处理主流程 ──
-        function processSubtitleContent(content, isFromCache = false) {
-            if (!isFromCache) localStorage.setItem('last_subtitles', content);
-
-            const cues = parseSubtitle(content);
-            renderSubtitles(cues);
-
-            const lastScrollPos = localStorage.getItem('last_scroll_pos');
-            const lastTime      = localStorage.getItem('last_video_time');
-
-            setTimeout(() => {
-                if (lastScrollPos) {
-                    transcriptContainer.scrollTop = parseFloat(lastScrollPos);
-                } else if (lastTime) {
-                    const saved = parseFloat(lastTime);
-                    const lines = document.querySelectorAll('.line');
-                    for (let i = 0; i < lines.length; i++) {
-                        const start = parseFloat(lines[i].dataset.time);
-                        const next  = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
-                        if (saved >= start && saved < next) {
-                            lines[i].classList.add('active');
-                            lines[i].scrollIntoView({ behavior: 'auto', block: 'center' });
-                            break;
-                        }
-                    }
-                }
-                // 渲染完成后触发 Firebase 下载，还原加粗标记
-                if (window.syncDownload) setTimeout(() => window.syncDownload(), 300);
-            }, 150);
-        }
-
-        // ── SRT/VTT 解析 ──
-        function parseSubtitle(data) {
-            let clean = data
-                .replace(/<br\s*\/?>/gi, "\n")
-                .replace(/<\/p>|<\/div>/gi, "\n")
-                .replace(/<\/?[^>]+(>|$)/g, "");
-            clean = new DOMParser()
-                .parseFromString(clean, 'text/html')
-                .documentElement.textContent;
-
-            const cues  = [];
-            const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
-
-            for (let i = 0; i < lines.length; i++) {
-                const m = lines[i].match(
-                    /(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/
-                );
-                if (m) {
-                    const start = timeToSeconds(m[1]);
-                    let parts = [], j = i + 1;
-                    while (j < lines.length && !lines[j].match(/-->/)) {
-                        if (!/^\d+$/.test(lines[j])) parts.push(lines[j]);
-                        j++;
-                    }
-                    const text = parts.join(' ').trim();
-                    if (text) cues.push({ start, text });
-                    i = j - 1;
-                }
-            }
-            return cues;
-        }
-
-        function timeToSeconds(s) {
-            const p = s.trim().replace(',', '.').split(':');
-            return p.length === 3
-                ? +p[0] * 3600 + +p[1] * 60 + +p[2]
-                : +p[0] * 60  + +p[1];
-        }
-
-        // ── 渲染字幕行 ──
-        function renderSubtitles(cues) {
-            transcript.innerHTML = '';
-            if (!cues || cues.length === 0) {
-                transcript.innerHTML = '<div class="empty-state"><p>暂无字幕内容</p></div>';
-                return;
-            }
-
-            cues.forEach((cue, index) => {
-                const div      = document.createElement('div');
-                div.className  = 'line';
-                div.dataset.time = cue.start;
-                const nextTime = cues[index+1] ? cues[index+1].start : cue.start + 5;
-                div.dataset.endTime = nextTime;
-
-                div.innerHTML = `
-                    <div class="play-btn" title="播放本句">▶</div>
-                    <div class="content">${cue.text}</div>
-                `;
-
-                // 播放按钮
-                div.querySelector('.play-btn').onclick = (e) => {
-                    e.stopPropagation();
-                    video.dataset.singlePlayMode = "true";
-                    video.dataset.stopAt         = nextTime;
-                    video.currentTime            = cue.start;
-                    video.play().catch(() => {});
-                    document.querySelector('.line.active')?.classList.remove('active');
-                    div.classList.add('active');
-                };
-
-                // ✅ 来自文档2的优秀复制逻辑：
-                //    单击 → selection.modify 选中光标所在词并复制
-                //    双击 → 选中整句并复制
-                const contentArea = div.querySelector('.content');
-                let clickTimer = null;
-
-    // ── 优化后的点击/双击处理代码块 ──
-    contentArea.onclick = (e) => {
-        // 获取点击的具体坐标
-        const x = e.clientX;
-        const y = e.clientY;
-
-        const sel = window.getSelection();
-        let range;
-
-        // 标准 API 与 WebKit 兼容性处理
-        if (document.caretRangeFromPoint) {
-            range = document.caretRangeFromPoint(x, y);
-        } else if (document.caretPositionFromPoint) {
-            const pos = document.caretPositionFromPoint(x, y);
-            range = document.createRange();
-            range.setStart(pos.offsetNode, pos.offset);
-            range.collapse(true);
-        }
-
-        if (!range) return;
-
-        if (clickTimer) {
-            // --- 双击逻辑：整句复制 ---
-            clearTimeout(clickTimer);
-            clickTimer = null;
-            const fullRange = document.createRange();
-            fullRange.selectNodeContents(contentArea);
-            sel.removeAllRanges();
-            sel.addRange(fullRange);
-            copyToClipboard(cue.text, "已复制整句");
-        } else {
-            // --- 单击逻辑：精准坐标选词 ---
-            clickTimer = setTimeout(() => {
-                sel.removeAllRanges();
-                sel.addRange(range);
-                
-                // 此时光标已精准落在点击处，再执行扩展
-                sel.modify('move', 'backward', 'word');
-                sel.modify('extend', 'forward', 'word');
-                
-                let word = sel.toString().trim().replace(/[.,!?;:"]/g, '');
-                
-                // 边界检查：防止在换行符附近点空
-                if (word && word.length < 30) { 
-                    copyToClipboard(word, "已复制单词: " + word);
-                }
-                clickTimer = null;
-            }, 250); // 稍微延长判定时间以提高移动端识别率
+        } catch(e) {
+            console.error("Firebase Download Error:", e);
         }
     };
 
-                transcript.appendChild(div);
-            });
-        }
+    // 工具：在纯文本节点中找到匹配词并包裹 <span class="custom-bold">
+    function wrapMatchingWords(container, boldSet) {
+        // 已有加粗的先清除，重新标记
+        container.querySelectorAll('.custom-bold').forEach(el => {
+            el.replaceWith(document.createTextNode(el.textContent));
+        });
+        container.normalize();
 
-        // ✅ 复制降级方案：clipboard API → execCommand（兼容 Anki WebView）
-        async function copyToClipboard(text, msg) {
-            try {
-                if (navigator.clipboard?.writeText) {
-                    await navigator.clipboard.writeText(text);
+        // 遍历文本节点，按词匹配
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+        const nodesToProcess = [];
+        let node;
+        while ((node = walker.nextNode())) nodesToProcess.push(node);
+
+        nodesToProcess.forEach(textNode => {
+            const words = textNode.textContent.split(/(\s+)/);
+            if (words.length <= 1) return;
+            const frag = document.createDocumentFragment();
+            words.forEach(part => {
+                const clean = part.trim().replace(/[.,!?;:"]/g, '');
+                if (boldSet.has(clean) && clean.length > 0) {
+                    const span = document.createElement('span');
+                    span.className = 'custom-bold';
+                    span.textContent = part;
+                    frag.appendChild(span);
                 } else {
-                    const el = document.createElement('textarea');
-                    el.value = text;
-                    el.style.cssText = 'position:fixed;opacity:0;';
-                    document.body.appendChild(el);
-                    el.focus(); el.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(el);
+                    frag.appendChild(document.createTextNode(part));
                 }
-                updateStatus(msg, true);
-                setTimeout(() => updateStatus("视频已加载", true), 1500);
-            } catch(err) {
-                updateStatus("复制失败，请手动长按复制", false);
-            }
-        }
+            });
+            textNode.parentNode.replaceChild(frag, textNode);
+        });
+    }
 
-        // ── 定位当前播放行 ──
-        function scrollToActive() {
-            const line = document.querySelector('.line.active');
-            if (line) {
-                line.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                updateStatus("已定位到当前播放位置", true);
+    // 停止滚动 1.5s 后自动上传
+    let scrollSyncTimer;
+    document.getElementById('transcript').addEventListener('scroll', () => {
+        clearTimeout(scrollSyncTimer);
+        scrollSyncTimer = setTimeout(() => window.syncUpload(), 1500);
+    });
+
+// 修改 window.onload 或相关的初始化位置
+window.addEventListener('load', () => {
+        setTimeout(() => {
+            window.syncDownload();     // 先执行一次全量拉取
+            window.startRealtimeSync(); // 开启持续监听
+        }, 1000);
+    });
+</script>
+
+<!-- ===================== 主逻辑 ===================== -->
+<script>
+    let touchStartX = 0, touchStartY = 0;
+    let controlsTimer = null;
+
+    // ✅ 用户主动滚动标志：防止 scrollIntoView 在用户操作时打断复制
+    let userIsScrolling = false;
+    let userScrollTimer = null;
+
+    const SWIPE_THRESHOLD = 40;
+    const video       = document.getElementById('videoPlayer');
+    const transcript  = document.getElementById('transcript');
+    const status      = document.getElementById('status');
+    const dot         = document.getElementById('dot');
+    const videoHint   = document.getElementById('video-hint');
+    const transcriptContainer = document.querySelector('.transcript-container');
+    const touchOverlay = document.getElementById('video-touch-overlay');
+
+    // 监听用户主动滚动
+transcriptContainer.addEventListener('scroll', () => {
+    localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
+    window.userIsScrolling = true; // 挂载到 window
+    clearTimeout(userScrollTimer);
+    userScrollTimer = setTimeout(() => { window.userIsScrolling = false; }, 3000); 
+});
+
+    // ── 全局触摸：左划快退，右划播放/暂停 ──
+    document.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        // 有文字选中时不触发手势
+        if (window.getSelection()?.toString().trim().length > 0) return;
+
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+
+        if (Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > SWIPE_THRESHOLD) {
+            if (dx < 0) {
+                video.currentTime = Math.max(0, video.currentTime - 2);
+                updateStatus("⏪ 快退 2s", true);
             } else {
-                updateStatus("视频未在播放匹配的字幕行", false);
+                video.paused ? video.play() : video.pause();
+                updateStatus(video.paused ? "⏸ 暂停" : "▶️ 播放", true);
+            }
+            setTimeout(() => {
+                updateStatus(localStorage.getItem('last_video_name') ? "视频已加载" : "准备就绪", true);
+            }, 1000);
+        }
+    }, { passive: true });
+
+    // ── 状态栏更新（带自动恢复） ──
+    function updateStatus(msg, active = false) {
+        if (!status || !dot) return;
+        status.innerText = msg;
+        dot.className = active ? 'status-dot active' : 'status-dot';
+        if (active && msg !== "视频已加载") {
+            clearTimeout(window.statusTimer);
+            window.statusTimer = setTimeout(() => {
+                status.innerText = localStorage.getItem('last_video_name') ? "视频已加载" : "准备就绪";
+                dot.className = 'status-dot active';
+            }, 3000);
+        }
+    }
+
+    // ── 页面加载：恢复字幕缓存和视频提示 ──
+    window.addEventListener('DOMContentLoaded', () => {
+        const cachedSubs = localStorage.getItem('last_subtitles');
+        if (cachedSubs) processSubtitleContent(cachedSubs, true);
+
+        const lastVideoName = localStorage.getItem('last_video_name');
+        const lastTime      = localStorage.getItem('last_video_time');
+        if (lastVideoName) {
+            videoHint.innerText = `待加载: ${lastVideoName}` +
+                (lastTime ? ` (上次看到 ${formatTime(parseFloat(lastTime))})` : '');
+            videoHint.style.display = 'block';
+        }
+    });
+
+    // ── 视频文件上传 ──
+    document.getElementById('videoInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        localStorage.setItem('last_video_name', file.name);
+        videoHint.style.display = 'none';
+        video.src = URL.createObjectURL(file);
+        updateStatus("视频已加载", true);
+        video.addEventListener('loadeddata', function onLoaded() {
+            const t = localStorage.getItem('last_video_time');
+            if (t) video.currentTime = parseFloat(t);
+            video.removeEventListener('loadeddata', onLoaded);
+        });
+    });
+
+    // ── 字幕文件手动上传 ──
+    document.getElementById('subtitleManualInput').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            processSubtitleContent(ev.target.result);
+            updateStatus("字幕已手动加载", true);
+        };
+        reader.readAsText(file);
+    });
+
+    // ── 字幕处理主流程 ──
+function processSubtitleContent(content, isFromCache = false) {
+    if (!isFromCache) localStorage.setItem('last_subtitles', content);
+
+    const cues = parseSubtitle(content);
+    
+    // 1. 执行重构后的渲染：生成带 data-index 的 span
+    renderSubtitles(cues); 
+
+    // 2. 渲染后立即应用内存中已有的加粗（防止切集或刷新时闪烁）
+    if (typeof applyBoldFromPositions === 'function') {
+        applyBoldFromPositions();
+    }
+
+    const lastScrollPos = localStorage.getItem('last_scroll_pos');
+    const lastTime      = localStorage.getItem('last_video_time');
+
+    setTimeout(() => {
+        // --- 恢复滚动位置逻辑 ---
+        if (lastScrollPos) {
+            transcriptContainer.scrollTop = parseFloat(lastScrollPos);
+        } else if (lastTime) {
+            const saved = parseFloat(lastTime);
+            const lines = document.querySelectorAll('.line');
+            for (let i = 0; i < lines.length; i++) {
+                const start = parseFloat(lines[i].dataset.time);
+                const next  = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
+                if (saved >= start && saved < next) {
+                    lines[i].classList.add('active');
+                    lines[i].scrollIntoView({ behavior: 'auto', block: 'center' });
+                    break;
+                }
             }
         }
 
-        // ── 加粗/取消加粗（来自文档2的 Range 方案，支持跨词操作） ──
-        function boldSelectedText() {
+        // 3. 核心：从云端拉取最新的索引数组
+        // syncDownload 内部在更新 window.boldPositions 后，务必调用一次 applyBoldFromPositions()
+        if (window.syncDownload) {
+            window.syncDownload(); 
+        }
+    }, 150);
+}
+
+    // ── SRT/VTT 解析 ──
+    function parseSubtitle(data) {
+        let clean = data
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<\/p>|<\/div>/gi, "\n")
+            .replace(/<\/?[^>]+(>|$)/g, "");
+        clean = new DOMParser()
+            .parseFromString(clean, 'text/html')
+            .documentElement.textContent;
+
+        const cues  = [];
+        const lines = clean.split('\n').map(l => l.trim()).filter(Boolean);
+
+        for (let i = 0; i < lines.length; i++) {
+            const m = lines[i].match(
+                /(\d{1,2}:\d{2}:\d{2}[.,]\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}[.,]\d{3})/
+            );
+            if (m) {
+                const start = timeToSeconds(m[1]);
+                let parts = [], j = i + 1;
+                while (j < lines.length && !lines[j].match(/-->/)) {
+                    if (!/^\d+$/.test(lines[j])) parts.push(lines[j]);
+                    j++;
+                }
+                const text = parts.join(' ').trim();
+                if (text) cues.push({ start, text });
+                i = j - 1;
+            }
+        }
+        return cues;
+    }
+
+    function timeToSeconds(s) {
+        const p = s.trim().replace(',', '.').split(':');
+        return p.length === 3
+            ? +p[0] * 3600 + +p[1] * 60 + +p[2]
+            : +p[0] * 60  + +p[1];
+    }
+
+    // ── 渲染字幕行 ──
+ // 在全局作用域定义索引记录器，确保跨字幕行的索引是连续的
+let globalWordCount = 0; 
+window.boldPositions = []; // 存储加粗的索引数组
+
+function renderSubtitles(cues) {
+    const transcript = document.getElementById('transcript');
+    transcript.innerHTML = '';
+    globalWordCount = 0; // 每次重新加载字幕时重置索引
+
+    if (!cues || cues.length === 0) {
+        transcript.innerHTML = '<div class="empty-state"><p>暂无字幕内容</p></div>';
+        return;
+    }
+
+    cues.forEach((cue, index) => {
+        const div = document.createElement('div');
+        div.className = 'line';
+        div.dataset.time = cue.start;
+        const nextTime = cues[index + 1] ? cues[index + 1].start : cue.start + 5;
+        div.dataset.endTime = nextTime;
+
+        // --- 核心：索引化拆分文本 ---
+        // 使用与 Cloze Master Pro 相同的正则，保留空格、单词、中文
+        const segments = cue.text.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
+        
+        let spansHtml = '';
+        segments.forEach(seg => {
+            if (!seg) return;
+            const isWhitespace = /^\s+$/.test(seg);
+            // 逻辑：空格借用前一个索引，确保标记连贯性
+            let idx = isWhitespace ? Math.max(0, globalWordCount - 1) : globalWordCount++;
+            
+            // 初始渲染时检查是否在加粗列表中
+            const isBold = window.boldPositions.includes(idx) ? 'custom-bold' : '';
+            spansHtml += `<span class="word-span ${isBold}" data-index="${idx}">${seg}</span>`;
+        });
+
+        div.innerHTML = `
+            <div class="play-btn" title="播放本句">▶</div>
+            <div class="content">${spansHtml}</div>
+        `;
+
+        // --- 事件绑定：保持高效 ---
+        const contentArea = div.querySelector('.content');
+        let clickTimer = null;
+
+        contentArea.onclick = (e) => {
+            const target = e.target;
+            // 确保点击的是单词
+            if (!target.classList.contains('word-span')) return;
+
+            if (clickTimer) {
+                // --- 双击逻辑：整句复制 ---
+                clearTimeout(clickTimer);
+                clickTimer = null;
+                
+                // 视觉反馈：选中整句
+                const sel = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(contentArea);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                
+                copyToClipboard(cue.text, "已复制整句");
+            } else {
+                // --- 单击逻辑：索引定位词 ---
+                clickTimer = setTimeout(() => {
+                    const word = target.innerText.trim().replace(/[.,!?;:"]/g, '');
+                    if (word) {
+                        // 视觉反馈：选中当前词
+                        const sel = window.getSelection();
+                        const range = document.createRange();
+                        range.selectNodeContents(target);
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+
+                        copyToClipboard(word, "已复制单词: " + word);
+                    }
+                    clickTimer = null;
+                }, 250);
+            }
+        };
+
+        // 播放按钮逻辑保持不变
+        div.querySelector('.play-btn').onclick = (e) => {
+            e.stopPropagation();
+            video.dataset.singlePlayMode = "true";
+            video.dataset.stopAt = nextTime;
+            video.currentTime = cue.start;
+            video.play().catch(() => {});
+            document.querySelector('.line.active')?.classList.remove('active');
+            div.classList.add('active');
+        };
+
+        transcript.appendChild(div);
+    });
+}
+
+
+    // ✅ 复制降级方案：clipboard API → execCommand（兼容 Anki WebView）
+    async function copyToClipboard(text, msg) {
+        try {
+            if (navigator.clipboard?.writeText) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const el = document.createElement('textarea');
+                el.value = text;
+                el.style.cssText = 'position:fixed;opacity:0;';
+                document.body.appendChild(el);
+                el.focus(); el.select();
+                document.execCommand('copy');
+                document.body.removeChild(el);
+            }
+            updateStatus(msg, true);
+            setTimeout(() => updateStatus("视频已加载", true), 1500);
+        } catch(err) {
+            updateStatus("复制失败，请手动长按复制", false);
+        }
+    }
+
+    // ── 定位当前播放行 ──
+    function scrollToActive() {
+        const line = document.querySelector('.line.active');
+        if (line) {
+            line.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            updateStatus("已定位到当前播放位置", true);
+        } else {
+            updateStatus("视频未在播放匹配的字幕行", false);
+        }
+    }
+
+    // ── 加粗/取消加粗（来自文档2的 Range 方案，支持跨词操作） ──
+    function boldSelectedText() {
     const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+    if (!sel || sel.isCollapsed) {
         updateStatus("请先选中文字", false);
         return;
     }
 
+    // 获取选区内所有的 word-span
     const range = sel.getRangeAt(0);
-    // 确保操作仅限在字幕内容区域
-    const container = range.commonAncestorContainer;
-    const parentContent = container.nodeType === 3 ? container.parentElement : container;
-    
-    if (!parentContent.closest('.content')) {
+    const spans = document.querySelectorAll('.word-span');
+    let selectedIndices = [];
+
+    spans.forEach(span => {
+        // 判断 span 是否在选区内
+        if (sel.containsNode(span, true)) {
+            selectedIndices.push(parseInt(span.dataset.index));
+        }
+    });
+
+    if (selectedIndices.length === 0) {
         updateStatus("只能在字幕正文内操作", false);
         return;
     }
 
-    // --- 方案核心：使用 documentFragment 处理选区 ---
-    const fragment = range.cloneContents();
-    const hasExistingBold = fragment.querySelector('.custom-bold') || parentContent.closest('.custom-bold');
+    // 逻辑：如果选中的词里有任何一个还没加粗，则全部加粗；否则视为“取消加粗”
+    const anyNotBold = selectedIndices.some(idx => !window.boldPositions.includes(idx));
 
-    if (hasExistingBold) {
-        // A. 如果选区内包含已加粗内容 -> 执行“取消加粗”
-        const selectedText = range.toString();
-        const textNode = document.createTextNode(selectedText);
-        range.deleteContents();
-        range.insertNode(textNode);
-        updateStatus("已取消标记", true);
+    if (anyNotBold) {
+        selectedIndices.forEach(idx => {
+            if (!window.boldPositions.includes(idx)) window.boldPositions.push(idx);
+        });
+        updateStatus("已成功标记重点", true);
     } else {
-        // B. 如果选区是纯文本 -> 执行“加粗”
-        const span = document.createElement('span');
-        span.className = 'custom-bold';
-        
-        try {
-            // extractContents 会把选中的 DOM 节点（包括跨词的文本）剪切出来
-            span.appendChild(range.extractContents());
-            range.insertNode(span);
-            updateStatus("已标记重点", true);
-        } catch (e) {
-            // 极端兼容性情况下的 fallback
-            const content = range.toString();
-            range.deleteContents();
-            span.textContent = content;
-            range.insertNode(span);
-        }
+        window.boldPositions = window.boldPositions.filter(idx => !selectedIndices.includes(idx));
+        updateStatus("已取消标记", true);
     }
 
-    // --- 后置清理：合并相邻文本节点，防止 DOM 碎片化 ---
-    const mainContent = parentContent.closest('.content');
-    if (mainContent) mainContent.normalize();
-
+    // 1. 立即刷新视觉效果
+    applyBoldFromPositions();
+    
+    // 2. 清除选区，方便阅读
     sel.removeAllRanges();
 
-    // 触发 Firebase 同步
+    // 3. 立即同步到 Firebase
     if (window.syncUpload) window.syncUpload();
 }
 
-        // ── 格式化时间 ──
-        function formatTime(s) {
-            if (isNaN(s)) return "00:00";
-            const h   = Math.floor(s / 3600);
-            const m   = Math.floor((s % 3600) / 60);
-            const sec = Math.floor(s % 60);
-            const parts = [m.toString().padStart(2,'0'), sec.toString().padStart(2,'0')];
-            if (h > 0) parts.unshift(h.toString().padStart(2,'0'));
-            return parts.join(':');
+    // ── 格式化时间 ──
+    function formatTime(s) {
+        if (isNaN(s)) return "00:00";
+        const h   = Math.floor(s / 3600);
+        const m   = Math.floor((s % 3600) / 60);
+        const sec = Math.floor(s % 60);
+        const parts = [m.toString().padStart(2,'0'), sec.toString().padStart(2,'0')];
+        if (h > 0) parts.unshift(h.toString().padStart(2,'0'));
+        return parts.join(':');
+    }
+
+    // ── 唯一的 timeupdate 监听器 ──
+    video.addEventListener('timeupdate', () => {
+        const t = video.currentTime;
+        const floatingText = document.getElementById('current-floating-text');
+
+        // 单句播放模式：到达终点自动停止
+        if (video.dataset.singlePlayMode === "true") {
+            const stopAt = parseFloat(video.dataset.stopAt);
+            if (t >= stopAt - 0.1) {
+                video.pause();
+                video.currentTime = stopAt - 0.1;
+                video.dataset.singlePlayMode = "false";
+                return;
+            }
         }
 
-        // ── 唯一的 timeupdate 监听器 ──
-        video.addEventListener('timeupdate', () => {
-            const t = video.currentTime;
-            const floatingText = document.getElementById('current-floating-text');
+        // 记录播放进度
+        if (t > 0) localStorage.setItem('last_video_time', t);
 
-            // 单句播放模式：到达终点自动停止
-            if (video.dataset.singlePlayMode === "true") {
-                const stopAt = parseFloat(video.dataset.stopAt);
-                if (t >= stopAt - 0.1) {
-                    video.pause();
-                    video.currentTime = stopAt - 0.1;
-                    video.dataset.singlePlayMode = "false";
-                    return;
+        // 查找匹配行
+        const lines = document.querySelectorAll('.line');
+        let currentLine = null;
+        for (let i = 0; i < lines.length; i++) {
+            const start = parseFloat(lines[i].dataset.time);
+            const next  = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
+            if (t >= start && t < next) { currentLine = lines[i]; break; }
+        }
+
+        if (currentLine) {
+            if (!currentLine.classList.contains('active')) {
+                document.querySelector('.line.active')?.classList.remove('active');
+                currentLine.classList.add('active');
+                // ✅ 只在用户未主动滚动时才自动跟随，不打断复制操作
+                if (!userIsScrolling) {
+                    currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 }
             }
-
-            // 记录播放进度
-            if (t > 0) localStorage.setItem('last_video_time', t);
-
-            // 查找匹配行
-            const lines = document.querySelectorAll('.line');
-            let currentLine = null;
-            for (let i = 0; i < lines.length; i++) {
-                const start = parseFloat(lines[i].dataset.time);
-                const next  = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
-                if (t >= start && t < next) { currentLine = lines[i]; break; }
+            // 同步悬浮字幕
+            if (floatingText) {
+                const html = currentLine.querySelector('.content').innerHTML;
+                if (floatingText.innerHTML !== html) {
+                    floatingText.innerHTML = html;
+                    floatingText.style.display = 'inline-block';
+                }
             }
+        } else {
+            if (floatingText) {
+                floatingText.style.display = 'none';
+                floatingText.innerHTML = '';
+            }
+        }
+    });
+    
+function applyBoldFromPositions() {
+    const boldSet = new Set(window.boldPositions);
+    document.querySelectorAll('.word-span').forEach(span => {
+        const idx = parseInt(span.dataset.index);
+        if (boldSet.has(idx)) {
+            span.classList.add('custom-bold');
+        } else {
+            span.classList.remove('custom-bold');
+        }
+    });
+}
+    // ── postMessage 接收字幕（Anki iframe 通信） ──
+    window.addEventListener('message', (event) => {
+        if (event.data.type === 'LOAD_SUBTITLES') {
+            processSubtitleContent(event.data.data);
+        }
+    });
 
-            if (currentLine) {
-                if (!currentLine.classList.contains('active')) {
-                    document.querySelector('.line.active')?.classList.remove('active');
-                    currentLine.classList.add('active');
-                    // ✅ 只在用户未主动滚动时才自动跟随，不打断复制操作
-                    if (!userIsScrolling) {
-                        currentLine.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                }
-                // 同步悬浮字幕
-                if (floatingText) {
-                    const html = currentLine.querySelector('.content').innerHTML;
-                    if (floatingText.innerHTML !== html) {
-                        floatingText.innerHTML = html;
-                        floatingText.style.display = 'inline-block';
-                    }
-                }
+    // ── Bing 图片搜索 ──
+    function searchGoogleImages() {
+        const selected = window.getSelection()?.toString().trim();
+        if (!selected) { updateStatus("请先选中单词或短语", false); return; }
+
+        const query = selected.replace(/[.,!?;:"]/g, '');
+        const url   = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&adlt=strict&form=HDRSC2`;
+
+        document.getElementById('preview-word-title').innerText = `Bing 图片搜索: ${query}`;
+        const iframe = document.getElementById('preview-iframe');
+        iframe.src = 'about:blank';
+        setTimeout(() => { iframe.src = url; }, 10);
+        document.getElementById('image-preview-container').style.top = '35px';
+        updateStatus(`正在 Bing 搜索: ${query}`, true);
+    }
+
+    function closeImagePreview() {
+        document.getElementById('image-preview-container').style.top = '100%';
+        setTimeout(() => {
+            document.getElementById('preview-iframe').src = 'about:blank';
+            updateStatus("视频已加载", true);
+        }, 300);
+    }
+
+    // ── 临时唤起原生视频控件 ──
+    function toggleNativeControls() {
+        if (controlsTimer) clearTimeout(controlsTimer);
+        video.controls = true;
+        touchOverlay.style.pointerEvents = 'none';
+        const btn = document.getElementById('toggle-controls-btn');
+        btn.style.color = 'var(--primary)';
+        btn.innerText = "🔒 控件已开";
+        updateStatus("已唤起系统控件，5秒后自动关闭", true);
+        controlsTimer = setTimeout(() => {
+            video.controls = false;
+            touchOverlay.style.pointerEvents = 'auto';
+            btn.style.color = '';
+            btn.innerText = "▶️ 控件";
+            updateStatus("已恢复纯净模式", true);
+        }, 5000);
+    }
+
+    // ── 遮罩层手势处理（点击播放/暂停，左划快退） ──
+    touchOverlay.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+    }, { passive: true });
+
+    touchOverlay.addEventListener('touchend', (e) => {
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+            video.paused
+                ? video.play().catch(err => console.log("播放被拦截", err))
+                : video.pause();
+        } else if (Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > SWIPE_THRESHOLD) {
+            if (dx < 0) {
+                video.currentTime = Math.max(0, video.currentTime - 2);
+                updateStatus("⏪ 快退 2s", true);
             } else {
-                if (floatingText) {
-                    floatingText.style.display = 'none';
-                    floatingText.innerHTML = '';
-                }
+                video.pause();
             }
-        });
-
-        // ── postMessage 接收字幕（Anki iframe 通信） ──
-        window.addEventListener('message', (event) => {
-            if (event.data.type === 'LOAD_SUBTITLES') {
-                processSubtitleContent(event.data.data);
-            }
-        });
-
-        // ── Bing 图片搜索 ──
-        function searchGoogleImages() {
-            const selected = window.getSelection()?.toString().trim();
-            if (!selected) { updateStatus("请先选中单词或短语", false); return; }
-
-            const query = selected.replace(/[.,!?;:"]/g, '');
-            const url   = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&adlt=strict&form=HDRSC2`;
-
-            document.getElementById('preview-word-title').innerText = `Bing 图片搜索: ${query}`;
-            const iframe = document.getElementById('preview-iframe');
-            iframe.src = 'about:blank';
-            setTimeout(() => { iframe.src = url; }, 10);
-            document.getElementById('image-preview-container').style.top = '35px';
-            updateStatus(`正在 Bing 搜索: ${query}`, true);
         }
+    });
 
-        function closeImagePreview() {
-            document.getElementById('image-preview-container').style.top = '100%';
-            setTimeout(() => {
-                document.getElementById('preview-iframe').src = 'about:blank';
-                updateStatus("视频已加载", true);
-            }, 300);
-        }
-
-        // ── 临时唤起原生视频控件 ──
-        function toggleNativeControls() {
-            if (controlsTimer) clearTimeout(controlsTimer);
-            video.controls = true;
-            touchOverlay.style.pointerEvents = 'none';
-            const btn = document.getElementById('toggle-controls-btn');
-            btn.style.color = 'var(--primary)';
-            btn.innerText = "🔒 控件已开";
-            updateStatus("已唤起系统控件，5秒后自动关闭", true);
-            controlsTimer = setTimeout(() => {
-                video.controls = false;
-                touchOverlay.style.pointerEvents = 'auto';
-                btn.style.color = '';
-                btn.innerText = "▶️ 控件";
-                updateStatus("已恢复纯净模式", true);
-            }, 5000);
-        }
-
-        // ── 遮罩层手势处理（点击播放/暂停，左划快退） ──
-        touchOverlay.addEventListener('touchstart', (e) => {
-            touchStartX = e.touches[0].clientX;
-            touchStartY = e.touches[0].clientY;
-        }, { passive: true });
-
-        touchOverlay.addEventListener('touchend', (e) => {
-            const dx = e.changedTouches[0].clientX - touchStartX;
-            const dy = e.changedTouches[0].clientY - touchStartY;
-            if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
-                video.paused
-                    ? video.play().catch(err => console.log("播放被拦截", err))
-                    : video.pause();
-            } else if (Math.abs(dx) > Math.abs(dy) * 1.5 && Math.abs(dx) > SWIPE_THRESHOLD) {
-                if (dx < 0) {
-                    video.currentTime = Math.max(0, video.currentTime - 2);
-                    updateStatus("⏪ 快退 2s", true);
-                } else {
-                    video.pause();
-                }
-            }
-        });
-
-        window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
-    </script>
-    </body>
-    </html>
+    window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
+</script>
+</body>
+</html>
