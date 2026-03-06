@@ -473,10 +473,9 @@ window.addEventListener('load', () => {
 
     // 监听用户主动滚动
 transcriptContainer.addEventListener('scroll', () => {
-    localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
-    window.userIsScrolling = true; // 挂载到 window
+    window.userIsScrolling = true;
     clearTimeout(userScrollTimer);
-    userScrollTimer = setTimeout(() => { window.userIsScrolling = false; }, 3000); 
+    userScrollTimer = setTimeout(() => { window.userIsScrolling = false; }, 3000);
 });
 
     // ── 全局触摸：左划快退，右划播放/暂停 ──
@@ -520,34 +519,22 @@ transcriptContainer.addEventListener('scroll', () => {
         }
     }
 
-    // ── 页面加载：恢复字幕缓存和视频提示 ──
-    window.addEventListener('DOMContentLoaded', () => {
-        const cachedSubs = localStorage.getItem('last_subtitles');
-        if (cachedSubs) processSubtitleContent(cachedSubs, true);
-
-        const lastVideoName = localStorage.getItem('last_video_name');
-        const lastTime      = localStorage.getItem('last_video_time');
-        if (lastVideoName) {
-            videoHint.innerText = `待加载: ${lastVideoName}` +
-                (lastTime ? ` (上次看到 ${formatTime(parseFloat(lastTime))})` : '');
-            videoHint.style.display = 'block';
-        }
-    });
+window.addEventListener('DOMContentLoaded', () => {
+    const lastVideoName = localStorage.getItem('last_video_name');
+    if (lastVideoName) {
+        videoHint.innerText = `待加载: ${lastVideoName}`;
+        videoHint.style.display = 'block';
+    }
+});
 
     // ── 视频文件上传 ──
-    document.getElementById('videoInput').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        localStorage.setItem('last_video_name', file.name);
-        videoHint.style.display = 'none';
-        video.src = URL.createObjectURL(file);
-        updateStatus("视频已加载", true);
-        video.addEventListener('loadeddata', function onLoaded() {
-            const t = localStorage.getItem('last_video_time');
-            if (t) video.currentTime = parseFloat(t);
-            video.removeEventListener('loadeddata', onLoaded);
-        });
-    });
+document.getElementById('videoInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    videoHint.style.display = 'none';
+    video.src = URL.createObjectURL(file);
+    updateStatus("视频已加载", true);
+});
 
     // ── 字幕文件手动上传 ──
     document.getElementById('subtitleManualInput').addEventListener('change', (e) => {
@@ -562,45 +549,14 @@ transcriptContainer.addEventListener('scroll', () => {
     });
 
     // ── 字幕处理主流程 ──
-function processSubtitleContent(content, isFromCache = false) {
-    if (!isFromCache) localStorage.setItem('last_subtitles', content);
-
+function processSubtitleContent(content) {
     const cues = parseSubtitle(content);
-    
-    // 1. 执行重构后的渲染：生成带 data-index 的 span
-    renderSubtitles(cues); 
-
-    // 2. 渲染后立即应用内存中已有的加粗（防止切集或刷新时闪烁）
+    renderSubtitles(cues);
     if (typeof applyBoldFromPositions === 'function') {
         applyBoldFromPositions();
     }
-
-    const lastScrollPos = localStorage.getItem('last_scroll_pos');
-    const lastTime      = localStorage.getItem('last_video_time');
-
     setTimeout(() => {
-        // --- 恢复滚动位置逻辑 ---
-        if (lastScrollPos) {
-            transcriptContainer.scrollTop = parseFloat(lastScrollPos);
-        } else if (lastTime) {
-            const saved = parseFloat(lastTime);
-            const lines = document.querySelectorAll('.line');
-            for (let i = 0; i < lines.length; i++) {
-                const start = parseFloat(lines[i].dataset.time);
-                const next  = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
-                if (saved >= start && saved < next) {
-                    lines[i].classList.add('active');
-                    lines[i].scrollIntoView({ behavior: 'auto', block: 'center' });
-                    break;
-                }
-            }
-        }
-
-        // 3. 核心：从云端拉取最新的索引数组
-        // syncDownload 内部在更新 window.boldPositions 后，务必调用一次 applyBoldFromPositions()
-        if (window.syncDownload) {
-            window.syncDownload(); 
-        }
+        if (window.syncDownload) window.syncDownload();
     }, 150);
 }
 
@@ -849,9 +805,6 @@ function renderSubtitles(cues) {
                 return;
             }
         }
-
-        // 记录播放进度
-        if (t > 0) localStorage.setItem('last_video_time', t);
 
         // 查找匹配行
         const lines = document.querySelectorAll('.line');
