@@ -349,44 +349,56 @@ html, body {
 </div>
 
 <div class="main-content">
-    <div class="video-wrapper" style="position: relative; width: 100%; background: #000;">
-    <video id="videoPlayer" controls playsinline webkit-playsinline></video>
-    
-    <div id="video-overlay-subtitle" style="
-        position: absolute;
-        bottom: 0%;
-        left: 0;
-        width: 100%;
-        text-align: center;
-        pointer-events: none; /* 确保不遮挡视频本身的点击/进度条 */
-        z-index: 10;
-        padding: 0 20px;
-        box-sizing: border-box;
-    ">
-        <div id="current-floating-text" style="
-    display: none; /* 初始隐藏，有文字再显示 */
-    background: rgba(0, 0, 0, 0.6); 
-    color: white;
-    font-size: 24px;
-    padding: 5px 15px;
-    border-radius: 8px;
-    pointer-events: auto; 
-    user-select: text;
-    -webkit-user-select: text;
-    line-height: 1.4;
-    cursor: text;
-    max-width: 85%; /* 防止文字太长贴边 */
-    word-wrap: break-word; /* 自动换行 */
-">
-	    </div>
-	</div>
+    <div class="video-wrapper" style="position: relative; width: 100%; background: #000; overflow: hidden;">
+        <video id="videoPlayer" playsinline webkit-playsinline style="width: 100%; display: block;"></video>
         
-</div>
-<div class="action-bar">
-    <button class="action-btn" onclick="scrollToActive()">🎯 定位当前</button>
-    <button class="action-btn" onclick="boldSelectedText()"><b>B</b> 单词加粗</button>
-    <button class="action-btn" onclick="searchGoogleImages()">🖼️ 图片搜索</button>
-</div>
+        <div id="video-touch-overlay" style="
+            position: absolute; 
+            top: 0; 
+            left: 0; 
+            width: 100%; 
+            height: 100%; 
+            z-index: 5; 
+            background: rgba(0,0,0,0); 
+            -webkit-tap-highlight-color: transparent;
+        "></div>
+        
+        <div id="video-overlay-subtitle" style="
+            position: absolute;
+            bottom: 0%;
+            left: 0;
+            width: 100%;
+            text-align: center;
+            pointer-events: none; 
+            z-index: 10;
+            padding: 0 20px;
+            box-sizing: border-box;
+        ">
+            <div id="current-floating-text" style="
+                display: none;
+                background: rgba(0, 0, 0, 0.6); 
+                color: white;
+                font-size: 24px;
+                padding: 5px 15px;
+                border-radius: 8px;
+                pointer-events: auto; 
+                user-select: text;
+                -webkit-user-select: text;
+                line-height: 1.4;
+                cursor: text;
+                max-width: 85%;
+                word-wrap: break-word;
+                margin: 0 auto;
+            "></div>
+        </div>
+    </div>
+
+    <div class="action-bar">
+        <button class="action-btn" onclick="scrollToActive()">🎯 定位当前</button>
+        <button class="action-btn" onclick="boldSelectedText()"><b>B</b> 单词加粗</button>
+        <button class="action-btn" id="toggle-controls-btn" onclick="toggleNativeControls()">▶️ 控件</button>
+        <button class="action-btn" onclick="searchGoogleImages()">🖼️ 图片搜索</button>
+    </div>
     <div class="transcript-container" id="transcript">
         <div class="empty-state">
             <p>请在 Anki 中填写“字幕内容”<br>或手动上传视频与字幕</p>
