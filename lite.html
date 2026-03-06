@@ -88,12 +88,17 @@ video {width: 101% !important;margin-left: -0.5% !important; margin-top: 0; marg
 .line:hover{background:var(--line-hover);border-color:var(--border);}
 .time-box{display:inline-block!important;font-family:"SF Mono",monospace;font-size:10px;color:#ccc;background:#f0f0f2;padding:2px 6px;border-radius:4px;margin-bottom:8px;opacity:0.6;}
 .content {
-    line-height: 1;
+    line-height: 1; /* 稍微增加行高，方便点击 */
     font-size: 30px;
     transition: none !important;
     font-weight: 400 !important;
     color: #1d1d1f;
-    width: 100%; /* 确保文字宽度撑满 */
+    width: 100%;
+    /* 核心修复：禁用 Safari 双击缩放，允许立即触发 JS 事件 */
+    touch-action: manipulation !important;
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    cursor: pointer;
 }
 .line.active .content{font-weight:400!important;transform:none!important;color:#000;}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-dim);text-align:center;}
@@ -453,95 +458,55 @@ function renderSubtitles(cues) {
         return;
     }
 
-    cues.forEach((cue, i) => {
+    cues.forEach((cue) => {
         const div = document.createElement('div');
         div.className = 'line';
         div.dataset.time = cue.start;
-        
-        // 计算当前句子的结束时间（下一句的开始，若无下句则默认+5秒）
-        const nextTime = cues[i + 1] ? cues[i + 1].start : cue.start + 5;
-
         div.innerHTML = `
           <div class="content">${cue.text}</div>
           <div class="play-btn" title="从此处播放">▶</div>
         `;
-
-        // --- 1. 单句播放按钮 ---
-        const btn = div.querySelector('.play-btn');
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            
-            // 设置单句模式标记
-            video.dataset.singlePlayMode = "true";
-            video.dataset.stopAt = nextTime;
-            
-            video.currentTime = cue.start;
-            video.play().catch(() => {});
-            
-            // 立即高亮当前行
-            document.querySelector('.line.active')?.classList.remove('active');
-            div.classList.add('active');
-            updateStatus("🔂 单句播放中...", true);
-        });
-
-        // --- 2. 内容区域交互 (单击选词 + 双击复制) ---
-        // --- 2. 内容区域交互 (电脑+移动端通用修复版) ---
-  const contentArea = div.querySelector('.content');
-  let timer = null;
-
-  contentArea.addEventListener('click', (e) => {
-    e.stopPropagation();
-    
-    if (e.detail === 1) {
-        // 单击逻辑：延迟执行，给双击留出判断时间
-        timer = setTimeout(() => {
-            const selection = window.getSelection();
-            // 如果用户只是点一下，没有拉动选区
-            if (selection.toString().trim().length === 0) {
-                let range;
-                if (document.caretRangeFromPoint) {
-                    range = document.caretRangeFromPoint(e.clientX, e.clientY);
-                }
-                if (range) {
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                    // 选词逻辑
-                    selection.modify('move', 'backward', 'word');
-                    selection.modify('extend', 'forward', 'word');
-                    
-                    const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                    if (word && word.length < 25) {
-                        copyToClipboard(word, "已复制单词: " + word);
-                    }
-                }
-            }
-        }, 250); // 250ms 是标准双击间隔
-    } else if (e.detail === 2) {
-        // 双击逻辑：立即清除单击定时器
-        if (timer) clearTimeout(timer);
-        
-        const textToCopy = contentArea.innerText.trim();
-        copyToClipboard(textToCopy, "已复制整句内容");
-        
-        // 视觉反馈：全选整句
-        const selection = window.getSelection();
-        const range = document.createRange();
-        range.selectNodeContents(contentArea);
-        selection.removeAllRanges();
-        selection.addRange(range);
-    }
-    });
-
         transcript.appendChild(div);
     });
+
+    // 渲染完毕后，统一由 rebindEvents 绑定所有交互
+    rebindEvents();
 }
 
-async function copyToClipboard(text, msg) {
+function copyToClipboard(text, msg) {
+    // 创建隐藏文本域
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    // 确保在 iOS 上不会导致页面跳动
+    textArea.style.position = "fixed";
+    textArea.style.left = "-9999px";
+    textArea.style.top = "0";
+    document.body.appendChild(textArea);
+    
+    // 选中文字
+    textArea.focus();
+    textArea.select();
+    textArea.setSelectionRange(0, 9999); // 兼容 iOS
+
+    let success = false;
     try {
-        await navigator.clipboard.writeText(text);
-        updateStatus(msg, true);
-        setTimeout(() => updateStatus("视频已加载", true), 1500);
-    } catch (err) {}
+        // 同步执行复制（Safari 最稳的方法）
+        success = document.execCommand('copy');
+    } catch (err) {
+        success = false;
+    }
+    document.body.removeChild(textArea);
+
+    // 如果同步失败且有现代 API，尝试 API
+    if (!success && navigator.clipboard) {
+        navigator.clipboard.writeText(text).catch(() => {});
+    }
+
+    updateStatus(msg, true);
+    setTimeout(() => {
+        const lastVideoName = localStorage.getItem('last_video_name');
+        updateStatus(lastVideoName ? "视频已加载" : "准备就绪", true);
+    }, 1500);
 }
 function scrollToActive() {
     const activeLine = document.querySelector('.line.active');
@@ -595,59 +560,76 @@ function saveCurrentTranscript() {
         localStorage.setItem('last_subtitles_html', transcript.innerHTML);
     }
 }
+
 function rebindEvents() {
     const lines = document.querySelectorAll('.line');
-    lines.forEach((line, i) => { // 传入 i 以获取索引
+    lines.forEach((line, i) => {
+        const contentArea = line.querySelector('.content');
+        if (!contentArea) return;
+
+        // 核心：先清除旧事件监听，防止重复叠加
+        const newContent = contentArea.cloneNode(true);
+        contentArea.parentNode.replaceChild(newContent, contentArea);
+
+        let clickTimer = null;
+
+        newContent.addEventListener('click', (e) => {
+            e.stopPropagation();
+
+            // e.detail 在电脑和手机 Safari/Chrome 上均代表点击次数
+            if (e.detail === 1) {
+                clickTimer = setTimeout(() => {
+                    const selection = window.getSelection();
+                    // 仅在未手动选择大段文字时执行单词提取
+                    if (selection.toString().trim().length === 0) {
+                        let range = document.caretRangeFromPoint ? 
+                                    document.caretRangeFromPoint(e.clientX, e.clientY) : null;
+                        if (range) {
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            selection.modify('move', 'backward', 'word');
+                            selection.modify('extend', 'forward', 'word');
+                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                            if (word && word.length < 25) {
+                                copyToClipboard(word, "已复制单词: " + word);
+                            }
+                        }
+                    }
+                    clickTimer = null;
+                }, 250); // 延迟 250ms 等待双击
+            } 
+            else if (e.detail === 2) {
+                // 双击：清除单击定时器，执行整句复制
+                if (clickTimer) clearTimeout(clickTimer);
+                const fullText = newContent.innerText.trim();
+                copyToClipboard(fullText, "已复制整句内容");
+                
+                // 视觉全选效果
+                const selection = window.getSelection();
+                const range = document.createRange();
+                range.selectNodeContents(newContent);
+                selection.removeAllRanges();
+                selection.addRange(range);
+            }
+        });
+
+        // 重新绑定播放按钮
         const btn = line.querySelector('.play-btn');
         if (btn) {
-            const cueStart = parseFloat(line.dataset.time);
-            
-            // --- 关键：计算本句结束时间（即下一句的开始时间） ---
-            const nextLine = lines[i + 1];
-            const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : cueStart + 5;
-
             btn.onclick = (e) => {
                 e.stopPropagation();
-                
-                // --- 关键：触发单句播放标记 ---
+                const cueStart = parseFloat(line.dataset.time);
+                const nextLine = lines[i + 1];
+                const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : cueStart + 5;
+
                 video.dataset.singlePlayMode = "true";
                 video.dataset.stopAt = nextTime;
-                
                 video.currentTime = cueStart;
-                video.play().catch(()=>{});
+                video.play();
                 
                 document.querySelector('.line.active')?.classList.remove('active');
                 line.classList.add('active');
                 updateStatus("🔂 单句播放中...", true);
-            };
-        }
-
-        const contentArea = line.querySelector('.content');
-        if (contentArea) {
-            let clickTimer = null;
-            const cueText = contentArea.innerText; 
-            contentArea.onclick = (e) => {
-                const selection = window.getSelection();
-                if (clickTimer) { 
-                    clearTimeout(clickTimer);
-                    clickTimer = null;
-                    const range = document.createRange();
-                    range.selectNodeContents(contentArea);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                    copyToClipboard(cueText, "已复制整句");
-                } else { 
-                    clickTimer = setTimeout(() => {
-                        // 如果有选区，则尝试提取单词
-                        if (selection.rangeCount > 0) {
-                            selection.modify('move', 'backward', 'word');
-                            selection.modify('extend', 'forward', 'word');
-                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                            if (word) copyToClipboard(word, "已复制单词: " + word);
-                        }
-                        clickTimer = null;
-                    }, 250);
-                }
             };
         }
     });
