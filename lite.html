@@ -20,7 +20,21 @@ html,body{width:100%;margin:0;padding:0;overflow-x:hidden!important;position:rel
 }
 .custom-bold{font-weight:700!important;color:#000!important;text-underline-offset:4px;}
 :root{--primary:#00a1d6;--primary-light:rgba(0,161,214,0.08);--bg:#ffffff;--header-bg:rgba(255,255,255,0.9);--panel:#f5f5f7;--text-main:#1d1d1f;--text-dim:#86868b;--border:#d2d2d7;--line-hover:#f0f0f2;}
-body{font-family:-apple-system,"SF Pro Display","PingFang SC",sans-serif;background:var(--bg);color:var(--text-main);margin:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg);}
+body {
+    font-family: -apple-system, "SF Pro Display", "PingFang SC", sans-serif;
+    background: var(--bg);
+    color: var(--text-main);
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    /* 核心修复：使用 dvh 适配动态工具栏 */
+    height: 100vh;
+    height: 100dvh; 
+    overflow: hidden;
+    /* 必须保留 fixed，否则 iOS 滑动字幕时容易带动整个网页 */
+    position: fixed; 
+    width: 100%;
+}
 .header{height:0;padding:0;border:none;}
 .status-dot{width:8px;height:8px;border-radius:50%;background:#d2d2d7;display:inline-block;}
 .status-dot.active{background:#34c759;box-shadow:0 0 6px rgba(52,199,89,0.5);}
@@ -41,10 +55,36 @@ input[type="file"]{display:none;}
 .action-bar .action-btn:active{background:#eeeeee;}
 .action-btn{padding:6px 14px;border-radius:8px;border:1px solid #d2d2d7;background:#fff;font-size:13px;color:#1d1d1f;cursor:pointer;transition:all 0.2s;font-family:inherit;}
 .action-btn:hover{background:#f5f5f7;border-color:var(--primary);color:var(--primary);}
-.video-wrapper{flex:0 0 auto;background:#000;box-shadow:0 4px 12px rgba(0,0,0,0.1);}
-video{max-height:45vh;width:100%;display:block;}
-/* 2. 移除最大宽度限制，让每一行文本横向铺满 */
+.video-wrapper {
+    padding-top: env(safe-area-inset-top); 
+    width: 100vw;
+    background: #000 !important; /* 核心：确保背景色为黑，消除白边感 */
+    flex: 0 0 auto;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden; /* 裁剪微量溢出 */
+    /* 解决 Safari 行高间隙 */
+    line-height: 0;
+    font-size: 0;
+}
+video {
+    /* 核心补丁：微调宽度至 101% 并居中，强制覆盖 Safari 的像素缝隙 */
+    width: 101% !important;
+    margin-left: -0.5% !important; 
+    
+    margin-top: 0;
+    margin-bottom: 0;
+    object-fit: contain;
+    max-height: 45vh;
+    display: block;
+    
+    /* 移除 Safari 默认样式干扰 */
+    border: none !important;
+    outline: none !important;
+    -webkit-tap-highlight-color: transparent;
+}/* 2. 移除最大宽度限制，让每一行文本横向铺满 */
 .line {
+    box-sizing: border-box; /* 确保 padding 不撑破宽度 */
     padding: 3px 0;         /* 仅保留上下间距，左右设为 0 */
     margin: 0;              /* 移除居中边距 */
     border-bottom: 1px solid #f2f2f7;
@@ -117,9 +157,9 @@ video{max-height:45vh;width:100%;display:block;}
   const fbApp = initializeApp(firebaseConfig);
   const db = getDatabase(fbApp);
 
-  // 1. 生成文档唯一 ID (基于字幕内容)
+// 1. 生成文档唯一 ID (严格基于 Anki 传入的 customid)
 window.getDocId = function () {
-    // ① 优先使用 URL 里的 customid（Anki 传入）
+    // 仅从 URL 获取 customid
     const urlParams = new URLSearchParams(window.location.search);
     const customId = urlParams.get('customid');
 
@@ -127,22 +167,9 @@ window.getDocId = function () {
         return "anki_" + customId.trim();
     }
 
-    // ② 备用：使用正文前30字符生成
-    const transcript = document.getElementById('transcript');
-    if (!transcript) return null;
-
-    const text = transcript.innerText.trim();
-    if (!text) return null;
-
-    try {
-        return "vid_" + btoa(
-            unescape(
-                encodeURIComponent(text.substring(0, 30))
-            )
-        ).replace(/[/+=]/g, "");
-    } catch(e) {
-        return null;
-    }
+    // 如果没有 customid，不再使用正文生成备用 ID
+    console.warn("未检测到 customid，Firebase 同步已禁用。");
+    return null;
 };
 // 2. 上传同步：增加 scrollPos (滚动百分比)
   window.syncUpload = async function() {
@@ -472,24 +499,49 @@ function renderSubtitles(cues) {
 
         const contentArea = div.querySelector('.content');
         let clickTimer = null;
-        contentArea.onclick = (e) => {
-            const selection = window.getSelection();
-            if (clickTimer) {
-                clearTimeout(clickTimer);
-                clickTimer = null;
-                copyToClipboard(contentArea.innerText.trim(), "已复制整句");
-            } else {
-                clickTimer = setTimeout(() => {
-                    if (selection.isCollapsed) {
-                        selection.modify('move', 'backward', 'word');
-                        selection.modify('extend', 'forward', 'word');
-                        const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                        if (word) copyToClipboard(word, "已复制单词: " + word);
-                    }
-                    clickTimer = null;
-                }, 250);
+ // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
+ contentArea.onclick = (e) => {
+    const selection = window.getSelection();
+    
+    // 1. 处理双击 (e.detail === 2)
+    if (e.detail === 2) {
+        // 取消单击触发的定时器（如果有）
+        if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+        }
+        
+        // 选中整句并复制
+        const range = document.createRange();
+        range.selectNodeContents(contentArea);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        const fullText = contentArea.innerText.trim();
+        copyToClipboard(fullText, "已复制整句内容");
+        return; // 双击逻辑结束
+    }
+
+    // 2. 处理单击 (e.detail === 1)
+    // 使用短延迟确保不会误触双击
+    clickTimer = setTimeout(() => {
+        // 只有当用户没有手动拉取长选区时，才执行自动选词
+        if (selection.isCollapsed) {
+            try {
+                // 自动扩展选中光标所在的单词
+                selection.modify('move', 'backward', 'word');
+                selection.modify('extend', 'forward', 'word');
+                const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                if (word) {
+                    copyToClipboard(word, "已复制单词: " + word);
+                }
+            } catch (err) {
+                console.log("自动选词暂不支持此设备");
             }
-        };
+        }
+        clickTimer = null;
+    }, 250); 
+ };
 
         transcript.appendChild(div);
     });
@@ -601,29 +653,49 @@ function rebindEvents() {
         if (contentArea) {
             let clickTimer = null;
             const cueText = contentArea.innerText; 
-            contentArea.onclick = (e) => {
-                const selection = window.getSelection();
-                if (clickTimer) { 
-                    clearTimeout(clickTimer);
-                    clickTimer = null;
-                    const range = document.createRange();
-                    range.selectNodeContents(contentArea);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                    copyToClipboard(cueText, "已复制整句");
-                } else { 
-                    clickTimer = setTimeout(() => {
-                        // 如果有选区，则尝试提取单词
-                        if (selection.rangeCount > 0) {
-                            selection.modify('move', 'backward', 'word');
-                            selection.modify('extend', 'forward', 'word');
-                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                            if (word) copyToClipboard(word, "已复制单词: " + word);
-                        }
-                        clickTimer = null;
-                    }, 250);
+ // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
+ contentArea.onclick = (e) => {
+    const selection = window.getSelection();
+    
+    // 1. 处理双击 (e.detail === 2)
+    if (e.detail === 2) {
+        // 取消单击触发的定时器（如果有）
+        if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+        }
+        
+        // 选中整句并复制
+        const range = document.createRange();
+        range.selectNodeContents(contentArea);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        const fullText = contentArea.innerText.trim();
+        copyToClipboard(fullText, "已复制整句内容");
+        return; // 双击逻辑结束
+    }
+
+    // 2. 处理单击 (e.detail === 1)
+    // 使用短延迟确保不会误触双击
+    clickTimer = setTimeout(() => {
+        // 只有当用户没有手动拉取长选区时，才执行自动选词
+        if (selection.isCollapsed) {
+            try {
+                // 自动扩展选中光标所在的单词
+                selection.modify('move', 'backward', 'word');
+                selection.modify('extend', 'forward', 'word');
+                const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                if (word) {
+                    copyToClipboard(word, "已复制单词: " + word);
                 }
-            };
+            } catch (err) {
+                console.log("自动选词暂不支持此设备");
+            }
+        }
+        clickTimer = null;
+    }, 250); 
+ };
         }
     });
 }
