@@ -478,9 +478,8 @@ function renderSubtitles(cues) {
         const nextTime = cues[index + 1] ? cues[index + 1].start : cue.start + 5;
         div.dataset.endTime = nextTime; 
 
-        // 修改布局顺序：Content 在上，Play-btn 在下
         div.innerHTML = `
-          <div class="content">${cue.text}</div>
+          <div class="content" style="touch-action: manipulation;">${cue.text}</div>
           <div class="play-btn" title="播放本句" contenteditable="false">▶</div>
         `;
 
@@ -498,50 +497,7 @@ function renderSubtitles(cues) {
         };
 
         const contentArea = div.querySelector('.content');
-        let clickTimer = null;
- // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
- contentArea.onclick = (e) => {
-    const selection = window.getSelection();
-    
-    // 1. 处理双击 (e.detail === 2)
-    if (e.detail === 2) {
-        // 取消单击触发的定时器（如果有）
-        if (clickTimer) {
-            clearTimeout(clickTimer);
-            clickTimer = null;
-        }
-        
-        // 选中整句并复制
-        const range = document.createRange();
-        range.selectNodeContents(contentArea);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        const fullText = contentArea.innerText.trim();
-        copyToClipboard(fullText, "已复制整句内容");
-        return; // 双击逻辑结束
-    }
-
-    // 2. 处理单击 (e.detail === 1)
-    // 使用短延迟确保不会误触双击
-    clickTimer = setTimeout(() => {
-        // 只有当用户没有手动拉取长选区时，才执行自动选词
-        if (selection.isCollapsed) {
-            try {
-                // 自动扩展选中光标所在的单词
-                selection.modify('move', 'backward', 'word');
-                selection.modify('extend', 'forward', 'word');
-                const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                if (word) {
-                    copyToClipboard(word, "已复制单词: " + word);
-                }
-            } catch (err) {
-                console.log("自动选词暂不支持此设备");
-            }
-        }
-        clickTimer = null;
-    }, 250); 
- };
+        bindContentInteractions(contentArea);
 
         transcript.appendChild(div);
     });
@@ -624,25 +580,19 @@ function saveCurrentTranscript() {
 }
 function rebindEvents() {
     const lines = document.querySelectorAll('.line');
-    lines.forEach((line, i) => { // 传入 i 以获取索引
+    lines.forEach((line, i) => {
         const btn = line.querySelector('.play-btn');
         if (btn) {
             const cueStart = parseFloat(line.dataset.time);
-            
-            // --- 关键：计算本句结束时间（即下一句的开始时间） ---
             const nextLine = lines[i + 1];
             const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : cueStart + 5;
 
             btn.onclick = (e) => {
                 e.stopPropagation();
-                
-                // --- 关键：触发单句播放标记 ---
                 video.dataset.singlePlayMode = "true";
                 video.dataset.stopAt = nextTime;
-                
                 video.currentTime = cueStart;
                 video.play().catch(()=>{});
-                
                 document.querySelector('.line.active')?.classList.remove('active');
                 line.classList.add('active');
                 updateStatus("🔂 单句播放中...", true);
@@ -651,21 +601,46 @@ function rebindEvents() {
 
         const contentArea = line.querySelector('.content');
         if (contentArea) {
-            let clickTimer = null;
-            const cueText = contentArea.innerText; 
- // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
- contentArea.onclick = (e) => {
-    const selection = window.getSelection();
-    
-    // 1. 处理双击 (e.detail === 2)
-    if (e.detail === 2) {
-        // 取消单击触发的定时器（如果有）
-        if (clickTimer) {
-            clearTimeout(clickTimer);
-            clickTimer = null;
+            // 确保样式也正确应用
+            contentArea.style.touchAction = "manipulation";
+            bindContentInteractions(contentArea);
         }
+    });
+}
+
+function bindContentInteractions(contentArea) {
+    let clickTimer = null;
+
+    // 1. 单击：处理单词提取
+    contentArea.onclick = (e) => {
+        // 如果系统判定是多连击，直接跳过单击逻辑
+        if (e.detail > 1) return; 
+
+        const selection = window.getSelection();
+        if (clickTimer) clearTimeout(clickTimer);
+
+        clickTimer = setTimeout(() => {
+            if (selection.isCollapsed) {
+                try {
+                    selection.modify('move', 'backward', 'word');
+                    selection.modify('extend', 'forward', 'word');
+                    const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                    if (word) {
+                        copyToClipboard(word, "已复制单词: " + word);
+                    }
+                } catch (err) {
+                    console.warn("设备不支持 modify 选词");
+                }
+            }
+            clickTimer = null;
+        }, 250); 
+    };
+
+    // 2. 双击：处理整句复制（Safari/Anki 兼容性增强）
+    contentArea.ondblclick = (e) => {
+        if (clickTimer) clearTimeout(clickTimer);
         
-        // 选中整句并复制
+        const selection = window.getSelection();
         const range = document.createRange();
         range.selectNodeContents(contentArea);
         selection.removeAllRanges();
@@ -673,31 +648,7 @@ function rebindEvents() {
         
         const fullText = contentArea.innerText.trim();
         copyToClipboard(fullText, "已复制整句内容");
-        return; // 双击逻辑结束
-    }
-
-    // 2. 处理单击 (e.detail === 1)
-    // 使用短延迟确保不会误触双击
-    clickTimer = setTimeout(() => {
-        // 只有当用户没有手动拉取长选区时，才执行自动选词
-        if (selection.isCollapsed) {
-            try {
-                // 自动扩展选中光标所在的单词
-                selection.modify('move', 'backward', 'word');
-                selection.modify('extend', 'forward', 'word');
-                const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                if (word) {
-                    copyToClipboard(word, "已复制单词: " + word);
-                }
-            } catch (err) {
-                console.log("自动选词暂不支持此设备");
-            }
-        }
-        clickTimer = null;
-    }, 250); 
- };
-        }
-    });
+    };
 }
     
     function setActiveLine(currentTime) {
