@@ -351,6 +351,17 @@ html, body {
 <div class="main-content">
     <div class="video-wrapper" style="position: relative; width: 100%; background: #000;">
     <video id="videoPlayer" controls playsinline webkit-playsinline></video>
+
+    <div id="video-touch-overlay" style="
+        position: absolute; 
+        top: 0; 
+        left: 0; 
+        width: 100%; 
+        height: 100%; 
+        z-index: 5; 
+        background: rgba(0,0,0,0); 
+        -webkit-tap-highlight-color: transparent;
+    "></div>
     
     <div id="video-overlay-subtitle" style="
         position: absolute;
@@ -916,6 +927,65 @@ function closeImagePreview() {
         updateStatus("视频已加载", true); // 恢复状态显示
     }, 300);
 }
+
+let controlsTimer = null;
+const touchOverlay = document.getElementById('video-touch-overlay');
+
+// --- 逻辑 A: 临时唤起原生控件 ---
+function toggleNativeControls() {
+    const video = document.getElementById('videoPlayer');
+    const btn = document.getElementById('toggle-controls-btn');
+    
+    if (controlsTimer) clearTimeout(controlsTimer);
+
+    // 开启控件，并允许穿透遮罩层操作进度条
+    video.controls = true;
+    touchOverlay.style.pointerEvents = 'none'; 
+    
+    btn.style.color = 'var(--primary)';
+    btn.innerText = "🔒 控件已开";
+    updateStatus("已唤起系统控件，5秒后自动关闭", true);
+
+    // 5秒后自动恢复纯净模式
+    controlsTimer = setTimeout(() => {
+        video.controls = false;
+        touchOverlay.style.pointerEvents = 'auto'; // 重新拦截点击
+        btn.style.color = '';
+        btn.innerText = "▶️ 控件";
+        updateStatus("已恢复纯净模式", true);
+    }, 5000);
+}
+
+// --- 逻辑 B: 在遮罩层上处理手势 ---
+touchOverlay.addEventListener('touchstart', (e) => {
+    touchStartX = e.touches[0].clientX;
+    touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+touchOverlay.addEventListener('touchend', (e) => {
+    const touchEndX = e.changedTouches[0].clientX;
+    const touchEndY = e.changedTouches[0].clientY;
+    const deltaX = touchEndX - touchStartX;
+    const deltaY = touchEndY - touchStartY;
+
+    // 如果是轻点 (Tap)
+    if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
+        if (video.paused) {
+            video.play().catch(err => console.log("播放被拦截", err));
+        } else {
+            video.pause();
+        }
+    } 
+    // 如果是水平划动
+    else if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > SWIPE_THRESHOLD) {
+        if (deltaX < 0) {
+            video.currentTime = Math.max(0, video.currentTime - 2); // 左划快退
+            updateStatus("⏪ 快退 2s", true);
+        } else {
+            video.pause(); // 右划暂停（或根据需求自定义）
+        }
+    }
+});
     window.parent.postMessage({ type: 'PLAYER_READY' }, '*');
 </script>
 </body>
