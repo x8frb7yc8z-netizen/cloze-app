@@ -117,9 +117,9 @@ video{max-height:45vh;width:100%;display:block;}
   const fbApp = initializeApp(firebaseConfig);
   const db = getDatabase(fbApp);
 
-  // 1. 生成文档唯一 ID (基于字幕内容)
+// 1. 生成文档唯一 ID (严格基于 Anki 传入的 customid)
 window.getDocId = function () {
-    // ① 优先使用 URL 里的 customid（Anki 传入）
+    // 仅从 URL 获取 customid
     const urlParams = new URLSearchParams(window.location.search);
     const customId = urlParams.get('customid');
 
@@ -127,22 +127,9 @@ window.getDocId = function () {
         return "anki_" + customId.trim();
     }
 
-    // ② 备用：使用正文前30字符生成
-    const transcript = document.getElementById('transcript');
-    if (!transcript) return null;
-
-    const text = transcript.innerText.trim();
-    if (!text) return null;
-
-    try {
-        return "vid_" + btoa(
-            unescape(
-                encodeURIComponent(text.substring(0, 30))
-            )
-        ).replace(/[/+=]/g, "");
-    } catch(e) {
-        return null;
-    }
+    // 如果没有 customid，不再使用正文生成备用 ID
+    console.warn("未检测到 customid，Firebase 同步已禁用。");
+    return null;
 };
 // 2. 上传同步：增加 scrollPos (滚动百分比)
   window.syncUpload = async function() {
