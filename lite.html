@@ -504,30 +504,31 @@ function renderSubtitles(cues) {
         let clickTimer = null;
         /* 替换 renderSubtitles 函数内 contentArea.onclick 部分 */
     contentArea.onclick = (e) => {
+    // 核心修复：如果点击的目标不是文字节点本身（比如点到了空白间距），则不触发逻辑
+    if (e.target !== e.currentTarget && !e.target.classList.contains('custom-bold')) {
+        return;
+    }
+
     const selection = window.getSelection();
     
-    // e.detail 表示短时间内点击的次数
     if (e.detail === 2) {
-        // --- 双击：复制整句 ---
-        // 先清除之前的单击延时（如果还想保留单击选词的话）
+        // 双击：复制整句
         const range = document.createRange();
         range.selectNodeContents(contentArea);
         selection.removeAllRanges();
         selection.addRange(range);
-        
         copyToClipboard(contentArea.innerText.trim(), "已复制整句");
     } else if (e.detail === 1) {
-        // --- 单击：自动选中并复制单词 ---
-        // 给系统一点点时间处理光标落点
+        // 单击：自动选中单词（仅当光标确实落在文字区域时）
         setTimeout(() => {
             if (selection.isCollapsed) {
                 try {
-                    // 向前后扩展选区到单词边界
                     selection.modify('move', 'backward', 'word');
                     selection.modify('extend', 'forward', 'word');
                     
                     const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                    if (word && word.length > 0) {
+                    // 如果选中的内容包含换行或长度异常，说明点偏了，忽略它
+                    if (word && word.length > 0 && word.length < 20) {
                         copyToClipboard(word, "已复制单词: " + word);
                     }
                 } catch (err) {
