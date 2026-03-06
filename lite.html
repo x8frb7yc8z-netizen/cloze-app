@@ -463,7 +463,7 @@ function parseSubtitle(data) {
         if (parts.length === 3) return (+parts[0]) * 3600 + (+parts[1]) * 60 + (+parts[2]);
         return (+parts[0]) * 60 + (+parts[1]);
     }
-    function renderSubtitles(cues) {
+function renderSubtitles(cues) {
     const transcript = document.getElementById('transcript');
     if (!transcript) return;
     transcript.innerHTML = ''; 
@@ -473,73 +473,70 @@ function parseSubtitle(data) {
         return;
     }
 
-    cues.forEach(cue => {
+    cues.forEach((cue, index) => {
         const div = document.createElement('div');
         div.className = 'line';
         div.dataset.time = cue.start;
         
-        // 确保文字在上，按钮在下
+        const nextTime = cues[index + 1] ? cues[index + 1].start : cue.start + 5;
+        div.dataset.endTime = nextTime; 
+
+        // 修改布局顺序：Content 在上，Play-btn 在下
         div.innerHTML = `
           <div class="content">${cue.text}</div>
-          <div class="play-btn" title="从此处播放" contenteditable="false">▶</div>
+          <div class="play-btn" title="播放本句" contenteditable="false">▶</div>
         `;
 
-        // 1. 播放按钮逻辑 (明确隔离)
         const btn = div.querySelector('.play-btn');
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation(); // 阻止事件冒泡到 .line 或 .content
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            video.dataset.singlePlayMode = "true";
+            video.dataset.stopAt = nextTime; 
             video.currentTime = cue.start;
             video.play().catch(()=>{});
+            
             document.querySelector('.line.active')?.classList.remove('active');
             div.classList.add('active');
-        });
+            updateStatus("🔂 单句播放中...", true);
+        };
 
-        // 2. 文字区域逻辑 (优化双击判定)
         const contentArea = div.querySelector('.content');
         let clickTimer = null;
-
-        contentArea.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const selection = window.getSelection();
-
-            if (e.detail === 2) { 
-                // 核心修复：直接利用浏览器的双击计数 (e.detail === 2)
-                if (clickTimer) clearTimeout(clickTimer);
-                clickTimer = null;
-
-                const range = document.createRange();
-                range.selectNodeContents(contentArea);
-                selection.removeAllRanges();
-                selection.addRange(range);
-                
-                const textToCopy = contentArea.innerText.trim();
-                copyToClipboard(textToCopy, "已复制整句");
-            } else if (e.detail === 1) {
-                // 单击选词逻辑
-                clickTimer = setTimeout(() => {
-                    // 如果用户正在手动拉取选区，不干预
-                    if (selection.toString().trim().length > 0 && !selection.isCollapsed) return;
-
-                    let range;
-                    if (document.caretRangeFromPoint) {
-                        range = document.caretRangeFromPoint(e.clientX, e.clientY);
+        /* 替换 renderSubtitles 函数内 contentArea.onclick 部分 */
+    contentArea.onclick = (e) => {
+    const selection = window.getSelection();
+    
+    // e.detail 表示短时间内点击的次数
+    if (e.detail === 2) {
+        // --- 双击：复制整句 ---
+        // 先清除之前的单击延时（如果还想保留单击选词的话）
+        const range = document.createRange();
+        range.selectNodeContents(contentArea);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        copyToClipboard(contentArea.innerText.trim(), "已复制整句");
+    } else if (e.detail === 1) {
+        // --- 单击：自动选中并复制单词 ---
+        // 给系统一点点时间处理光标落点
+        setTimeout(() => {
+            if (selection.isCollapsed) {
+                try {
+                    // 向前后扩展选区到单词边界
+                    selection.modify('move', 'backward', 'word');
+                    selection.modify('extend', 'forward', 'word');
+                    
+                    const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                    if (word && word.length > 0) {
+                        copyToClipboard(word, "已复制单词: " + word);
                     }
-                    if (range) {
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                        // 针对 iOS 优化的选词
-                        selection.modify('move', 'backward', 'word');
-                        selection.modify('extend', 'forward', 'word');
-                        
-                        const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                        if (word && word.length < 25) {
-                            copyToClipboard(word, "已复制单词: " + word);
-                        }
-                    }
-                    clickTimer = null;
-                }, 250);
+                } catch (err) {
+                    console.log("Selection modify 不支持");
+                }
             }
-        });
+        }, 50);
+    }
+    };
 
         transcript.appendChild(div);
     });
