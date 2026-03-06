@@ -302,6 +302,7 @@
 
 <!-- ===================== Firebase 模块（ES Module） ===================== -->
 <script type="module">
+    window.isDataInitialized = false; // 初始状态：未同步
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
@@ -317,25 +318,27 @@
 
     const fbApp = initializeApp(firebaseConfig);
     const db = getDatabase(fbApp);
-
-    window.syncDownload = async function() {
+window.syncDownload = async function() {
     const id = window.getDocId();
     if (!id) return;
     try {
         const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
         if (snapshot.exists()) {
             const data = snapshot.val();
-            // 获取索引数组
             window.boldPositions = data.boldIndices || []; 
-            // 立即刷新视觉效果
             applyBoldFromPositions(); 
-            
-            // 如果云端有滚动位置，且本地没在滚动，则恢复
-            if (data.scrollPos !== undefined && !window.userIsScrolling) {
-                transcriptContainer.scrollTop = data.scrollPos * (transcriptContainer.scrollHeight - transcriptContainer.clientHeight);
-            }
+            // ... 滚动位置还原逻辑 ...
+        } else {
+            // 如果云端没数据，说明是新文档，也允许上传
+            window.boldPositions = [];
         }
-    } catch(e) { console.error("同步下载失败:", e); }
+        
+        // --- 关键：数据已就绪，允许以后的上传操作 ---
+        window.isDataInitialized = true; 
+        updateStatus("✨ 同步就绪", true);
+    } catch(e) { 
+        console.error("同步下载失败:", e); 
+    }
 };
 
     // 从 URL 参数获取文档 ID
@@ -347,6 +350,11 @@
 
     // ☁️ 上传：将加粗词的文本内容列表同步到云端
     window.syncUpload = async function() {
+        if (!window.isDataInitialized) {
+            console.log("⚠️ 拒绝上传：本地数据尚未与云端同步，防止覆盖。");
+            return;
+        }
+
         const id = window.getDocId();
         if (!id) return;
 
@@ -437,12 +445,14 @@
         });
     }
 
-    // 停止滚动 1.5s 后自动上传
-    let scrollSyncTimer;
-    document.getElementById('transcript').addEventListener('scroll', () => {
-        clearTimeout(scrollSyncTimer);
-        scrollSyncTimer = setTimeout(() => window.syncUpload(), 1500);
-    });
+let scrollSyncTimer;
+document.getElementById('transcript').addEventListener('scroll', () => {
+    // 只有用户初始化完成后，滚动才触发同步
+    if (!window.isDataInitialized) return; 
+
+    clearTimeout(scrollSyncTimer);
+    scrollSyncTimer = setTimeout(() => window.syncUpload(), 2000); // 稍微延长到2秒
+})
 
 // 修改 window.onload 或相关的初始化位置
 window.addEventListener('load', () => {
