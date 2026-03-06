@@ -142,8 +142,7 @@ video {
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-  import { getDatabase, ref, update, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-    
+
   const firebaseConfig = {
     // 请替换为你自己的配置
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
@@ -172,63 +171,54 @@ window.getDocId = function () {
     console.warn("未检测到 customid，Firebase 同步已禁用。");
     return null;
 };
+// 2. 上传同步：增加 scrollPos (滚动百分比)
+  window.syncUpload = async function() {
+      const id = window.getDocId();
+      if (!id) return;
 
-// --- 仅同步：文字标记 (HTML 结构) ---
-window.syncContentUpload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-    const transcript = document.getElementById('transcript');
-    
-    // 使用 update 仅覆盖 htmlContent 字段
-    update(ref(db, 'video_sync/' + id), {
-        htmlContent: transcript.innerHTML,
-        content_ts: Date.now()
-    });
-};
+      const video = document.getElementById('videoPlayer');
+      const transcript = document.getElementById('transcript');
+      
+      // 计算滚动百分比
+      const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
 
-/ --- 仅同步：阅读位置 (滚动百分比) ---
-window.syncProgressUpload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-    const transcript = document.getElementById('transcript');
-    
-    const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
-    if (isNaN(scrollPercent)) return;
-
-    // 使用 update 仅覆盖 scrollPos 字段
-    update(ref(db, 'video_sync/' + id), {
-        scrollPos: scrollPercent,
-        progress_ts: Date.now()
-    });
-};
+      set(ref(db, 'video_sync/' + id), {
+          lastTime: video.currentTime || 0,
+          htmlContent: transcript.innerHTML,
+          scrollPos: scrollPercent, // 新增：滚动位置百分比
+          ts: Date.now()
+      });
+  };
 
   // 3. 下载同步：恢复进度和滚动位置
-window.syncDownload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-    
-    const snapshot = await get(child(ref(db), 'video_sync/' + id));
-    if (snapshot.exists()) {
-        const data = snapshot.val();
-        
-        // 1. 仅恢复加粗标记内容
-        if (data.htmlContent) {
-            document.getElementById('transcript').innerHTML = data.htmlContent;
-            if(typeof rebindEvents === 'function') rebindEvents(); 
-        }
+  window.syncDownload = async function() {
+      const id = window.getDocId();
+      const snapshot = await get(child(ref(db), 'video_sync/' + id));
+      if (snapshot.exists()) {
+          const data = snapshot.val();
+          
+          // 1. 恢复加粗状态
+          if (data.htmlContent) {
+              document.getElementById('transcript').innerHTML = data.htmlContent;
+              rebindEvents(); 
+          }
 
-        // 2. 仅恢复阅读滚动位置
-        if (data.scrollPos !== undefined) {
-            const transcript = document.getElementById('transcript');
-            setTimeout(() => {
-                transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                updateStatus("同步已就绪", true);
-            }, 300);
-        }
-        
-        // --- 已删除：data.lastTime 相关的视频跳转逻辑 ---
-    }
-};
+          // 2. 恢复视频进度 (如果有视频)
+          if (data.lastTime && !isNaN(data.lastTime)) {
+              const v = document.getElementById('videoPlayer');
+              v.currentTime = data.lastTime;
+          }
+
+          // 3. 恢复滚动位置 (延迟执行确保 DOM 渲染完毕)
+          if (data.scrollPos !== undefined) {
+              const transcript = document.getElementById('transcript');
+              setTimeout(() => {
+                  transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                  updateStatus("已同步阅读进度", true);
+              }, 200);
+          }
+      }
+  };
 </script>
 
 <script>
@@ -294,18 +284,16 @@ touchOverlay.addEventListener('touchend', (e) => {
     }
 });
 
-// 监听字幕容器滚动停止
+// 监听字幕容器滚动
 const transcriptDiv = document.getElementById('transcript');
 transcriptDiv.addEventListener('scroll', () => {
     clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
-        // --- 核心修改：此处仅触发滚动位置上传，不涉及 HTML 标记 ---
-        if (window.syncProgressUpload) {
-            window.syncProgressUpload();
-            console.log("阅读位置已同步");
-        }
-    }, 1500); 
+        console.log("检测到滚动停止，同步阅读进度...");
+        if (window.syncUpload) window.syncUpload();
+    }, 1500); // 停止滚动 1.5 秒后同步
 });
+
 document.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
@@ -370,6 +358,14 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
+
+video.addEventListener('pause', () => {
+    if (window.syncUpload) {
+        window.syncUpload();
+        lastSyncTime = Date.now();
+    }
+});
+
 document.getElementById('videoInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -378,10 +374,11 @@ document.getElementById('videoInput').addEventListener('change', (e) => {
         video.src = URL.createObjectURL(file);
         updateStatus("视频已加载", true);
         
-        // 确保视频就绪后不执行任何跳转，直接从头开始
-        video.onloadeddata = () => {
-            console.log("新视频就绪，进度保持为 0");
-        };
+        // 移除原有的 loadeddata 恢复进度逻辑，仅保留基础加载
+        video.addEventListener('loadeddata', function onLoaded() {
+            console.log("视频已就绪，从 00:00 开始播放");
+            video.removeEventListener('loadeddata', onLoaded);
+        });
     }
 });
 
@@ -473,77 +470,83 @@ function renderSubtitles(cues) {
         return;
     }
 
-    cues.forEach(cue => {
+    cues.forEach((cue, index) => {
         const div = document.createElement('div');
         div.className = 'line';
         div.dataset.time = cue.start;
         
-        // 确保文字在上，按钮在下
+        const nextTime = cues[index + 1] ? cues[index + 1].start : cue.start + 5;
+        div.dataset.endTime = nextTime; 
+
+        // 修改布局顺序：Content 在上，Play-btn 在下
         div.innerHTML = `
           <div class="content">${cue.text}</div>
-          <div class="play-btn" title="从此处播放" contenteditable="false">▶</div>
+          <div class="play-btn" title="播放本句" contenteditable="false">▶</div>
         `;
 
-        // 1. 播放按钮逻辑 (明确隔离)
         const btn = div.querySelector('.play-btn');
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation(); // 阻止事件冒泡到 .line 或 .content
+        btn.onclick = (e) => {
+            e.stopPropagation();
+            video.dataset.singlePlayMode = "true";
+            video.dataset.stopAt = nextTime; 
             video.currentTime = cue.start;
             video.play().catch(()=>{});
+            
             document.querySelector('.line.active')?.classList.remove('active');
             div.classList.add('active');
-        });
+            updateStatus("🔂 单句播放中...", true);
+        };
 
-        // 2. 文字区域逻辑 (优化双击判定)
         const contentArea = div.querySelector('.content');
         let clickTimer = null;
+ // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
+ contentArea.onclick = (e) => {
+    const selection = window.getSelection();
+    
+    // 1. 处理双击 (e.detail === 2)
+    if (e.detail === 2) {
+        // 取消单击触发的定时器（如果有）
+        if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+        }
+        
+        // 选中整句并复制
+        const range = document.createRange();
+        range.selectNodeContents(contentArea);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        const fullText = contentArea.innerText.trim();
+        copyToClipboard(fullText, "已复制整句内容");
+        return; // 双击逻辑结束
+    }
 
-        contentArea.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const selection = window.getSelection();
-
-            if (e.detail === 2) { 
-                // 核心修复：直接利用浏览器的双击计数 (e.detail === 2)
-                if (clickTimer) clearTimeout(clickTimer);
-                clickTimer = null;
-
-                const range = document.createRange();
-                range.selectNodeContents(contentArea);
-                selection.removeAllRanges();
-                selection.addRange(range);
-                
-                const textToCopy = contentArea.innerText.trim();
-                copyToClipboard(textToCopy, "已复制整句");
-            } else if (e.detail === 1) {
-                // 单击选词逻辑
-                clickTimer = setTimeout(() => {
-                    // 如果用户正在手动拉取选区，不干预
-                    if (selection.toString().trim().length > 0 && !selection.isCollapsed) return;
-
-                    let range;
-                    if (document.caretRangeFromPoint) {
-                        range = document.caretRangeFromPoint(e.clientX, e.clientY);
-                    }
-                    if (range) {
-                        selection.removeAllRanges();
-                        selection.addRange(range);
-                        // 针对 iOS 优化的选词
-                        selection.modify('move', 'backward', 'word');
-                        selection.modify('extend', 'forward', 'word');
-                        
-                        const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                        if (word && word.length < 25) {
-                            copyToClipboard(word, "已复制单词: " + word);
-                        }
-                    }
-                    clickTimer = null;
-                }, 250);
+    // 2. 处理单击 (e.detail === 1)
+    // 使用短延迟确保不会误触双击
+    clickTimer = setTimeout(() => {
+        // 只有当用户没有手动拉取长选区时，才执行自动选词
+        if (selection.isCollapsed) {
+            try {
+                // 自动扩展选中光标所在的单词
+                selection.modify('move', 'backward', 'word');
+                selection.modify('extend', 'forward', 'word');
+                const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                if (word) {
+                    copyToClipboard(word, "已复制单词: " + word);
+                }
+            } catch (err) {
+                console.log("自动选词暂不支持此设备");
             }
-        });
+        }
+        clickTimer = null;
+    }, 250); 
+ };
 
         transcript.appendChild(div);
     });
 }
+
 async function copyToClipboard(text, msg) {
     try {
         await navigator.clipboard.writeText(text);
@@ -563,40 +566,56 @@ function scrollToActive() {
         updateStatus("视频未在播放匹配的字幕行", false);
     }
 }
-
 function boldSelectedText() {
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed) return;
-    const range = sel.getRangeAt(0);
-    if (!range.commonAncestorContainer.parentElement.closest('.content')) return;
-
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        updateStatus("请先选中单词", false);
+        return;
+    }
+    const range = selection.getRangeAt(0);
+    const container = range.commonAncestorContainer.nodeType === 3
+        ? range.commonAncestorContainer.parentElement
+        : range.commonAncestorContainer;
+    if (!container.closest('.content')) {
+        updateStatus("只能在字幕正文内操作", false);
+        return;
+    }
     const bolds = document.querySelectorAll('.custom-bold');
-    let matched = false;
-    bolds.forEach(b => {
-        if (sel.containsNode(b, true)) {
-            const p = b.parentNode;
-            while (b.firstChild) p.insertBefore(b.firstChild, b);
-            p.removeChild(b);
-            p.normalize();
-            matched = true;
+    let matchedBold = [];
+    bolds.forEach(bold => {
+        const boldRange = document.createRange();
+        boldRange.selectNodeContents(bold);
+        if (range.compareBoundaryPoints(Range.END_TO_START, boldRange) < 0 &&
+            range.compareBoundaryPoints(Range.START_TO_END, boldRange) > 0) {
+            matchedBold.push(bold);
         }
     });
-
-    if (!matched) {
+    if (matchedBold.length > 0) {
+        matchedBold.forEach(bold => {
+            const parent = bold.parentNode;
+            while (bold.firstChild) { parent.insertBefore(bold.firstChild, bold); }
+            parent.removeChild(bold);
+            parent.normalize();
+        });
+        updateStatus("已取消标记", true);
+    } else {
         const span = document.createElement('span');
         span.className = 'custom-bold';
-        span.appendChild(range.extractContents());
-        range.insertNode(span);
+        try {
+            const extracted = range.extractContents();
+            span.appendChild(extracted);
+            range.insertNode(span);
+            updateStatus("已成功标记重点", true);
+        } catch (e) {
+            updateStatus("选区太复杂", false);
+        }
     }
-    sel.removeAllRanges();
-
-    // --- 核心修改：此处仅触发内容上传，不涉及滚动位置 ---
-    if (window.syncContentUpload) {
-        window.syncContentUpload();
-        updateStatus("标记已云端同步", true);
+    selection.removeAllRanges();
+    saveCurrentTranscript(); // 保存本地
+    if (window.syncUpload) {
+        window.syncUpload(); // 上传云端 (Firebase)
     }
 }
-
 function saveCurrentTranscript() {
     const transcript = document.getElementById('transcript');
     if (transcript) {
@@ -634,29 +653,49 @@ function rebindEvents() {
         if (contentArea) {
             let clickTimer = null;
             const cueText = contentArea.innerText; 
-            contentArea.onclick = (e) => {
-                const selection = window.getSelection();
-                if (clickTimer) { 
-                    clearTimeout(clickTimer);
-                    clickTimer = null;
-                    const range = document.createRange();
-                    range.selectNodeContents(contentArea);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                    copyToClipboard(cueText, "已复制整句");
-                } else { 
-                    clickTimer = setTimeout(() => {
-                        // 如果有选区，则尝试提取单词
-                        if (selection.rangeCount > 0) {
-                            selection.modify('move', 'backward', 'word');
-                            selection.modify('extend', 'forward', 'word');
-                            const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                            if (word) copyToClipboard(word, "已复制单词: " + word);
-                        }
-                        clickTimer = null;
-                    }, 250);
+ // 修改后的点击处理函数（建议替换 rebindEvents 和 renderSubtitles 中的对应部分）
+ contentArea.onclick = (e) => {
+    const selection = window.getSelection();
+    
+    // 1. 处理双击 (e.detail === 2)
+    if (e.detail === 2) {
+        // 取消单击触发的定时器（如果有）
+        if (clickTimer) {
+            clearTimeout(clickTimer);
+            clickTimer = null;
+        }
+        
+        // 选中整句并复制
+        const range = document.createRange();
+        range.selectNodeContents(contentArea);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        
+        const fullText = contentArea.innerText.trim();
+        copyToClipboard(fullText, "已复制整句内容");
+        return; // 双击逻辑结束
+    }
+
+    // 2. 处理单击 (e.detail === 1)
+    // 使用短延迟确保不会误触双击
+    clickTimer = setTimeout(() => {
+        // 只有当用户没有手动拉取长选区时，才执行自动选词
+        if (selection.isCollapsed) {
+            try {
+                // 自动扩展选中光标所在的单词
+                selection.modify('move', 'backward', 'word');
+                selection.modify('extend', 'forward', 'word');
+                const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                if (word) {
+                    copyToClipboard(word, "已复制单词: " + word);
                 }
-            };
+            } catch (err) {
+                console.log("自动选词暂不支持此设备");
+            }
+        }
+        clickTimer = null;
+    }, 250); 
+ };
         }
     });
 }
@@ -714,6 +753,11 @@ video.addEventListener('timeupdate', () => {
             video.play().catch(() => {});
             return; 
         }
+    }
+
+    // --- 4. 进度记忆 ---
+    if (currentTime > 0) {
+        localStorage.setItem('last_video_time', currentTime);
     }
 
     // --- 5. 高亮与悬浮文字逻辑 ---
