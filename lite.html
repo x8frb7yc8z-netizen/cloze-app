@@ -302,6 +302,7 @@
 
 <!-- ===================== Firebase 模块（ES Module） ===================== -->
 <script type="module">
+    let lastLocalWriteTime = 0;
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
@@ -326,71 +327,76 @@
     };
 
     // ☁️ 上传：将加粗词的文本内容列表同步到云端
-    // 使用"文本内容"而非"DOM索引"，避免字幕重渲染后索引失效
-    window.syncUpload = async function() {
-        const id = window.getDocId();
-        if (!id) return;
+window.syncUpload = async function() {
+    const id = window.getDocId();
+    if (!id) return;
 
-        const transcript = document.getElementById('transcript');
-        // 收集所有加粗 span 的文本内容（保留重复词）
-        const boldTexts = Array.from(transcript.querySelectorAll('.custom-bold'))
-            .map(el => el.textContent.trim());
+    const transcript = document.getElementById('transcript');
+    const boldTexts = Array.from(transcript.querySelectorAll('.custom-bold'))
+        .map(el => el.textContent.trim());
 
-        const scrollPercent = transcript.scrollTop /
-            (transcript.scrollHeight - transcript.clientHeight || 1);
+    const scrollPercent = transcript.scrollTop /
+        (transcript.scrollHeight - transcript.clientHeight || 1);
 
-        try {
-            await set(ref(db, 'video_reader_sync/' + id), {
-                boldTexts,
-                scrollPos: scrollPercent,
-                ts: Date.now()
-            });
-            updateStatus("☁️ 阅读进度已同步", true);
-        } catch(e) {
-            console.error("Firebase Upload Error:", e);
-        }
-    };
+    const now = Date.now();
+    lastLocalWriteTime = now; // 更新本地最后写入时间
+
+    try {
+        await set(ref(db, 'video_reader_sync/' + id), {
+            boldTexts,
+            scrollPos: scrollPercent,
+            ts: now // 写入当前服务器/本地时间
+        });
+        updateStatus("☁️ 已同步至云端", true);
+    } catch(e) {
+        console.error("Firebase Upload Error:", e);
+    }
+};
 
     // ☁️ 下载：根据云端文本内容列表还原加粗和滚动位置
-    window.syncDownload = async function() {
-        const id = window.getDocId();
-        if (!id) return;
+window.syncDownload = async function(isAutoTrigger = false) {
+    const id = window.getDocId();
+    if (!id) return;
 
-        try {
-            const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
-            if (!snapshot.exists()) return;
+    try {
+        const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
+        if (!snapshot.exists()) return;
 
-            const data = snapshot.val();
-            const transcript = document.getElementById('transcript');
-
-            // A. 还原加粗（兼容旧版 boldIndices 格式）
-            if (data.boldTexts && Array.isArray(data.boldTexts)) {
-                const boldSet = new Set(data.boldTexts);
-                // 遍历所有内容节点，将匹配文本的节点加粗
-                transcript.querySelectorAll('.content').forEach(contentEl => {
-                    wrapMatchingWords(contentEl, boldSet);
-                });
-            } else if (data.boldIndices && Array.isArray(data.boldIndices)) {
-                // 兼容旧版：按索引还原（旧版用 .word span）
-                const allWords = transcript.querySelectorAll('.word');
-                allWords.forEach(span => span.classList.remove('custom-bold'));
-                data.boldIndices.forEach(idx => {
-                    if (allWords[idx]) allWords[idx].classList.add('custom-bold');
-                });
-            }
-
-            // B. 还原滚动位置
-            if (data.scrollPos !== undefined) {
-                setTimeout(() => {
-                    transcript.scrollTop =
-                        data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                    updateStatus("✨ 已加载上次阅读位置", true);
-                }, 300);
-            }
-        } catch(e) {
-            console.error("Firebase Download Error:", e);
+        const data = snapshot.val();
+        
+        // 【核心冲突检查】：如果云端数据比本地最后一次写入还要旧，则不执行下载
+        if (data.ts && data.ts <= lastLocalWriteTime) {
+            return; 
         }
-    };
+
+        const transcript = document.getElementById('transcript');
+
+        // A. 还原加粗
+        if (data.boldTexts && Array.isArray(data.boldTexts)) {
+            const boldSet = new Set(data.boldTexts);
+            transcript.querySelectorAll('.content').forEach(contentEl => {
+                wrapMatchingWords(contentEl, boldSet);
+            });
+        }
+
+        // B. 还原滚动位置
+        // 如果是自动触发（比如定时器），且用户正在操作，则不强行滚动防止冲突
+        if (data.scrollPos !== undefined) {
+            if (isAutoTrigger && (userIsScrolling || window.getSelection()?.toString())) {
+                return; 
+            }
+            
+            setTimeout(() => {
+                const targetPos = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                // 使用 smooth 滚动减少突兀感
+                transcript.scrollTo({ top: targetPos, behavior: 'smooth' });
+                updateStatus("✨ 已同步他端进度", true);
+            }, 300);
+        }
+    } catch(e) {
+        console.error("Firebase Download Error:", e);
+    }
+};
 
     // 工具：在纯文本节点中找到匹配词并包裹 <span class="custom-bold">
     function wrapMatchingWords(container, boldSet) {
@@ -425,17 +431,17 @@
         });
     }
 
-    // 停止滚动 1.5s 后自动上传
-    let scrollSyncTimer;
-    document.getElementById('transcript').addEventListener('scroll', () => {
-        clearTimeout(scrollSyncTimer);
-        scrollSyncTimer = setTimeout(() => window.syncUpload(), 1500);
-    });
+// 3. 滚动停止上传保持不变
+let scrollSyncTimer;
+document.getElementById('transcript').addEventListener('scroll', () => {
+    clearTimeout(scrollSyncTimer);
+    scrollSyncTimer = setTimeout(() => window.syncUpload(), 2000); // 延长到2秒，减少冲突频率
+})
 
-    // 页面加载后触发一次下载
-    window.addEventListener('load', () => {
-        setTimeout(() => window.syncDownload(), 500);
-    });
+ // 1. 初始加载：强制下载
+window.addEventListener('load', () => {
+    setTimeout(() => window.syncDownload(false), 800);
+})
 </script>
 
 <!-- ===================== 主逻辑 ===================== -->
