@@ -9,32 +9,10 @@
 #current-floating-text{background:transparent!important;box-shadow:none!important;text-shadow:1px 1px 0 #000,-1px -1px 0 #000,1px -1px 0 #000,-1px 1px 0 #000,2px 2px 4px rgba(0,0,0,0.8);}
 html,body{width:100%;margin:0;padding:0;overflow-x:hidden!important;position:relative;}
 #status,.status-dot{display:none!important;}
-/* 1. 移除容器内边距，允许内容撑满全屏 */
-.transcript-container {
-    flex: 1;
-    overflow-y: auto;
-    overflow-x: hidden !important;
-    padding: 0 !important; /* 原为 20px，改为 0 */
-    background: #ffffff;
-    box-sizing: border-box;
-}
+.transcript-container{flex:1;overflow-y:auto;overflow-x:hidden!important;padding:20px!important;background:#ffffff;box-sizing:border-box;}
 .custom-bold{font-weight:700!important;color:#000!important;text-underline-offset:4px;}
 :root{--primary:#00a1d6;--primary-light:rgba(0,161,214,0.08);--bg:#ffffff;--header-bg:rgba(255,255,255,0.9);--panel:#f5f5f7;--text-main:#1d1d1f;--text-dim:#86868b;--border:#d2d2d7;--line-hover:#f0f0f2;}
-body {
-    font-family: -apple-system, "SF Pro Display", "PingFang SC", sans-serif;
-    background: var(--bg);
-    color: var(--text-main);
-    margin: 0;
-    display: flex;
-    flex-direction: column;
-    /* 核心修复：使用 dvh 适配动态工具栏 */
-    height: 100vh;
-    height: 100dvh; 
-    overflow: hidden;
-    /* 必须保留 fixed，否则 iOS 滑动字幕时容易带动整个网页 */
-    position: fixed; 
-    width: 100%;
-}
+body{font-family:-apple-system,"SF Pro Display","PingFang SC",sans-serif;background:var(--bg);color:var(--text-main);margin:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;background:var(--bg);}
 .header{height:0;padding:0;border:none;}
 .status-dot{width:8px;height:8px;border-radius:50%;background:#d2d2d7;display:inline-block;}
 .status-dot.active{background:#34c759;box-shadow:0 0 6px rgba(52,199,89,0.5);}
@@ -55,79 +33,15 @@ input[type="file"]{display:none;}
 .action-bar .action-btn:active{background:#eeeeee;}
 .action-btn{padding:6px 14px;border-radius:8px;border:1px solid #d2d2d7;background:#fff;font-size:13px;color:#1d1d1f;cursor:pointer;transition:all 0.2s;font-family:inherit;}
 .action-btn:hover{background:#f5f5f7;border-color:var(--primary);color:var(--primary);}
-.video-wrapper {
-    padding-top: env(safe-area-inset-top); 
-    width: 100vw;
-    background: #000 !important; /* 核心：确保背景色为黑，消除白边感 */
-    flex: 0 0 auto;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    position: relative;
-    overflow: hidden; /* 裁剪微量溢出 */
-    /* 解决 Safari 行高间隙 */
-    line-height: 0;
-    font-size: 0;
-}
-video {
-    /* 核心补丁：微调宽度至 101% 并居中，强制覆盖 Safari 的像素缝隙 */
-    width: 101% !important;
-    margin-left: -0.5% !important; 
-    
-    margin-top: 0;
-    margin-bottom: 0;
-    object-fit: contain;
-    max-height: 45vh;
-    display: block;
-    
-    /* 移除 Safari 默认样式干扰 */
-    border: none !important;
-    outline: none !important;
-    -webkit-tap-highlight-color: transparent;
-}/* 2. 移除最大宽度限制，让每一行文本横向铺满 */
-.line {
-    box-sizing: border-box; /* 确保 padding 不撑破宽度 */
-    padding: 3px 0;         /* 仅保留上下间距，左右设为 0 */
-    margin: 0;              /* 移除居中边距 */
-    border-bottom: 1px solid #f2f2f7;
-    width: 100%;            /* 撑满父容器宽度 */
-    max-width: none;        /* 移除原有的 800px 限制 */
-    cursor: default;
-    text-align: center;     /* 保持文字水平居中，如果想靠左可改为 left */
-    background: transparent !important;
-    display: flex;
-    flex-direction: column; 
-    align-items: center;
-    justify-content: center;
-}
-.play-btn {
-    width: 32px;              /* 稍微缩小按钮尺寸 (原 40px) */
-    height: 32px;
-    margin: 4px 0 0 0;        /* 显著缩小文字与按钮之间的间距 (原 10px) */
-    border-radius: 50%;
-    border: 1px solid #d2d2d7;
-    background: #fff;
-    color: #86868b;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    font-size: 14px;          /* 稍微缩小图标大小 */
-    transition: all 0.2s;
-    flex-shrink: 0;
-    user-select: none;
-    -webkit-user-select: none;
-}
+.video-wrapper{flex:0 0 auto;background:#000;box-shadow:0 4px 12px rgba(0,0,0,0.1);}
+video{max-height:45vh;width:100%;display:block;}
+.line{border-bottom: 1px solid #f2f2f7;width:100%;max-width:800px;padding:10px 0;cursor:default;text-align:center;background:transparent!important;display:flex;flex-direction:row;align-items:center;justify-content:center;margin:0 auto 10px auto;align-items: flex-start;}
+.play-btn{width:32px;height:32px;margin-right:5px;border-radius:50%;border:1px solid #d2d2d7;background:#fff;color:#86868b;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;transition:all 0.2s;flex-shrink:0;user-select: none;-webkit-user-select: none;margin-top: 2px;}
 .play-btn:hover{background:#f5f5f7;color:var(--primary);border-color:var(--primary);}
 .line.active .play-btn{background:var(--primary);color:#fff;border-color:var(--primary);box-shadow:0 0 8px rgba(0,161,214,0.4);}
 .line:hover{background:var(--line-hover);border-color:var(--border);}
 .time-box{display:inline-block!important;font-family:"SF Mono",monospace;font-size:10px;color:#ccc;background:#f0f0f2;padding:2px 6px;border-radius:4px;margin-bottom:8px;opacity:0.6;}
-.content {
-    line-height: 1;
-    font-size: 30px;
-    transition: none !important;
-    font-weight: 400 !important;
-    color: #1d1d1f;
-    width: 100%; /* 确保文字宽度撑满 */
-}
+.content{line-height:1;font-size:26px;transition:none!important;font-weight:400!important;transform:none!important;color:#1d1d1f;max-width:100%!important;margin:0!important;}
 .line.active .content{font-weight:400!important;transform:none!important;color:#000;}
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--text-dim);text-align:center;}
     </style>
@@ -141,11 +55,9 @@ video {
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-  import { getDatabase, ref, update, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-    
+  import { getDatabase, ref, set, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
   const firebaseConfig = {
-    // 请替换为你自己的配置
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
     authDomain: "cloze-master-pro.firebaseapp.com",
     databaseURL: "https://cloze-master-pro-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -158,77 +70,71 @@ video {
   const fbApp = initializeApp(firebaseConfig);
   const db = getDatabase(fbApp);
 
-// 1. 生成文档唯一 ID (严格基于 Anki 传入的 customid)
-window.getDocId = function () {
-    // 仅从 URL 获取 customid
+  window.getDocId = function () {
     const urlParams = new URLSearchParams(window.location.search);
     const customId = urlParams.get('customid');
-
-    if (customId && customId.trim() !== "") {
-        return "anki_" + customId.trim();
-    }
-
-    // 如果没有 customid，不再使用正文生成备用 ID
-    console.warn("未检测到 customid，Firebase 同步已禁用。");
-    return null;
-};
-
-// --- 仅同步：文字标记 (HTML 结构) ---
-window.syncContentUpload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
+    if (customId && customId.trim() !== "") return "anki_" + customId.trim();
+    
     const transcript = document.getElementById('transcript');
-    
-    // 使用 update 仅覆盖 htmlContent 字段
-    update(ref(db, 'video_sync/' + id), {
-        htmlContent: transcript.innerHTML,
-        content_ts: Date.now()
-    });
-};
+    const text = transcript ? transcript.innerText.trim() : "";
+    if (!text) return null;
+    try {
+        return "vid_" + btoa(unescape(encodeURIComponent(text.substring(0, 30)))).replace(/[/+=]/g, "");
+    } catch(e) { return null; }
+  };
 
-/ --- 仅同步：阅读位置 (滚动百分比) ---
-window.syncProgressUpload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-    const transcript = document.getElementById('transcript');
-    
-    const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
-    if (isNaN(scrollPercent)) return;
+  // 【优化】仅上传滚动百分比和被加粗的文本数组
+  window.syncUpload = async function() {
+      const id = window.getDocId();
+      if (!id) return;
 
-    // 使用 update 仅覆盖 scrollPos 字段
-    update(ref(db, 'video_sync/' + id), {
-        scrollPos: scrollPercent,
-        progress_ts: Date.now()
-    });
-};
+      const transcript = document.getElementById('transcript');
+      
+      // 提取所有加粗标记的纯文本
+      const boldElements = transcript.querySelectorAll('.custom-bold');
+      const boldTexts = Array.from(boldElements).map(el => el.innerText.trim()).filter(t => t !== "");
 
-  // 3. 下载同步：恢复进度和滚动位置
-window.syncDownload = async function() {
-    const id = window.getDocId();
-    if (!id) return;
-    
-    const snapshot = await get(child(ref(db), 'video_sync/' + id));
-    if (snapshot.exists()) {
-        const data = snapshot.val();
-        
-        // 1. 仅恢复加粗标记内容
-        if (data.htmlContent) {
-            document.getElementById('transcript').innerHTML = data.htmlContent;
-            if(typeof rebindEvents === 'function') rebindEvents(); 
-        }
+      // 计算滚动百分比
+      const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
 
-        // 2. 仅恢复阅读滚动位置
-        if (data.scrollPos !== undefined) {
-            const transcript = document.getElementById('transcript');
-            setTimeout(() => {
-                transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                updateStatus("同步已就绪", true);
-            }, 300);
-        }
-        
-        // --- 已删除：data.lastTime 相关的视频跳转逻辑 ---
-    }
-};
+      set(ref(db, 'video_sync/' + id), {
+          boldTexts: boldTexts,    // 仅上传文本数组，如 ["apple", "take a break"]
+          scrollPos: scrollPercent,
+          ts: Date.now()
+      });
+  };
+
+  // 【优化】下载后通过文本匹配还原加粗
+  window.syncDownload = async function() {
+      const id = window.getDocId();
+      const snapshot = await get(child(ref(db), 'video_sync/' + id));
+      if (snapshot.exists()) {
+          const data = snapshot.val();
+          
+          // 1. 还原加粗（通过文本搜索）
+          if (data.boldTexts && Array.isArray(data.boldTexts)) {
+              const contentAreas = document.querySelectorAll('.content');
+              data.boldTexts.forEach(text => {
+                  contentAreas.forEach(area => {
+                      if (area.innerText.includes(text) && !area.querySelector('.custom-bold')) {
+                          // 简单的正则替换，将匹配到的文本包裹 span
+                          const regex = new RegExp(`(${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'g');
+                          area.innerHTML = area.innerHTML.replace(regex, `<span class="custom-bold">$1</span>`);
+                      }
+                  });
+              });
+          }
+
+          // 2. 仅恢复滚动位置
+          if (data.scrollPos !== undefined) {
+              const transcript = document.getElementById('transcript');
+              setTimeout(() => {
+                  transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                  updateStatus("进度已同步", true);
+              }, 200);
+          }
+      }
+  };
 </script>
 
 <script>
@@ -268,17 +174,11 @@ touchOverlay.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 }, { passive: true });
-    //
 touchOverlay.addEventListener('touchend', (e) => {
-    // 拦截：如果正在选词，直接跳出
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 0) return;
-
     const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
     const deltaX = touchEndX - touchStartX;
     const deltaY = touchEndY - touchStartY;
-
     if (Math.abs(deltaX) < 10 && Math.abs(deltaY) < 10) {
         if (video.paused) {
             video.play().catch(err => console.log("播放被拦截", err));
@@ -294,43 +194,29 @@ touchOverlay.addEventListener('touchend', (e) => {
     }
 });
 
-// 监听字幕容器滚动停止
+// 监听字幕容器滚动
 const transcriptDiv = document.getElementById('transcript');
 transcriptDiv.addEventListener('scroll', () => {
     clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
-        // --- 核心修改：此处仅触发滚动位置上传，不涉及 HTML 标记 ---
-        if (window.syncProgressUpload) {
-            window.syncProgressUpload();
-            console.log("阅读位置已同步");
-        }
+        if (window.syncUpload) window.syncUpload();
     }, 1500); 
 });
+
 document.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
 }, { passive: true });
-    //
 document.addEventListener('touchend', (e) => {
-    // 关键拦截：如果用户正在选中文字，则不执行任何视频控制逻辑
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim().length > 0) {
-        // 发现有选中的内容，直接退出函数，不执行下面的播放/暂停逻辑
-        return; 
-    }
-
     const touchEndX = e.changedTouches[0].clientX;
     const touchEndY = e.changedTouches[0].clientY;
     const deltaX = touchEndX - touchStartX;
     const deltaY = touchEndY - touchStartY;
-
-    // 只有在没有选中文字的情况下，才判断是否执行划动手势
     if (Math.abs(deltaX) > Math.abs(deltaY) * 1.5 && Math.abs(deltaX) > SWIPE_THRESHOLD) {
         if (deltaX < 0) {
             video.currentTime = Math.max(0, video.currentTime - 2);
             updateStatus("⏪ 快退 2s", true);
         } else {
-            // 这里是控制播放/暂停的核心点
             if (video.paused) {
                 video.play();
                 updateStatus("▶️ 播放", true);
@@ -339,14 +225,12 @@ document.addEventListener('touchend', (e) => {
                 updateStatus("⏸ 暂停", true);
             }
         }
-        
         setTimeout(() => {
             const lastVideoName = localStorage.getItem('last_video_name');
             updateStatus(lastVideoName ? "视频已加载" : "准备就绪", true);
         }, 1000);
     }
 }, { passive: true });
-    //
     transcriptContainer.addEventListener('scroll', () => {
     localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
 });
@@ -357,16 +241,19 @@ document.addEventListener('touchend', (e) => {
 
 
 window.addEventListener('DOMContentLoaded', () => {
-    const cachedSubs = localStorage.getItem('last_subtitles');
-    if (cachedSubs) {
-        processSubtitleContent(cachedSubs, true);
-    }
-    const lastVideoName = localStorage.getItem('last_video_name');
-    
-    // 移除 lastTime 相关的提示
+    // 删除了加载 cachedSubs 的逻辑
+    const lastVideoName = localStorage.getItem('last_video_name'); // 视频文件名可保留，方便提醒
     if (lastVideoName) {
-        videoHint.innerText = `待加载: ${lastVideoName}`; // 不再显示上次时间
+        videoHint.innerText = `待加载: ${lastVideoName}`;
         videoHint.style.display = 'block';
+    }
+});
+
+
+video.addEventListener('pause', () => {
+    if (window.syncUpload) {
+        window.syncUpload();
+        lastSyncTime = Date.now();
     }
 });
 
@@ -378,10 +265,11 @@ document.getElementById('videoInput').addEventListener('change', (e) => {
         video.src = URL.createObjectURL(file);
         updateStatus("视频已加载", true);
         
-        // 确保视频就绪后不执行任何跳转，直接从头开始
-        video.onloadeddata = () => {
-            console.log("新视频就绪，进度保持为 0");
-        };
+        // 移除原有的 loadeddata 恢复进度逻辑，仅保留基础加载
+        video.addEventListener('loadeddata', function onLoaded() {
+            console.log("视频已就绪，从 00:00 开始播放");
+            video.removeEventListener('loadeddata', onLoaded);
+        });
     }
 });
 
@@ -397,34 +285,25 @@ document.getElementById('subtitleManualInput').addEventListener('change', (e) =>
         reader.readAsText(file);
     }
 });
-function processSubtitleContent(content, isFromCache = false) {
-    if (!isFromCache) {
-        localStorage.setItem('last_subtitles', content);
-    }
+
+function processSubtitleContent(content) {
+    // 1. 解析字幕并渲染 DOM
     const cues = parseSubtitle(content);
     renderSubtitles(cues);
-    const lastScrollPos = localStorage.getItem('last_scroll_pos');
-    const lastTime = localStorage.getItem('last_video_time');
+
+    // 2. 移除所有 localStorage 相关的进度恢复逻辑
+    // 状态更新为等待同步
+    updateStatus("正在从云端同步...", true);
+
+    // 3. 仅触发云端同步下载
+    // 延迟 300ms 确保 DOM 渲染完成，以便 syncDownload 能够执行文本匹配加粗和滚动控制
     setTimeout(() => {
-        if (lastScrollPos) {
-            transcriptContainer.scrollTop = parseFloat(lastScrollPos);
-        } else if (lastTime) {
-            const savedTime = parseFloat(lastTime);
-            const lines = document.querySelectorAll('.line');
-            for (let i = 0; i < lines.length; i++) {
-                const start = parseFloat(lines[i].dataset.time);
-                const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : Infinity;
-                if (savedTime >= start && savedTime < next) {
-                    lines[i].classList.add('active');
-                    lines[i].scrollIntoView({ behavior: 'auto', block: 'center' });
-                    break;
-                }
-            }
+        if (window.syncDownload) {
+            window.syncDownload();
+        } else {
+            updateStatus("同步模块未就绪", false);
         }
-    }, 150); // 稍微延长延迟，确保 DOM 布局计算完成
-    setTimeout(() => {
-        if(window.syncDownload) window.syncDownload();
-    }, 500);
+    }, 300);
 }
 function parseSubtitle(data) {
     let cleanData = data.replace(/<br\s*\/?>/gi, "\n")
@@ -473,70 +352,67 @@ function renderSubtitles(cues) {
         return;
     }
 
-    cues.forEach((cue, index) => {
+    cues.forEach(cue => {
         const div = document.createElement('div');
         div.className = 'line';
         div.dataset.time = cue.start;
         
-        const nextTime = cues[index + 1] ? cues[index + 1].start : cue.start + 5;
-        div.dataset.endTime = nextTime; 
-
-        // 修改布局顺序：Content 在上，Play-btn 在下
+        // 1. 核心 HTML 结构：确保 play-btn 和 content 分开
         div.innerHTML = `
+          <div class="play-btn" title="从此处播放" contenteditable="false">▶</div>
           <div class="content">${cue.text}</div>
-          <div class="play-btn" title="播放本句" contenteditable="false">▶</div>
         `;
 
+        // 2. 绑定播放按钮逻辑
         const btn = div.querySelector('.play-btn');
         btn.onclick = (e) => {
             e.stopPropagation();
-            video.dataset.singlePlayMode = "true";
-            video.dataset.stopAt = nextTime; 
             video.currentTime = cue.start;
             video.play().catch(()=>{});
-            
             document.querySelector('.line.active')?.classList.remove('active');
             div.classList.add('active');
-            updateStatus("🔂 单句播放中...", true);
         };
 
+        // 3. 绑定文字区域逻辑
         const contentArea = div.querySelector('.content');
         let clickTimer = null;
-        /* 替换 renderSubtitles 函数内 contentArea.onclick 部分 */
-    contentArea.onclick = (e) => {
-    const selection = window.getSelection();
-    
-    // e.detail 表示短时间内点击的次数
-    if (e.detail === 2) {
-        // --- 双击：复制整句 ---
-        // 先清除之前的单击延时（如果还想保留单击选词的话）
-        const range = document.createRange();
-        range.selectNodeContents(contentArea);
-        selection.removeAllRanges();
-        selection.addRange(range);
-        
-        copyToClipboard(contentArea.innerText.trim(), "已复制整句");
-    } else if (e.detail === 1) {
-        // --- 单击：自动选中并复制单词 ---
-        // 给系统一点点时间处理光标落点
-        setTimeout(() => {
-            if (selection.isCollapsed) {
-                try {
-                    // 向前后扩展选区到单词边界
-                    selection.modify('move', 'backward', 'word');
-                    selection.modify('extend', 'forward', 'word');
-                    
-                    const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
-                    if (word && word.length > 0) {
-                        copyToClipboard(word, "已复制单词: " + word);
+
+        contentArea.onclick = (e) => {
+            // 既然点击的是 contentArea，e.target 就不应该是按钮，除非 CSS 布局重叠了
+            const selection = window.getSelection();
+
+            if (clickTimer) { // 双击：复制整句
+                clearTimeout(clickTimer);
+                clickTimer = null;
+                const range = document.createRange();
+                range.selectNodeContents(contentArea);
+                selection.removeAllRanges();
+                selection.addRange(range);
+                
+                // 这里直接拿 contentArea.innerText 绝对不会带上播放按钮
+                copyToClipboard(contentArea.innerText.trim(), "已复制整句");
+            } else { // 单击：选词
+                clickTimer = setTimeout(() => {
+                    if (selection.isCollapsed) {
+                        let range;
+                        if (document.caretRangeFromPoint) {
+                            range = document.caretRangeFromPoint(e.clientX, e.clientY);
+                        }
+                        if (range) {
+                            selection.removeAllRanges();
+                            selection.addRange(range);
+                            selection.modify('move', 'backward', 'word');
+                            selection.modify('extend', 'forward', 'word');
+                        }
+                        const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
+                        if (word && word.length < 25) {
+                            copyToClipboard(word, "已复制单词: " + word);
+                        }
                     }
-                } catch (err) {
-                    console.log("Selection modify 不支持");
-                }
+                    clickTimer = null;
+                }, 250);
             }
-        }, 50);
-    }
-    };
+        };
 
         transcript.appendChild(div);
     });
@@ -561,104 +437,116 @@ function scrollToActive() {
         updateStatus("视频未在播放匹配的字幕行", false);
     }
 }
-
 function boldSelectedText() {
-    const sel = window.getSelection();
-    if (!sel || sel.isCollapsed) return;
-    const range = sel.getRangeAt(0);
-    if (!range.commonAncestorContainer.parentElement.closest('.content')) return;
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
+        updateStatus("请先选中单词", false);
+        return;
+    }
+
+    const range = selection.getRangeAt(0);
+    const container = range.commonAncestorContainer.nodeType === 3
+        ? range.commonAncestorContainer.parentElement
+        : range.commonAncestorContainer;
+
+    if (!container.closest('.content')) {
+        updateStatus("只能在字幕正文内操作", false);
+        return;
+    }
 
     const bolds = document.querySelectorAll('.custom-bold');
-    let matched = false;
-    bolds.forEach(b => {
-        if (sel.containsNode(b, true)) {
-            const p = b.parentNode;
-            while (b.firstChild) p.insertBefore(b.firstChild, b);
-            p.removeChild(b);
-            p.normalize();
-            matched = true;
+    let matchedBold = [];
+
+    // 检查选区是否已包含在已加粗的范围内
+    bolds.forEach(bold => {
+        const boldRange = document.createRange();
+        boldRange.selectNodeContents(bold);
+        if (range.compareBoundaryPoints(Range.END_TO_START, boldRange) < 0 &&
+            range.compareBoundaryPoints(Range.START_TO_END, boldRange) > 0) {
+            matchedBold.push(bold);
         }
     });
 
-    if (!matched) {
+    if (matchedBold.length > 0) {
+        // 取消加粗逻辑
+        matchedBold.forEach(bold => {
+            const parent = bold.parentNode;
+            while (bold.firstChild) { parent.insertBefore(bold.firstChild, bold); }
+            parent.removeChild(bold);
+            parent.normalize();
+        });
+        updateStatus("已取消标记", true);
+    } else {
+        // 执行加粗逻辑
         const span = document.createElement('span');
         span.className = 'custom-bold';
-        span.appendChild(range.extractContents());
-        range.insertNode(span);
-    }
-    sel.removeAllRanges();
-
-    // --- 核心修改：此处仅触发内容上传，不涉及滚动位置 ---
-    if (window.syncContentUpload) {
-        window.syncContentUpload();
-        updateStatus("标记已云端同步", true);
-    }
-}
-
-function saveCurrentTranscript() {
-    const transcript = document.getElementById('transcript');
-    if (transcript) {
-        localStorage.setItem('last_subtitles_html', transcript.innerHTML);
-    }
-}
-function rebindEvents() {
-    const lines = document.querySelectorAll('.line');
-    lines.forEach((line, i) => { // 传入 i 以获取索引
-        const btn = line.querySelector('.play-btn');
-        if (btn) {
-            const cueStart = parseFloat(line.dataset.time);
-            
-            // --- 关键：计算本句结束时间（即下一句的开始时间） ---
-            const nextLine = lines[i + 1];
-            const nextTime = nextLine ? parseFloat(nextLine.dataset.time) : cueStart + 5;
-
-            btn.onclick = (e) => {
-                e.stopPropagation();
-                
-                // --- 关键：触发单句播放标记 ---
-                video.dataset.singlePlayMode = "true";
-                video.dataset.stopAt = nextTime;
-                
-                video.currentTime = cueStart;
-                video.play().catch(()=>{});
-                
-                document.querySelector('.line.active')?.classList.remove('active');
-                line.classList.add('active');
-                updateStatus("🔂 单句播放中...", true);
-            };
+        try {
+            const extracted = range.extractContents();
+            span.appendChild(extracted);
+            range.insertNode(span);
+            updateStatus("已成功标记重点", true);
+        } catch (e) {
+            updateStatus("选区太复杂", false);
+            return; // 出错时不执行同步
         }
+    }
 
-        const contentArea = line.querySelector('.content');
-        if (contentArea) {
-            let clickTimer = null;
-            const cueText = contentArea.innerText; 
-            contentArea.onclick = (e) => {
-                const selection = window.getSelection();
-                if (clickTimer) { 
-                    clearTimeout(clickTimer);
-                    clickTimer = null;
-                    const range = document.createRange();
-                    range.selectNodeContents(contentArea);
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                    copyToClipboard(cueText, "已复制整句");
-                } else { 
-                    clickTimer = setTimeout(() => {
-                        // 如果有选区，则尝试提取单词
-                        if (selection.rangeCount > 0) {
+    // 清除选区，防止移动端视觉干扰
+    selection.removeAllRanges();
+
+    // 【核心改动】删除本地缓存保存，直接同步云端
+    if (window.syncUpload) {
+        window.syncUpload(); 
+    }
+}
+window.addEventListener('DOMContentLoaded', () => {
+    // 一次性清理旧版本的本地 HTML 缓存
+    localStorage.removeItem('last_subtitles_html');
+    localStorage.removeItem('last_subtitles');
+    localStorage.removeItem('last_scroll_pos');
+    // 注意：last_video_name 可以保留，用于显示上次播放的文件名提醒
+});
+    function rebindEvents() {
+        const lines = document.querySelectorAll('.line');
+        lines.forEach(line => {
+            const btn = line.querySelector('.play-btn');
+            if (btn) {
+                const cueStart = parseFloat(line.dataset.time);
+                btn.onclick = (e) => {
+                    e.stopPropagation();
+                    video.currentTime = cueStart;
+                    video.play().catch(()=>{});
+                    document.querySelector('.line.active')?.classList.remove('active');
+                    line.classList.add('active');
+                };
+            }
+            const contentArea = line.querySelector('.content');
+            if (contentArea) {
+                let clickTimer = null;
+                const cueText = contentArea.innerText; // 获取纯文本供复制
+                contentArea.onclick = (e) => {
+                    const selection = window.getSelection();
+                    if (clickTimer) { // 双击逻辑
+                        clearTimeout(clickTimer);
+                        clickTimer = null;
+                        const range = document.createRange();
+                        range.selectNodeContents(contentArea);
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                        copyToClipboard(cueText, "已复制整句");
+                    } else { // 单击逻辑
+                        clickTimer = setTimeout(() => {
                             selection.modify('move', 'backward', 'word');
                             selection.modify('extend', 'forward', 'word');
                             const word = selection.toString().trim().replace(/[.,!?;:"]/g, '');
                             if (word) copyToClipboard(word, "已复制单词: " + word);
-                        }
-                        clickTimer = null;
-                    }, 250);
-                }
-            };
-        }
-    });
-}
-    
+                            clickTimer = null;
+                        }, 200);
+                    }
+                };
+            }
+        });
+    }
     function setActiveLine(currentTime) {
         const lines = document.querySelectorAll('.line');
         let targetLine = null;
@@ -683,42 +571,22 @@ video.addEventListener('timeupdate', () => {
     const currentTime = video.currentTime;
     const lines = document.querySelectorAll('.line');
     const floatingText = document.getElementById('current-floating-text');
-    
     if (lines.length === 0) return;
-
-    // --- 1. 单句播放停止逻辑 (强制截断，防止溢出到下一句) ---
-    if (video.dataset.singlePlayMode === "true") {
-        const stopAt = parseFloat(video.dataset.stopAt);
-        
-        // 提前 0.1s 判定，并在暂停时强制回退到 stopAt 之前
-        if (currentTime >= stopAt - 0.1) { 
-            video.pause();
-            video.currentTime = stopAt - 0.1; // 【关键】强制拉回当前句尾，防止判定为下一句
-            video.dataset.singlePlayMode = "false"; 
-            updateStatus("✅ 播放完毕", true);
-            return; 
-        }
-    }
-
-    // --- 2. 基础变量准备 ---
     const firstLineStart = parseFloat(lines[0].dataset.time);
     const lastLine = lines[lines.length - 1];
-    const lastLineEnd = parseFloat(lastLine.dataset.time) + 5; 
-
-    // --- 3. 自动回滚逻辑 ---
-    if (video.dataset.singlePlayMode !== "true") {
-        if (currentTime > lastLineEnd + 1 || currentTime < firstLineStart - 2) {
-            video.currentTime = firstLineStart;
-            video.play().catch(() => {});
-            return; 
-        }
+    const lastLineEnd = parseFloat(lastLine.dataset.time) + 3; 
+    if (currentTime > lastLineEnd || currentTime < firstLineStart - 1) {
+        video.currentTime = firstLineStart;
+        video.play().catch(() => {});
+        updateStatus("🔄 已回到字幕区间", true);
+        return; // 跳过本次后续逻辑，等待跳转完成
     }
-
-    // --- 5. 高亮与悬浮文字逻辑 ---
+    if (currentTime > 0) {
+        localStorage.setItem('last_video_time', currentTime);
+    }
     let currentLine = null;
     for (let i = 0; i < lines.length; i++) {
         const start = parseFloat(lines[i].dataset.time);
-        // 注意：这里的 next 判定逻辑要准确
         const next = lines[i+1] ? parseFloat(lines[i+1].dataset.time) : lastLineEnd;
 
         if (currentTime >= start && currentTime < next) {
@@ -726,7 +594,6 @@ video.addEventListener('timeupdate', () => {
             break;
         }
     }
-
     if (currentLine) {
         if (!currentLine.classList.contains('active')) {
             document.querySelector('.line.active')?.classList.remove('active');
@@ -739,6 +606,11 @@ video.addEventListener('timeupdate', () => {
                 floatingText.innerHTML = newContent;
                 floatingText.style.display = 'inline-block';
             }
+        }
+    } else {
+        if (floatingText) {
+            floatingText.style.display = 'none';
+            floatingText.innerHTML = '';
         }
     }
 });
