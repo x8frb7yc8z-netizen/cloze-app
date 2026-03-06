@@ -142,7 +142,8 @@ video {
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
+  import { getDatabase, ref, update, get, child } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+    
   const firebaseConfig = {
     // 请替换为你自己的配置
     apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
@@ -171,61 +172,61 @@ window.getDocId = function () {
     console.warn("未检测到 customid，Firebase 同步已禁用。");
     return null;
 };
-// 2. 修改后的上传函数：支持按需同步
-window.syncUpload = async function(type = 'all') {
+
+// --- 仅同步：文字标记 (HTML 结构) ---
+window.syncContentUpload = async function() {
     const id = window.getDocId();
     if (!id) return;
+    const transcript = document.getElementById('transcript');
+    
+    // 使用 update 仅覆盖 htmlContent 字段
+    update(ref(db, 'video_sync/' + id), {
+        htmlContent: transcript.innerHTML,
+        content_ts: Date.now()
+    });
+};
 
-    // 统一获取 transcript 容器（注意 ID 或变量名要对齐）
-    const transcriptElem = document.getElementById('transcript');
-    const containerElem = document.querySelector('.transcript-container'); 
-    const updates = { ts: Date.now() };
+/ --- 仅同步：阅读位置 (滚动百分比) ---
+window.syncProgressUpload = async function() {
+    const id = window.getDocId();
+    if (!id) return;
+    const transcript = document.getElementById('transcript');
+    
+    const scrollPercent = transcript.scrollTop / (transcript.scrollHeight - transcript.clientHeight);
+    if (isNaN(scrollPercent)) return;
 
-    // 逻辑：只有当 type 为 'all' 或 'scroll' 时，才计算滚动位置
-    if (type === 'all' || type === 'scroll') {
-        const scrollPercent = containerElem.scrollTop / (containerElem.scrollHeight - containerElem.clientHeight);
-        if (!isNaN(scrollPercent)) {
-            updates['scrollPos'] = scrollPercent;
-        }
-    }
-
-    // 逻辑：只有当 type 为 'all' 或 'content' 时，才上传 HTML 内容
-    if (type === 'all' || type === 'content') {
-        updates['htmlContent'] = transcriptElem.innerHTML;
-    }
-
-    try {
-        // 动态导入 update 方法
-        const { update: fbUpdate } = await import("https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js");
-        // 使用 update 而不是 set，实现增量更新
-        await fbUpdate(ref(db, 'video_sync/' + id), updates);
-        console.log(`同步成功 [${type}]`);
-    } catch (e) {
-        console.error("同步失败:", e);
-    }
+    // 使用 update 仅覆盖 scrollPos 字段
+    update(ref(db, 'video_sync/' + id), {
+        scrollPos: scrollPercent,
+        progress_ts: Date.now()
+    });
 };
 
   // 3. 下载同步：恢复进度和滚动位置
 window.syncDownload = async function() {
     const id = window.getDocId();
+    if (!id) return;
+    
     const snapshot = await get(child(ref(db), 'video_sync/' + id));
     if (snapshot.exists()) {
         const data = snapshot.val();
         
-        // 1. 恢复加粗状态
+        // 1. 仅恢复加粗标记内容
         if (data.htmlContent) {
             document.getElementById('transcript').innerHTML = data.htmlContent;
-            rebindEvents(); 
+            if(typeof rebindEvents === 'function') rebindEvents(); 
         }
 
-        // 2. 恢复滚动位置
+        // 2. 仅恢复阅读滚动位置
         if (data.scrollPos !== undefined) {
             const transcript = document.getElementById('transcript');
             setTimeout(() => {
                 transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                updateStatus("已同步阅读进度", true);
-            }, 200);
+                updateStatus("同步已就绪", true);
+            }, 300);
         }
+        
+        // --- 已删除：data.lastTime 相关的视频跳转逻辑 ---
     }
 };
 </script>
@@ -293,15 +294,18 @@ touchOverlay.addEventListener('touchend', (e) => {
     }
 });
 
-// 滚动停止时 (仅同步滚动)
+// 监听字幕容器滚动停止
+const transcriptDiv = document.getElementById('transcript');
 transcriptDiv.addEventListener('scroll', () => {
     clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
-        console.log("仅同步滚动位置...");
-        if (window.syncUpload) window.syncUpload('scroll'); // 👈 传 'scroll'
+        // --- 核心修改：此处仅触发滚动位置上传，不涉及 HTML 标记 ---
+        if (window.syncProgressUpload) {
+            window.syncProgressUpload();
+            console.log("阅读位置已同步");
+        }
     }, 1500); 
 });
-
 document.addEventListener('touchstart', (e) => {
     touchStartX = e.touches[0].clientX;
     touchStartY = e.touches[0].clientY;
@@ -343,16 +347,8 @@ document.addEventListener('touchend', (e) => {
     }
 }, { passive: true });
     //
-// 修正滚动监听器的变量名
-transcriptContainer.addEventListener('scroll', () => {
-    // 原有的 localStorage 记录
+    transcriptContainer.addEventListener('scroll', () => {
     localStorage.setItem('last_scroll_pos', transcriptContainer.scrollTop);
-    
-    // Firebase 同步防抖
-    clearTimeout(scrollTimer);
-    scrollTimer = setTimeout(() => {
-        if (window.syncUpload) window.syncUpload('scroll'); 
-    }, 1500); 
 });
     function updateStatus(msg, active = false) {
         status.innerText = msg;
@@ -374,14 +370,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-
-video.addEventListener('pause', () => {
-    if (window.syncUpload) {
-        window.syncUpload();
-        lastSyncTime = Date.now();
-    }
-});
-
 document.getElementById('videoInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -390,11 +378,10 @@ document.getElementById('videoInput').addEventListener('change', (e) => {
         video.src = URL.createObjectURL(file);
         updateStatus("视频已加载", true);
         
-        // 移除原有的 loadeddata 恢复进度逻辑，仅保留基础加载
-        video.addEventListener('loadeddata', function onLoaded() {
-            console.log("视频已就绪，从 00:00 开始播放");
-            video.removeEventListener('loadeddata', onLoaded);
-        });
+        // 确保视频就绪后不执行任何跳转，直接从头开始
+        video.onloadeddata = () => {
+            console.log("新视频就绪，进度保持为 0");
+        };
     }
 });
 
@@ -557,56 +544,40 @@ function scrollToActive() {
         updateStatus("视频未在播放匹配的字幕行", false);
     }
 }
+
 function boldSelectedText() {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-        updateStatus("请先选中单词", false);
-        return;
-    }
-    const range = selection.getRangeAt(0);
-    const container = range.commonAncestorContainer.nodeType === 3
-        ? range.commonAncestorContainer.parentElement
-        : range.commonAncestorContainer;
-    if (!container.closest('.content')) {
-        updateStatus("只能在字幕正文内操作", false);
-        return;
-    }
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    if (!range.commonAncestorContainer.parentElement.closest('.content')) return;
+
     const bolds = document.querySelectorAll('.custom-bold');
-    let matchedBold = [];
-    bolds.forEach(bold => {
-        const boldRange = document.createRange();
-        boldRange.selectNodeContents(bold);
-        if (range.compareBoundaryPoints(Range.END_TO_START, boldRange) < 0 &&
-            range.compareBoundaryPoints(Range.START_TO_END, boldRange) > 0) {
-            matchedBold.push(bold);
+    let matched = false;
+    bolds.forEach(b => {
+        if (sel.containsNode(b, true)) {
+            const p = b.parentNode;
+            while (b.firstChild) p.insertBefore(b.firstChild, b);
+            p.removeChild(b);
+            p.normalize();
+            matched = true;
         }
     });
-    if (matchedBold.length > 0) {
-        matchedBold.forEach(bold => {
-            const parent = bold.parentNode;
-            while (bold.firstChild) { parent.insertBefore(bold.firstChild, bold); }
-            parent.removeChild(bold);
-            parent.normalize();
-        });
-        updateStatus("已取消标记", true);
-    } else {
+
+    if (!matched) {
         const span = document.createElement('span');
         span.className = 'custom-bold';
-        try {
-            const extracted = range.extractContents();
-            span.appendChild(extracted);
-            range.insertNode(span);
-            updateStatus("已成功标记重点", true);
-        } catch (e) {
-            updateStatus("选区太复杂", false);
-        }
+        span.appendChild(range.extractContents());
+        range.insertNode(span);
     }
-    selection.removeAllRanges();
-    saveCurrentTranscript(); // 保存本地
-    if (window.syncUpload) {
-        window.syncUpload('content'); // 👈 传 'content'
+    sel.removeAllRanges();
+
+    // --- 核心修改：此处仅触发内容上传，不涉及滚动位置 ---
+    if (window.syncContentUpload) {
+        window.syncContentUpload();
+        updateStatus("标记已云端同步", true);
     }
 }
+
 function saveCurrentTranscript() {
     const transcript = document.getElementById('transcript');
     if (transcript) {
@@ -724,11 +695,6 @@ video.addEventListener('timeupdate', () => {
             video.play().catch(() => {});
             return; 
         }
-    }
-
-    // --- 4. 进度记忆 ---
-    if (currentTime > 0) {
-        localStorage.setItem('last_video_time', currentTime);
     }
 
     // --- 5. 高亮与悬浮文字逻辑 ---
