@@ -299,108 +299,6 @@
         <iframe id="preview-iframe" style="width:100%;height:100%;border:none;" src=""></iframe>
     </div>
 </div>
-<script>
-    /**
-     * --- 视频本地持久化模块 (IndexedDB) ---
-     * 专门用于在 iOS Anki 和 Mac Brave 中存储大体积视频文件
-     */
-    const VDB_NAME = "AnkiVideoDB";
-    const V_STORE = "videos";
-    const MAX_VIDEOS = 3; // 最多保留最近的 3 个视频，防止占用过多磁盘空间
-    
-    // 1. 初始化数据库
-    function initVDB() {
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(VDB_NAME, 2); // 版本 2
-            request.onupgradeneeded = (e) => {
-                const db = e.target.result;
-                if (!db.objectStoreNames.contains(V_STORE)) {
-                    db.createObjectStore(V_STORE); 
-                }
-            };
-            request.onsuccess = (e) => resolve(e.target.result);
-            request.onerror = (e) => reject(e.target.error);
-        });
-    }
-    
-    // 2. 保存视频（带自动清理逻辑）
-    async function saveVideoToLocal(id, file) {
-        if (!id) return;
-        try {
-            const db = await initVDB();
-            const tx = db.transaction(V_STORE, "readwrite");
-            const store = tx.objectStore(V_STORE);
-    
-            // 获取当前所有已存视频的 ID
-            const keys = await new Promise(res => {
-                const r = store.getAllKeys();
-                r.onsuccess = () => res(r.result);
-            });
-    
-            // 如果超出限制且不是覆盖旧视频，则删除最早的一个
-            if (keys.length >= MAX_VIDEOS && !keys.includes(id)) {
-                console.log("存储已满，清理旧缓存:", keys[0]);
-                await store.delete(keys[0]);
-            }
-    
-            // 写入新视频
-            await store.put({
-                blob: file,
-                name: file.name,
-                ts: Date.now()
-            }, id);
-            
-            console.log(`✅ 视频已持久化: ${file.name}`);
-            if(typeof updateStatus === 'function') updateStatus("💾 视频已同步至本地", true);
-        } catch (e) {
-            console.error("IndexedDB Save Error:", e);
-        }
-    }
-    
- // 3. 读取并加载视频（优化内存管理版）
-async function loadVideoFromLocal(id) {
-    if (!id) return false;
-    try {
-        const db = await initVDB();
-        const tx = db.transaction(V_STORE, "readonly");
-        const store = tx.objectStore(V_STORE);
-        
-        const record = await new Promise(res => {
-            const req = store.get(id);
-            req.onsuccess = () => res(req.result);
-        });
-
-        if (record && record.blob) {
-            const videoElement = document.getElementById('videoPlayer');
-            if (!videoElement) return false;
-
-            // --- 核心优化：释放旧的内存引用 ---
-            // 如果当前已经有一个 blob 链接，先撤销它，防止内存泄漏
-            if (videoElement.src && videoElement.src.startsWith('blob:')) {
-                URL.revokeObjectURL(videoElement.src);
-                console.log("♻️ 已释放旧视频内存占用");
-            }
-
-            // 生成新的本地访问链接
-            const videoUrl = URL.createObjectURL(record.blob);
-            videoElement.src = videoUrl;
-            
-            // UI 反馈
-            const hint = document.getElementById('video-hint');
-            if (hint) hint.style.display = 'none';
-            if (typeof updateStatus === 'function') {
-                updateStatus(`🎬 已自动加载本地缓存: ${record.name}`, true);
-            }
-            
-            console.log(`✅ 成功从 IndexedDB 加载视频: ${record.name}`);
-            return true;
-        }
-    } catch (e) {
-        console.error("IndexedDB Load Error:", e);
-    }
-    return false;
-}
-</script>
 <!-- ===================== Firebase 模块（ES Module） ===================== -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
@@ -542,11 +440,8 @@ window.addEventListener('load', async () => {
     }, 1000);
 });
 </script>
+    <!-- 视频本地持久化模块 (IndexedDB)专门用于在 iOS Anki 和 Mac Brave 中存储大体积视频文件 -->
 <script>
-    /**
-     * --- 视频本地持久化模块 (IndexedDB) ---
-     * 专门用于在 iOS Anki 和 Mac Brave 中存储大体积视频文件
-     */
     const VDB_NAME = "AnkiVideoDB";
     const V_STORE = "videos";
     const MAX_VIDEOS = 3; // 最多保留最近的 3 个视频，防止占用过多磁盘空间
