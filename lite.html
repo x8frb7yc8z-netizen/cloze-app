@@ -290,7 +290,7 @@
     transition:top 0.3s cubic-bezier(0.4,0,0.2,1);
     display:flex;flex-direction:column;
 ">
-    <div style="display:flex;justify-content:space-between;align-items:center;
+    <div style="display:flex;flex-direction:row-reverse;justify-content:space-between;align-items:center;
         padding:10px 15px;background:#f1f3f4;border-bottom:1px solid #ddd;flex-shrink:0;">
         <span id="preview-word-title" style="font-weight:bold;color:#0288d1;font-size:14px;">图片搜索</span>
         <button onclick="closeImagePreview()" style="border:none;background:#eee;border-radius:4px;padding:4px 12px;font-size:12px;cursor:pointer;">关闭</button>
@@ -299,12 +299,113 @@
         <iframe id="preview-iframe" style="width:100%;height:100%;border:none;" src=""></iframe>
     </div>
 </div>
+<script>
+    /**
+     * --- 视频本地持久化模块 (IndexedDB) ---
+     * 专门用于在 iOS Anki 和 Mac Brave 中存储大体积视频文件
+     */
+    const VDB_NAME = "AnkiVideoDB";
+    const V_STORE = "videos";
+    const MAX_VIDEOS = 3; // 最多保留最近的 3 个视频，防止占用过多磁盘空间
+    
+    // 1. 初始化数据库
+    function initVDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(VDB_NAME, 2); // 版本 2
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(V_STORE)) {
+                    db.createObjectStore(V_STORE); 
+                }
+            };
+            request.onsuccess = (e) => resolve(e.target.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+    }
+    
+    // 2. 保存视频（带自动清理逻辑）
+    async function saveVideoToLocal(id, file) {
+        if (!id) return;
+        try {
+            const db = await initVDB();
+            const tx = db.transaction(V_STORE, "readwrite");
+            const store = tx.objectStore(V_STORE);
+    
+            // 获取当前所有已存视频的 ID
+            const keys = await new Promise(res => {
+                const r = store.getAllKeys();
+                r.onsuccess = () => res(r.result);
+            });
+    
+            // 如果超出限制且不是覆盖旧视频，则删除最早的一个
+            if (keys.length >= MAX_VIDEOS && !keys.includes(id)) {
+                console.log("存储已满，清理旧缓存:", keys[0]);
+                await store.delete(keys[0]);
+            }
+    
+            // 写入新视频
+            await store.put({
+                blob: file,
+                name: file.name,
+                ts: Date.now()
+            }, id);
+            
+            console.log(`✅ 视频已持久化: ${file.name}`);
+            if(typeof updateStatus === 'function') updateStatus("💾 视频已同步至本地", true);
+        } catch (e) {
+            console.error("IndexedDB Save Error:", e);
+        }
+    }
+    
+ // 3. 读取并加载视频（优化内存管理版）
+async function loadVideoFromLocal(id) {
+    if (!id) return false;
+    try {
+        const db = await initVDB();
+        const tx = db.transaction(V_STORE, "readonly");
+        const store = tx.objectStore(V_STORE);
+        
+        const record = await new Promise(res => {
+            const req = store.get(id);
+            req.onsuccess = () => res(req.result);
+        });
 
+        if (record && record.blob) {
+            const videoElement = document.getElementById('videoPlayer');
+            if (!videoElement) return false;
+
+            // --- 核心优化：释放旧的内存引用 ---
+            // 如果当前已经有一个 blob 链接，先撤销它，防止内存泄漏
+            if (videoElement.src && videoElement.src.startsWith('blob:')) {
+                URL.revokeObjectURL(videoElement.src);
+                console.log("♻️ 已释放旧视频内存占用");
+            }
+
+            // 生成新的本地访问链接
+            const videoUrl = URL.createObjectURL(record.blob);
+            videoElement.src = videoUrl;
+            
+            // UI 反馈
+            const hint = document.getElementById('video-hint');
+            if (hint) hint.style.display = 'none';
+            if (typeof updateStatus === 'function') {
+                updateStatus(`🎬 已自动加载本地缓存: ${record.name}`, true);
+            }
+            
+            console.log(`✅ 成功从 IndexedDB 加载视频: ${record.name}`);
+            return true;
+        }
+    } catch (e) {
+        console.error("IndexedDB Load Error:", e);
+    }
+    return false;
+}
+</script>
 <!-- ===================== Firebase 模块（ES Module） ===================== -->
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getDatabase, ref, set, get, child, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
-
+    
     const firebaseConfig = {
         apiKey: "AIzaSyDQwjomxjLURd0nWmS0RuhkaecXISqALzs",
         authDomain: "cloze-master-pro.firebaseapp.com",
@@ -444,15 +545,135 @@
         scrollSyncTimer = setTimeout(() => window.syncUpload(), 1500);
     });
 
-// 修改 window.onload 或相关的初始化位置
-window.addEventListener('load', () => {
-        setTimeout(() => {
-            window.syncDownload();     // 先执行一次全量拉取
-            window.startRealtimeSync(); // 开启持续监听
-        }, 1000);
-    });
-</script>
+// 修改后的初始化位置：加入 IndexedDB 自动拉取视频逻辑
+window.addEventListener('load', async () => {
+    // 1. 获取当前文档的唯一 ID (anki_xxxx)
+    const id = typeof window.getDocId === 'function' ? window.getDocId() : null;
+    
+    // 2. 尝试从本地 IndexedDB 数据库找回视频文件
+    let isVideoLoaded = false;
+    if (id && typeof loadVideoFromLocal === 'function') {
+        isVideoLoaded = await loadVideoFromLocal(id);
+    }
+    
+    // 3. 如果本地库没找到，再显示待加载的文件名提示
+    if (!isVideoLoaded) {
+        const lastVideoName = localStorage.getItem('last_video_name');
+        if (lastVideoName && videoHint) {
+            videoHint.innerText = `待加载: ${lastVideoName}`;
+            videoHint.style.display = 'block';
+        }
+    }
 
+    // 4. 原有的 Firebase 同步逻辑（延时执行确保 UI 准备就绪）
+    setTimeout(() => {
+        if (window.syncDownload) window.syncDownload();     // 执行云端进度拉取
+        if (window.startRealtimeSync) window.startRealtimeSync(); // 开启实时同步
+    }, 1000);
+});
+</script>
+<script>
+    /**
+     * --- 视频本地持久化模块 (IndexedDB) ---
+     * 专门用于在 iOS Anki 和 Mac Brave 中存储大体积视频文件
+     */
+    const VDB_NAME = "AnkiVideoDB";
+    const V_STORE = "videos";
+    const MAX_VIDEOS = 3; // 最多保留最近的 3 个视频，防止占用过多磁盘空间
+    
+    // 1. 初始化数据库
+    function initVDB() {
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(VDB_NAME, 2); // 版本 2
+            request.onupgradeneeded = (e) => {
+                const db = e.target.result;
+                if (!db.objectStoreNames.contains(V_STORE)) {
+                    db.createObjectStore(V_STORE); 
+                }
+            };
+            request.onsuccess = (e) => resolve(e.target.result);
+            request.onerror = (e) => reject(e.target.error);
+        });
+    }
+    
+    // 2. 保存视频（带自动清理逻辑）
+    async function saveVideoToLocal(id, file) {
+        if (!id) return;
+        try {
+            const db = await initVDB();
+            const tx = db.transaction(V_STORE, "readwrite");
+            const store = tx.objectStore(V_STORE);
+    
+            // 获取当前所有已存视频的 ID
+            const keys = await new Promise(res => {
+                const r = store.getAllKeys();
+                r.onsuccess = () => res(r.result);
+            });
+    
+            // 如果超出限制且不是覆盖旧视频，则删除最早的一个
+            if (keys.length >= MAX_VIDEOS && !keys.includes(id)) {
+                console.log("存储已满，清理旧缓存:", keys[0]);
+                await store.delete(keys[0]);
+            }
+    
+            // 写入新视频
+            await store.put({
+                blob: file,
+                name: file.name,
+                ts: Date.now()
+            }, id);
+            
+            console.log(`✅ 视频已持久化: ${file.name}`);
+            if(typeof updateStatus === 'function') updateStatus("💾 视频已同步至本地", true);
+        } catch (e) {
+            console.error("IndexedDB Save Error:", e);
+        }
+    }
+    
+ // 3. 读取并加载视频（优化内存管理版）
+async function loadVideoFromLocal(id) {
+    if (!id) return false;
+    try {
+        const db = await initVDB();
+        const tx = db.transaction(V_STORE, "readonly");
+        const store = tx.objectStore(V_STORE);
+        
+        const record = await new Promise(res => {
+            const req = store.get(id);
+            req.onsuccess = () => res(req.result);
+        });
+
+        if (record && record.blob) {
+            const videoElement = document.getElementById('videoPlayer');
+            if (!videoElement) return false;
+
+            // --- 核心优化：释放旧的内存引用 ---
+            // 如果当前已经有一个 blob 链接，先撤销它，防止内存泄漏
+            if (videoElement.src && videoElement.src.startsWith('blob:')) {
+                URL.revokeObjectURL(videoElement.src);
+                console.log("♻️ 已释放旧视频内存占用");
+            }
+
+            // 生成新的本地访问链接
+            const videoUrl = URL.createObjectURL(record.blob);
+            videoElement.src = videoUrl;
+            
+            // UI 反馈
+            const hint = document.getElementById('video-hint');
+            if (hint) hint.style.display = 'none';
+            if (typeof updateStatus === 'function') {
+                updateStatus(`🎬 已自动加载本地缓存: ${record.name}`, true);
+            }
+            
+            console.log(`✅ 成功从 IndexedDB 加载视频: ${record.name}`);
+            return true;
+        }
+    } catch (e) {
+        console.error("IndexedDB Load Error:", e);
+    }
+    return false;
+}
+</script>
 <!-- ===================== 主逻辑 ===================== -->
 <script>
     let touchStartX = 0, touchStartY = 0;
@@ -527,13 +748,22 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-    // ── 视频文件上传 ──
-document.getElementById('videoInput').addEventListener('change', (e) => {
+// ── 修改后的视频文件上传监听 ──
+document.getElementById('videoInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
+
+    // 1. 立即播放（保持原逻辑）
     videoHint.style.display = 'none';
     video.src = URL.createObjectURL(file);
     updateStatus("视频已加载", true);
+
+    // 2. 核心：关联 ID 并存入本地数据库
+    const id = window.getDocId(); // 自动读取你的 customid
+    if (id) {
+        await saveVideoToLocal(id, file);
+        localStorage.setItem('last_video_name', file.name); // 记录文件名用于提示
+    }
 });
 
     // ── 字幕文件手动上传 ──
@@ -867,7 +1097,7 @@ function applyBoldFromPositions() {
         const query = selected.replace(/[.,!?;:"]/g, '');
         const url   = `https://www.bing.com/images/search?q=${encodeURIComponent(query)}&adlt=strict&form=HDRSC2`;
 
-        document.getElementById('preview-word-title').innerText = `Bing 图片搜索: ${query}`;
+        document.getElementById('preview-word-title').innerText = `Bing 图片: ${query}`;
         const iframe = document.getElementById('preview-iframe');
         iframe.src = 'about:blank';
         setTimeout(() => { iframe.src = url; }, 10);
