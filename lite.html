@@ -419,26 +419,37 @@ async function loadVideoFromLocal(id) {
     const fbApp = initializeApp(firebaseConfig);
     const db = getDatabase(fbApp);
 
-    window.syncDownload = async function() {
+window.syncDownload = async function() {
     const id = window.getDocId();
     if (!id) return;
+
     try {
         const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
         if (snapshot.exists()) {
             const data = snapshot.val();
-            // 获取索引数组
-            window.boldPositions = data.boldIndices || []; 
-            // 立即刷新视觉效果
-            applyBoldFromPositions(); 
             
-            // 如果云端有滚动位置，且本地没在滚动，则恢复
-            if (data.scrollPos !== undefined && !window.userIsScrolling) {
-                transcriptContainer.scrollTop = data.scrollPos * (transcriptContainer.scrollHeight - transcriptContainer.clientHeight);
+            // 1. 同步加粗索引
+            if (data.boldIndices && Array.isArray(data.boldIndices)) {
+                window.boldPositions = data.boldIndices;
+                // 核心：下载完后立即去给已经生成的 HTML 上色
+                if (typeof applyBoldFromPositions === 'function') {
+                    applyBoldFromPositions();
+                }
+            }
+            
+            // 2. 同步滚动位置
+            const transcript = document.getElementById('transcript');
+            if (data.scrollPos !== undefined && !window.userIsScrolling && transcript) {
+                setTimeout(() => {
+                    transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                    updateStatus("✨ 进度已同步", true);
+                }, 300);
             }
         }
-    } catch(e) { console.error("同步下载失败:", e); }
+    } catch(e) {
+        console.error("同步失败:", e);
+    }
 };
-
     // 从 URL 参数获取文档 ID
     window.getDocId = function() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -462,47 +473,6 @@ async function loadVideoFromLocal(id) {
             });
             updateStatus("☁️ 进度已同步", true);
         } catch(e) { console.error(e); }
-    };
-
-    // ☁️ 下载：根据云端文本内容列表还原加粗和滚动位置
-    window.syncDownload = async function() {
-        const id = window.getDocId();
-        if (!id) return;
-
-        try {
-            const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
-            if (!snapshot.exists()) return;
-
-            const data = snapshot.val();
-            const transcript = document.getElementById('transcript');
-
-            // A. 还原加粗（兼容旧版 boldIndices 格式）
-            if (data.boldTexts && Array.isArray(data.boldTexts)) {
-                const boldSet = new Set(data.boldTexts);
-                // 遍历所有内容节点，将匹配文本的节点加粗
-                transcript.querySelectorAll('.content').forEach(contentEl => {
-                    wrapMatchingWords(contentEl, boldSet);
-                });
-            } else if (data.boldIndices && Array.isArray(data.boldIndices)) {
-                // 兼容旧版：按索引还原（旧版用 .word span）
-                const allWords = transcript.querySelectorAll('.word');
-                allWords.forEach(span => span.classList.remove('custom-bold'));
-                data.boldIndices.forEach(idx => {
-                    if (allWords[idx]) allWords[idx].classList.add('custom-bold');
-                });
-            }
-
-            // B. 还原滚动位置
-            if (data.scrollPos !== undefined) {
-                setTimeout(() => {
-                    transcript.scrollTop =
-                        data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                    updateStatus("✨ 已加载上次阅读位置", true);
-                }, 300);
-            }
-        } catch(e) {
-            console.error("Firebase Download Error:", e);
-        }
     };
 
     // 工具：在纯文本节点中找到匹配词并包裹 <span class="custom-bold">
@@ -837,12 +807,15 @@ window.boldPositions = []; // 存储加粗的索引数组
 function renderSubtitles(cues) {
     const transcript = document.getElementById('transcript');
     transcript.innerHTML = '';
-    globalWordCount = 0; // 每次重新加载字幕时重置索引
+    globalWordCount = 0; 
 
     if (!cues || cues.length === 0) {
         transcript.innerHTML = '<div class="empty-state"><p>暂无字幕内容</p></div>';
         return;
     }
+
+    // 预读当前的加粗位置，提升渲染性能
+    const currentBolds = new Set(window.boldPositions || []);
 
     cues.forEach((cue, index) => {
         const div = document.createElement('div');
@@ -851,20 +824,17 @@ function renderSubtitles(cues) {
         const nextTime = cues[index + 1] ? cues[index + 1].start : cue.start + 5;
         div.dataset.endTime = nextTime;
 
-        // --- 核心：索引化拆分文本 ---
-        // 使用与 Cloze Master Pro 相同的正则，保留空格、单词、中文
         const segments = cue.text.split(/([a-zA-Z]+|[\u4e00-\u9fa5]|[^\s\w\u4e00-\u9fa5]+)/g);
         
         let spansHtml = '';
         segments.forEach(seg => {
             if (!seg) return;
-            const isWhitespace = /^\s+$/.test(seg);
-            if (isWhitespace) {
-                // 空格直接输出纯文本，不包裹 span
+            if (/^\s+$/.test(seg)) {
                 spansHtml += seg;
             } else {
                 const idx = globalWordCount++;
-                const isBold = window.boldPositions.includes(idx) ? 'custom-bold' : '';
+                // 渲染时检查是否在加粗名单中
+                const isBold = currentBolds.has(idx) ? 'custom-bold' : '';
                 spansHtml += `<span class="word-span ${isBold}" data-index="${idx}">${seg}</span>`;
             }
         });
@@ -874,40 +844,27 @@ function renderSubtitles(cues) {
             <div class="content">${spansHtml}</div>
         `;
 
-        // --- 事件绑定：保持高效 ---
+        // ... 事件绑定逻辑保持你原来的不变 ...
         const contentArea = div.querySelector('.content');
         let clickTimer = null;
-
         contentArea.onclick = (e) => {
             const target = e.target;
-            // 确保点击的是单词
             if (!target.classList.contains('word-span')) return;
-
             if (clickTimer) {
-                // --- 双击逻辑：整句复制 ---
-                clearTimeout(clickTimer);
-                clickTimer = null;
-                
-                // 视觉反馈：选中整句
+                clearTimeout(clickTimer); clickTimer = null;
                 const sel = window.getSelection();
                 const range = document.createRange();
                 range.selectNodeContents(contentArea);
-                sel.removeAllRanges();
-                sel.addRange(range);
-                
+                sel.removeAllRanges(); sel.addRange(range);
                 copyToClipboard(cue.text, "已复制整句");
             } else {
-                // --- 单击逻辑：索引定位词 ---
                 clickTimer = setTimeout(() => {
                     const word = target.innerText.trim().replace(/[.,!?;:"]/g, '');
                     if (word) {
-                        // 视觉反馈：选中当前词
                         const sel = window.getSelection();
                         const range = document.createRange();
                         range.selectNodeContents(target);
-                        sel.removeAllRanges();
-                        sel.addRange(range);
-
+                        sel.removeAllRanges(); sel.addRange(range);
                         copyToClipboard(word, "已复制单词: " + word);
                     }
                     clickTimer = null;
@@ -915,7 +872,6 @@ function renderSubtitles(cues) {
             }
         };
 
-        // 播放按钮逻辑保持不变
         div.querySelector('.play-btn').onclick = (e) => {
             e.stopPropagation();
             video.dataset.singlePlayMode = "true";
@@ -928,6 +884,12 @@ function renderSubtitles(cues) {
 
         transcript.appendChild(div);
     });
+
+    // --- 核心修复：渲染完成后强制刷一遍加粗 ---
+    // 如果 Firebase 数据比渲染先到，这一步能保证颜色正确
+    if (window.applyBoldFromPositions) {
+        window.applyBoldFromPositions();
+    }
 }
 
 
