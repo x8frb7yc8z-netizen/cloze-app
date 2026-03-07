@@ -318,8 +318,25 @@
     const fbApp = initializeApp(firebaseConfig);
     const db = getDatabase(fbApp);
 
-    // ✅ 新增：初始化锁。防止下载完成前自动上传覆盖云端。
-    window.isDataInitialized = false;
+    window.syncDownload = async function() {
+    const id = window.getDocId();
+    if (!id) return;
+    try {
+        const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
+        if (snapshot.exists()) {
+            const data = snapshot.val();
+            // 获取索引数组
+            window.boldPositions = data.boldIndices || []; 
+            // 立即刷新视觉效果
+            applyBoldFromPositions(); 
+            
+            // 如果云端有滚动位置，且本地没在滚动，则恢复
+            if (data.scrollPos !== undefined && !window.userIsScrolling) {
+                transcriptContainer.scrollTop = data.scrollPos * (transcriptContainer.scrollHeight - transcriptContainer.clientHeight);
+            }
+        }
+    } catch(e) { console.error("同步下载失败:", e); }
+};
 
     // 从 URL 参数获取文档 ID
     window.getDocId = function() {
@@ -328,47 +345,8 @@
         return (customId && customId.trim()) ? "anki_" + customId.trim() : null;
     };
 
-    // ☁️ 唯一下载函数：彻底清理旧逻辑，只保留索引模式
-    window.syncDownload = async function() {
-        const id = window.getDocId();
-        if (!id) return;
-        
-        try {
-            const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
-            if (snapshot.exists()) {
-                const data = snapshot.val();
-                
-                // 1. 还原加粗索引
-                window.boldPositions = data.boldIndices || []; 
-                if (typeof applyBoldFromPositions === 'function') {
-                    applyBoldFromPositions(); 
-                }
-                
-                // 2. 还原滚动位置 (仅当用户没在手动操作时)
-                const transcript = document.getElementById('transcript');
-                if (data.scrollPos !== undefined && !window.userIsScrolling) {
-                    setTimeout(() => {
-                        transcript.scrollTop = data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
-                        updateStatus("✨ 进度与标记已同步", true);
-                    }, 300);
-                }
-            } else {
-                window.boldPositions = [];
-                console.log("云端尚无此文档记录");
-            }
-
-            // ✅ 下载结束，允许后续的上传操作
-            window.isDataInitialized = true;
-
-        } catch(e) { 
-            console.error("同步下载失败:", e); 
-        }
-    };
-
-    // ☁️ 上传：带锁检查
+    // ☁️ 上传：将加粗词的文本内容列表同步到云端
     window.syncUpload = async function() {
-        if (!window.isDataInitialized) return; // 🔒 没同步过不准上传
-
         const id = window.getDocId();
         if (!id) return;
 
@@ -377,45 +355,101 @@
 
         try {
             await set(ref(db, 'video_reader_sync/' + id), {
-                boldIndices: window.boldPositions || [], 
+                boldIndices: window.boldPositions || [], // 存储索引
                 scrollPos: scrollPercent,
                 ts: Date.now()
             });
             updateStatus("☁️ 进度已同步", true);
-        } catch(e) { console.error("同步上传失败:", e); }
+        } catch(e) { console.error(e); }
     };
 
-    // ☁️ 实时监听：保持跨设备同步
-    window.startRealtimeSync = function() {
+    // ☁️ 下载：根据云端文本内容列表还原加粗和滚动位置
+    window.syncDownload = async function() {
         const id = window.getDocId();
         if (!id) return;
-        const dbRef = ref(db, 'video_reader_sync/' + id);
-        onValue(dbRef, (snapshot) => {
-            if (snapshot.exists() && window.isDataInitialized) {
-                const data = snapshot.val();
-                // 只有当本地没有选区时才覆盖，防止打断用户操作
-                if (data.boldIndices && !window.getSelection()?.toString()) {
-                    window.boldPositions = data.boldIndices;
-                    if (typeof applyBoldFromPositions === 'function') applyBoldFromPositions();
-                }
+
+        try {
+            const snapshot = await get(child(ref(db), 'video_reader_sync/' + id));
+            if (!snapshot.exists()) return;
+
+            const data = snapshot.val();
+            const transcript = document.getElementById('transcript');
+
+            // A. 还原加粗（兼容旧版 boldIndices 格式）
+            if (data.boldTexts && Array.isArray(data.boldTexts)) {
+                const boldSet = new Set(data.boldTexts);
+                // 遍历所有内容节点，将匹配文本的节点加粗
+                transcript.querySelectorAll('.content').forEach(contentEl => {
+                    wrapMatchingWords(contentEl, boldSet);
+                });
+            } else if (data.boldIndices && Array.isArray(data.boldIndices)) {
+                // 兼容旧版：按索引还原（旧版用 .word span）
+                const allWords = transcript.querySelectorAll('.word');
+                allWords.forEach(span => span.classList.remove('custom-bold'));
+                data.boldIndices.forEach(idx => {
+                    if (allWords[idx]) allWords[idx].classList.add('custom-bold');
+                });
             }
-        });
+
+            // B. 还原滚动位置
+            if (data.scrollPos !== undefined) {
+                setTimeout(() => {
+                    transcript.scrollTop =
+                        data.scrollPos * (transcript.scrollHeight - transcript.clientHeight);
+                    updateStatus("✨ 已加载上次阅读位置", true);
+                }, 300);
+            }
+        } catch(e) {
+            console.error("Firebase Download Error:", e);
+        }
     };
 
-    // 停止滚动 2秒 后自动上传
+    // 工具：在纯文本节点中找到匹配词并包裹 <span class="custom-bold">
+    function wrapMatchingWords(container, boldSet) {
+        // 已有加粗的先清除，重新标记
+        container.querySelectorAll('.custom-bold').forEach(el => {
+            el.replaceWith(document.createTextNode(el.textContent));
+        });
+        container.normalize();
+
+        // 遍历文本节点，按词匹配
+        const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+        const nodesToProcess = [];
+        let node;
+        while ((node = walker.nextNode())) nodesToProcess.push(node);
+
+        nodesToProcess.forEach(textNode => {
+            const words = textNode.textContent.split(/(\s+)/);
+            if (words.length <= 1) return;
+            const frag = document.createDocumentFragment();
+            words.forEach(part => {
+                const clean = part.trim().replace(/[.,!?;:"]/g, '');
+                if (boldSet.has(clean) && clean.length > 0) {
+                    const span = document.createElement('span');
+                    span.className = 'custom-bold';
+                    span.textContent = part;
+                    frag.appendChild(span);
+                } else {
+                    frag.appendChild(document.createTextNode(part));
+                }
+            });
+            textNode.parentNode.replaceChild(frag, textNode);
+        });
+    }
+
+    // 停止滚动 1.5s 后自动上传
     let scrollSyncTimer;
     document.getElementById('transcript').addEventListener('scroll', () => {
-        if (!window.isDataInitialized) return; // 🔒 初始加载触发的滚动不予理睬
         clearTimeout(scrollSyncTimer);
-        scrollSyncTimer = setTimeout(() => window.syncUpload(), 2000);
+        scrollSyncTimer = setTimeout(() => window.syncUpload(), 1500);
     });
 
-    window.addEventListener('load', () => {
-        // 适当延时确保主逻辑的渲染函数已就绪
+// 修改 window.onload 或相关的初始化位置
+window.addEventListener('load', () => {
         setTimeout(() => {
-            window.syncDownload();     
-            window.startRealtimeSync(); 
-        }, 800);
+            window.syncDownload();     // 先执行一次全量拉取
+            window.startRealtimeSync(); // 开启持续监听
+        }, 1000);
     });
 </script>
 
@@ -595,12 +629,14 @@ function renderSubtitles(cues) {
         segments.forEach(seg => {
             if (!seg) return;
             const isWhitespace = /^\s+$/.test(seg);
-            // 逻辑：空格借用前一个索引，确保标记连贯性
-            let idx = isWhitespace ? Math.max(0, globalWordCount - 1) : globalWordCount++;
-            
-            // 初始渲染时检查是否在加粗列表中
-            const isBold = window.boldPositions.includes(idx) ? 'custom-bold' : '';
-            spansHtml += `<span class="word-span ${isBold}" data-index="${idx}">${seg}</span>`;
+            if (isWhitespace) {
+                // 空格直接输出纯文本，不包裹 span
+                spansHtml += seg;
+            } else {
+                const idx = globalWordCount++;
+                const isBold = window.boldPositions.includes(idx) ? 'custom-bold' : '';
+                spansHtml += `<span class="word-span ${isBold}" data-index="${idx}">${seg}</span>`;
+            }
         });
 
         div.innerHTML = `
@@ -698,21 +734,23 @@ function renderSubtitles(cues) {
     }
 
     // ── 加粗/取消加粗（来自文档2的 Range 方案，支持跨词操作） ──
-    function boldSelectedText() {
+function boldSelectedText() {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) {
         updateStatus("请先选中文字", false);
         return;
     }
 
-    // 获取选区内所有的 word-span
     const range = sel.getRangeAt(0);
     const spans = document.querySelectorAll('.word-span');
     let selectedIndices = [];
 
     spans.forEach(span => {
-        // 判断 span 是否在选区内
-        if (sel.containsNode(span, true)) {
+        const spanRange = document.createRange();
+        spanRange.selectNodeContents(span);
+        const startOk = range.compareBoundaryPoints(Range.START_TO_START, spanRange) <= 0;
+        const endOk   = range.compareBoundaryPoints(Range.END_TO_END, spanRange) >= 0;
+        if (startOk && endOk) {
             selectedIndices.push(parseInt(span.dataset.index));
         }
     });
@@ -722,7 +760,6 @@ function renderSubtitles(cues) {
         return;
     }
 
-    // 逻辑：如果选中的词里有任何一个还没加粗，则全部加粗；否则视为“取消加粗”
     const anyNotBold = selectedIndices.some(idx => !window.boldPositions.includes(idx));
 
     if (anyNotBold) {
@@ -735,13 +772,8 @@ function renderSubtitles(cues) {
         updateStatus("已取消标记", true);
     }
 
-    // 1. 立即刷新视觉效果
     applyBoldFromPositions();
-    
-    // 2. 清除选区，方便阅读
     sel.removeAllRanges();
-
-    // 3. 立即同步到 Firebase
     if (window.syncUpload) window.syncUpload();
 }
 
