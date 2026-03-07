@@ -734,7 +734,7 @@ function renderSubtitles(cues) {
     }
 
     // ── 加粗/取消加粗（来自文档2的 Range 方案，支持跨词操作） ──
-function boldSelectedText() {
+    function boldSelectedText() {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed) {
         updateStatus("请先选中文字", false);
@@ -746,11 +746,9 @@ function boldSelectedText() {
     let selectedIndices = [];
 
     spans.forEach(span => {
-        const spanRange = document.createRange();
-        spanRange.selectNodeContents(span);
-        const startOk = range.compareBoundaryPoints(Range.START_TO_START, spanRange) <= 0;
-        const endOk   = range.compareBoundaryPoints(Range.END_TO_END, spanRange) >= 0;
-        if (startOk && endOk) {
+        // 使用 intersectsNode 判断选区是否与单词节点相交
+        // 这样即使只选中单词的一部分，或者没选后面的空格，也会被计入
+        if (sel.containsNode(span, true)) {
             selectedIndices.push(parseInt(span.dataset.index));
         }
     });
@@ -760,6 +758,7 @@ function boldSelectedText() {
         return;
     }
 
+    // 逻辑：如果选中的单词中有一个没加粗，则全部加粗；如果全都是加粗的，则取消加粗
     const anyNotBold = selectedIndices.some(idx => !window.boldPositions.includes(idx));
 
     if (anyNotBold) {
@@ -773,7 +772,11 @@ function boldSelectedText() {
     }
 
     applyBoldFromPositions();
+    
+    // 操作完成后清除选区，防止视觉干扰
     sel.removeAllRanges();
+    
+    // 如果存在同步函数则触发
     if (window.syncUpload) window.syncUpload();
 }
 
